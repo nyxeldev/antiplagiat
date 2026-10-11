@@ -2,7 +2,7 @@
 
 O‘zbekiston xalqaro islom akademiyasining ruxsat bilan to‘plangan ilmiy hujjatlari va foydalanish huquqi tekshirilgan tashqi manbalar bilan matn o‘xshashligini aniqlash loyihasi.
 
-**Holat:** 0-bosqich — boshlang‘ich hujjatlar. Dastur, ma’lumotlar bazasi va API integratsiyalari hali yaratilmagan. Windows muhiti tekshirilmagan. Quyidagi yechimlar boshlang‘ich taklif; akademiya tomonidan tasdiqlangan siyosat emas.
+**Holat:** boshlang‘ich hujjatlar va minimal FastAPI backend (`GET /health`) mavjud. Windows muhiti tekshirilgan. Frontend va API integratsiyalari hali yaratilmagan. Quyidagi yechimlar boshlang‘ich taklif; akademiya tomonidan tasdiqlangan siyosat emas.
 
 **Hujjat versiyasi:** 0.1 · **Sana:** 2026-10-12.
 
@@ -39,7 +39,36 @@ Codex — amaliy o‘zgarishlar; Claude Code — mustaqil review va test; ChatGP
 
 ## Hozirgi yagona qadam
 
-Ushbu to‘rtta hujjatni o‘qib, boshlang‘ich doira tushunarli ekanini tekshirish. Hozir o‘rnatish, serverni ishga tushirish yoki dastur kodi yozish talab qilinmaydi. Hujjatlar ko‘rib chiqilgach, keyingi alohida qadam Windows muhiti va loyiha uchun papkani aniqlash bo‘ladi.
+Minimal FastAPI backend va `GET /health` endpointini haqiqiy HTTP so‘rovi bilan tekshirish. Endpoint faqat backend ishlayotganini bildiradi; ma’lumotlar bazasiga ulanmaydi va uning tayyorligini tekshirmaydi.
+
+## Backendni ishga tushirish va tekshirish
+
+Faqat toza checkoutda, `.venv` hali mavjud bo‘lmasa, Python 3.14 orqali virtual muhit yarating va backend paketlarini o‘rnating. Quyidagi tayyorlash buyruqlarini mavjud `.venv` ustida bajarmang:
+
+```powershell
+Set-Location D:\aniplagiat
+py -3.14 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+.\.venv\Scripts\python.exe -m pip check
+```
+
+Toza muhitdan qayta o‘rnatish hali sinovdan o‘tmagan.
+
+PowerShell’da loyiha ildizidan (`D:\aniplagiat`), mavjud `.venv` orqali:
+
+```powershell
+Set-Location D:\aniplagiat
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+Ikkinchi PowerShell oynasida haqiqiy HTTP javobini tekshirish:
+
+```powershell
+Set-Location D:\aniplagiat
+.\.venv\Scripts\python.exe -c "import json, urllib.request; r = urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5); body = r.read().decode('utf-8'); print(r.status, body); assert r.status == 200; assert json.loads(body) == {'status': 'ok'}"
+```
+
+Kutiladigan natija: `200 {"status":"ok"}`. Serverni ishga tushirgan oynada `Ctrl+C` bilan to‘xtating. `backend/requirements.txt` backend muhiti paketlarining aniq versiyalar bilan qayd etilgan ro‘yxati; paketlarni o‘rnatish vositasi bo‘lgan `pip` bu ro‘yxatga kiritilmagan.
 
 ## Hali aniqlanmagan ma’lumotlar
 

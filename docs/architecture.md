@@ -1,6 +1,8 @@
 # Dastlabki arxitektura
 
-Versiya 0.1 · 2026-10-12 · Loyihaviy qarorlar; hali implementatsiya qilinmagan.
+Versiya 0.1 · 2026-10-12 · Minimal FastAPI backend va `GET /health` mavjud; qolgan arxitektura rejalashtirilgan.
+
+`/health` faqat backend ishlayotganini bildiradi va bazaning tayyorligini tekshirmaydi. PostgreSQL ulanishi qo‘lda tekshirilgan, ammo backend hali ma’lumotlar bazasiga integratsiya qilinmagan.
 
 ## 1. Komponentlar
 
