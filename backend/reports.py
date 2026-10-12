@@ -54,7 +54,10 @@ def save(owner, key, digest, snapshot):
     # Commit has completed before any response can claim it was saved.
     if row:
         return response(row)
-    return retry(owner, key, digest)
+    previous = retry(owner, key, digest)
+    if previous is None:
+        raise ServiceError("report_conflict", "Hisobotni saqlash natijasini tasdiqlab bo‘lmadi. Qayta urinib ko‘ring.", 409)
+    return previous
 
 
 def history(owner, page):

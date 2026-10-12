@@ -13,12 +13,17 @@ import warnings
 from pathlib import Path
 
 from psycopg import sql
+from psycopg.errors import UniqueViolation
 
 from backend.persistence import ServiceError, database
 
 
 class MigrationError(Exception):
     """Safe actionable migration errors, separate from raw driver errors."""
+
+
+class UsernameTakenError(Exception):
+    """CLI domain error; must not inherit ValueError or psycopg.Error."""
 
 
 def hidden_password(prompt):
@@ -89,8 +94,14 @@ def create_user(config, username, password, role="user"):
     user_id = uuid.uuid4()
     hashed = password_hash(password)
     with database(config) as conn:
-        conn.execute("INSERT INTO antiplagiat.users(id,username,password_hash,role) VALUES (%s,%s,%s,%s)",
-                     (user_id, username, hashed, role))
+        try:
+            conn.execute("INSERT INTO antiplagiat.users(id,username,password_hash,role) VALUES (%s,%s,%s,%s)",
+                         (user_id, username, hashed, role))
+        except UniqueViolation as error:
+            if (error.diag.schema_name == "antiplagiat" and error.diag.table_name == "users"
+                    and error.diag.constraint_name == "users_username_key"):
+                raise UsernameTakenError("Bu login allaqachon band.") from None
+            raise
     return user_id
 
 
@@ -114,7 +125,7 @@ def main():
                 raise ValueError("Parollar bir xil emas.")
             create_user(config, args.username, password, args.role)
             print("Akkaunt yaratildi.")
-    except (ServiceError, ValueError, MigrationError) as error:
+    except (ServiceError, ValueError, MigrationError, UsernameTakenError) as error:
         print(error.message if isinstance(error, ServiceError) else str(error), file=sys.stderr)
         sys.exit(1)
 
