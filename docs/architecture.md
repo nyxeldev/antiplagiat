@@ -1,8 +1,12 @@
 # Dastlabki arxitektura
 
-Versiya 0.1 · 2026-10-12 · Minimal FastAPI backend va `GET /health` mavjud; qolgan arxitektura rejalashtirilgan.
+Versiya 0.1 · 2026-10-12 · Minimal FastAPI backend, `GET /health` va PostgreSQL uchun `GET /ready` mavjud; qolgan arxitektura rejalashtirilgan.
 
-`/health` faqat backend ishlayotganini bildiradi va bazaning tayyorligini tekshirmaydi. PostgreSQL ulanishi qo‘lda tekshirilgan, ammo backend hali ma’lumotlar bazasiga integratsiya qilinmagan.
+`/health` faqat backend ishlayotganini bildiradi va bazaning tayyorligini tekshirmaydi. `/ready` sinxron Psycopg orqali `SELECT 1` bajaradi: muvaffaqiyatda HTTP 200 va `{"status":"ready"}`, sozlama yoki ulanish/SQL xatosida HTTP 503 va `{"status":"not_ready"}`. Bu sxema tayyorligi tekshiruvi emas. Foydalanuvchi Windows’da haqiqiy PostgreSQL bilan `/ready` → HTTP 200 va `{"status":"ready"}` natijasini tasdiqlagan. Psycopg qo‘shilgan joriy requirements ro‘yxati bilan toza muhitdan qayta o‘rnatish hali tekshirilmagan.
+
+Ulanish uchun `ANTIPLAGIAT_DB_HOST`, `ANTIPLAGIAT_DB_PORT`, `ANTIPLAGIAT_DB_NAME`, `ANTIPLAGIAT_DB_USER`, `ANTIPLAGIAT_DB_PASSWORD` OS muhit o‘zgaruvchilarining barchasi majburiy. Port 1–65535 oralig‘ida tekshiriladi. `.env` avtomatik yuklanmaydi; `.env.example` faqat parolsiz namuna. Standart parol va postgres hisobiga avtomatik qaytish yo‘q.
+
+Import vaqtida ulanish ochilmaydi. Har readiness so‘rovi yangi ulanish ochadi; context manager uni muvaffaqiyat va xatoda yopadi. Ulanish timeouti 3 soniya, SQL statement timeouti 3000 ms. FastAPI sinxron endpointni ishchi threadda bajaradi, event loop bloklanmaydi. Ilova javobida maxfiy sozlamalar yoki xom ulanish xatolari chiqarilmaydi; ilova kodi xom ulanish xatolarini ataylab loglamaydi. Bu uchinchi tomon drayverining barcha loglari tozalanganini kafolatlamaydi; drayver loglarini to‘liq tozalash amalga oshirilmagan. Hozir pool, ORM va migratsiyalar yo‘q.
 
 ## 1. Komponentlar
 
