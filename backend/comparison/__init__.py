@@ -1,0 +1,1 @@
+"""Local, ephemeral document comparison."""

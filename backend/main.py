@@ -2,9 +2,11 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from backend.database import database_ready
+from backend.comparison.api import router as comparison_router
 
 
 app = FastAPI()
+app.include_router(comparison_router)
 
 
 @app.get("/health")
