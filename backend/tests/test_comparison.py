@@ -3,6 +3,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -281,7 +282,8 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             return {"type": "http.request", "body": body, "more_body": False}
         request = Request({"type": "http", "method": "POST", "scheme": "http", "path": "/compare",
                            "query_string": b"", "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
-                           "headers": [(b"content-type", content_type.encode()), (b"x-antiplagiat-local", b"1")]}, receive)
+                           "headers": [(b"content-type", content_type.encode()), (b"x-antiplagiat-local", b"1"),
+                                       (b"idempotency-key", str(uuid.uuid4()).encode())]}, receive)
         return await api.compare_uploads(request)
 
     async def test_cleanup_success_error_and_malformed_upload(self):
@@ -301,6 +303,31 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             response = await self.request(body[:-10], content_type)
             self.assertEqual(response.status_code, 400)
         self.assertTrue(all(not Path(path).exists() for path in seen))
+        self.assertFalse(api.gate.locked())
+
+    def setUp(self):
+        self.patches = [patch.object(api.auth, "require_user", return_value={"id": str(uuid.uuid4())}),
+                        patch.object(api.reports, "retry", return_value=None),
+                        patch.object(api.reports, "save", side_effect=lambda owner, key, digest, result: result)]
+        for item in self.patches:
+            item.start()
+            self.addCleanup(item.stop)
+
+    async def test_database_failure_after_worker_cleans_resources(self):
+        from backend.persistence import ServiceError
+        body, content_type = multipart([("document", "a.txt", TEXT.encode()), ("sources", "b.txt", TEXT.encode())])
+        original = tempfile.TemporaryDirectory
+        seen = []
+        def temporary(**kwargs):
+            result = original(**kwargs)
+            seen.append(result.name)
+            return result
+        with patch.object(api.tempfile, "TemporaryDirectory", side_effect=temporary), \
+                patch.object(api, "run_worker", return_value={"status": "completed"}), \
+                patch.object(api.reports, "save", side_effect=ServiceError("database_unavailable", "private DB failure", 503)):
+            with self.assertRaises(ServiceError):
+                await self.request(body, content_type)
+        self.assertTrue(seen and all(not Path(path).exists() for path in seen))
         self.assertFalse(api.gate.locked())
 
 

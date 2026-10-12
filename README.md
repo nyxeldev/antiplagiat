@@ -2,9 +2,9 @@
 
 O‘zbekiston xalqaro islom akademiyasining ruxsat bilan to‘plangan ilmiy hujjatlari va foydalanish huquqi tekshirilgan tashqi manbalar bilan matn o‘xshashligini aniqlash loyihasi.
 
-**Holat:** lokal end-to-end hujjat solishtirish prototipi mavjud: Next.js interfeysidan TXT/DOCX/PDF yuklanadi, FastAPI leksik solishtiradi va mos parchalar bilan hisobot qaytaradi. `GET /health` va PostgreSQL uchun `GET /ready` saqlangan. Prototip autentifikatsiyasiz, akademiyada foydalanishga tayyor tizim emas. Quyidagi kelajak yechimlari boshlang‘ich taklif; akademiya tomonidan tasdiqlangan siyosat emas.
+**Holat:** lokal autentifikatsiya va shaxsiy tekshiruvlar tarixi mavjud. CLI orqali yaratilgan hisob login/parol bilan kiradi, TXT/DOCX/PDF solishtiradi, PostgreSQL’da saqlangan hisobotni tarixdan ochadi yoki tasdiqlab o‘chiradi va logout qiladi. Har bir backend so‘rovi session va egalikni tekshiradi. `GET /health` va `GET /ready` saqlangan. Bu lokal ishlab chiqish bosqichi; akademiya piloti uchun tayyor tizim emas.
 
-**Hujjat versiyasi:** 0.1 · **Sana:** 2026-10-12.
+**Hujjat versiyasi:** 0.3 · **Sana:** 2026-10-13.
 
 ## Maqsad va chegaralar
 
@@ -39,7 +39,37 @@ Codex — amaliy o‘zgarishlar; Claude Code — mustaqil review va test; ChatGP
 
 ## Hozirgi yagona qadam
 
-Lokal solishtirish prototipi yaratildi: bitta tekshiriladigan hujjat va 1–5 ta yuklangan manba to‘liq solishtiriladi. Doimiy korpus, indeks, DB jadvali, login, tashqi qidiruv va semantik model yo‘q. `/health` faqat backend ishlayotganini bildiradi; `/ready` bazada `SELECT 1` bajaradi. Solishtirish uchun PostgreSQL talab qilinmaydi.
+Login, session va shaxsiy hisobot tarixi qo‘shildi. Bitta hujjat va 1–5 manba mavjud algoritm bilan solishtiriladi; muvaffaqiyatli hisobot saqlangandan keyin ko‘rsatiladi. PostgreSQL va migratsiya endi ushbu oqim uchun zarur. Doimiy umumiy korpus, indeks, tashqi qidiruv va semantik model qo‘shilmadi. `/health` backend holati, `/ready` esa avvalgidek faqat `SELECT 1` bilan DB ulanishi haqida ma’lumot beradi; sxema tayyorligini tasdiqlamaydi.
+
+## Autentifikatsiya va shaxsiy tarix
+
+Mavjud psycopg saqlandi; uch jadval va qisqa tranzaksiyalar uchun ORM qo‘shilmadi. `backend/migrations/001_accounts_reports.sql` users, sessions va reportsni yaratadi. `python -m backend.manage migrate` vakolatli **alohida** DB hisobini va yashirin parolni terminalda so‘raydi, migratsiya versiyasi/checksumini qayd qiladi va qayta ishga tushganda bajarilgan versiyani tekshiradi. Noma’lum yoki o‘zgartirilgan migratsiya rad etiladi; DDL va grants bir tranzaksiyada, advisory lock bilan bajariladi. Mavjud baza DROP yoki qayta yaratilmaydi.
+
+`antiplagiat_app` mavjud, superuser va baza egasi bo‘lmagan runtime hisob bo‘lib qoladi. Migratsiya hisobi sxema yaratish va grants berishga vakolatli bo‘lishi kerak. Runtime uchun faqat schema USAGE, users SELECT, sessions SELECT/INSERT/DELETE, reports SELECT/INSERT hamda snapshot/deleted_at ustunlarini o‘chirish uchun UPDATE beriladi. UUID ishlatilgani uchun sequence huquqlari kerak emas. Runtime users/migratsiyalarni boshqarmaydi; report triggeri snapshotni tahrirlashni taqiqlaydi. Migratsiya CLI runtime hisobida ishlashdan bosh tortadi. Appdagi `admin` roli ham faqat o‘z hisobotlarini ko‘radi; `user/reviewer/corpus_manager/admin` maydoni kelajak modelini bildiradi, hozir rol boshqaruvi UI yoki qo‘shimcha huquqlar yo‘q.
+
+Akkaunt yaratish: `python -m backend.manage create-user akademiya_user`; parol ikki marta yashirin kiritiladi (12–256 belgi), login 3–64 kichik lotin harfi/son/`_.-`. Ommaviy ro‘yxatdan o‘tish, email va parolni tiklash yo‘q. Parol [argon2-cffi PasswordHasher](https://argon2-cffi.readthedocs.io/en/stable/howto.html) orqali Argon2id bilan hash qilinadi (64 MiB, 3 iteratsiya, parallelism 4). Runtime dependencylar aniq versiyalangan: argon2-cffi 25.1.0, argon2-cffi-bindings 26.1.0, cffi 2.1.1, pycparser 3.11; Windows/Python 3.14 da haqiqiy hash/verify va `pip check` tekshirildi.
+
+Session — 32 tasodifiy baytdan opaque token; DBda faqat SHA-256 hashi va 8 soatlik muddat. Token URL/localStorage’da emas, Path=/, HttpOnly, SameSite=Strict cookie’da. HTTPS origin’da Secure, lokal HTTP’da Secure=false. Frontend va backenddagi `ANTIPLAGIAT_PUBLIC_ORIGIN` bir xil aniq qiymat bo‘lishi kerak; loopback HTTP standart `http://127.0.0.1:3000`. Boshqa host/portga o‘tilsa ikkala jarayon sozlanadi. HTTPS uchun lokal TLS terminatsiyasi kerak; frontend HTTPS va backend loopback HTTP bo‘lishi mumkin. Host/origin, maxsus header va backend loopback tekshiruvlari birga ishlaydi; CORS ochilmagan va forwarded IP ishonch manbai emas. O‘zgartiruvchi so‘rovda Origin majburiy. Logout DB sessionni o‘chiradi; backend restart sessionni bekor qilmaydi, uning DBdagi muddati saqlanadi.
+
+Login xatosi mavjud/yo‘q akkaunt uchun bir xil; noma’lum akkauntda ham Argon2 verify bajariladi. Lokal limit: socket peer uchun 5 daqiqada 10 urinish (muvaffaqiyatlilari ham), bir paytda ko‘pi bilan 2 hash tekshiruvi. Next.js proxy orqali peer umumiy loopback bo‘lgani uchun foydalanuvchilar limitni bo‘lishadi. Hisoblagich process xotirasida, restartda tozalanadi; ko‘p worker yoki ommaviy xizmat uchun durable/distributed limit o‘rnini bosmaydi. Bitta backend worker bilan ishlating. Cookie/Authorization/parol/hisobot matni loglanmaydi; access log o‘chirilgan. DB xatosi maxfiy tafsilotsiz 503 beradi.
+
+Hisobot UUID, egasi, yaratilgan vaqti, `lexical-shingle-v1` algoritmi, `uz-latin-v2` normalizatsiyasi va immutable JSONB snapshot bilan saqlanadi. Original binar fayllar vaqtinchalik; snapshotdagi **ajratilgan hujjat/manba matnlari ham maxfiy**. Ular internetga yuborilmaydi yoki umumiy korpusga qo‘shilmaydi. Tarix 20 tadan sahifalanadi; ID bilan olish/o‘chirish ham owner predicate bilan tekshiriladi, begona va yo‘q ID bir xil 404 beradi. Saqlash tranzaksiyasi commit qilinmaguncha `saved: true` qaytmaydi.
+
+Bir fayl tanlovi uchun frontend bir xil `Idempotency-Key` UUIDni qayta urinishlarda saqlaydi; DBda `(owner_id, request_key)` unikalligi va fayl/nom/rol SHA-256 digesti duplicate hisobotni cheklaydi. Bir kalitga boshqa kontent — 409. Fayllarni qayta tanlash yoki “Yangi tekshiruv boshlash” yangi ish beradi; sahifa reloadida fayl tanlovi/kalit tiklanmaydi, tarmoq natijasi noaniq bo‘lsa avval tarixni tekshiring. O‘chirish tasdiq bilan snapshot matnini NULL qiladi; minimal tombstone (ID, egasi, sana, versiyalar, kalit va digest) qoladi, qayta yuborish 410 beradi va hisobot qayta ochilmaydi. Bu WAL/backup yoki diskdagi izlarning xavfsiz yo‘qotilishi emas; retention, backup va at-rest himoya siyosati real pilotdan oldin kelishiladi.
+
+Lokal birinchi sozlash (parollarni argument yoki chatga yozmang):
+
+```powershell
+Set-Location D:\aniplagiat
+.\.venv\Scripts\python.exe -m backend.manage migrate
+.\.venv\Scripts\python.exe -m backend.manage create-user akademiya_user
+.\scripts\start_backend.ps1
+# Backend ishlayotganida ikkinchi terminal:
+Set-Location D:\aniplagiat\frontend
+npm.cmd run dev -- --hostname 127.0.0.1 --port 3000
+```
+
+`start_backend.ps1` runtime sozlamalari va yashirin DB parolini terminalda so‘raydi, backendni foreground’da ishga tushiradi, tugaganda oldingi process env’ni tiklaydi. `.env` avtomatik o‘qilmaydi va haqiqiy maxfiy fayllarni ochish talab qilinmaydi. Migratsiya/account yaratish **mavjud foydalanuvchi bazasida agent tomonidan bajarilmadi**; haqiqiy DB testlari alohida disposable instansiyada bajariladi.
 
 ## Lokal hujjat solishtirish
 
@@ -55,7 +85,7 @@ Birinchi PowerShell oynasida backend:
 
 ```powershell
 Set-Location D:\aniplagiat
-.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --no-access-log
+.\scripts\start_backend.ps1
 ```
 
 Ikkinchi PowerShell oynasida frontend:
@@ -65,7 +95,7 @@ Set-Location D:\aniplagiat\frontend
 npm.cmd run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
-Brauzerda `http://127.0.0.1:3000` ni oching. Bitta hujjat va 1–5 ta manba tanlang, **Solishtirish** ni bosing. Manbani va mos parchani tanlab ikki original matn, highlight hamda sahifa/paragraf raqamini ko‘ring. Fayllarni olib tashlash va qayta tanlash avvalgi hisobotni tozalaydi. Serverlarni o‘z oynalarida `Ctrl+C` bilan to‘xtating. Faqat loopback manzilida, bitta backend worker bilan ishlating; internetga ochmang.
+Brauzerda `http://127.0.0.1:3000` ni oching va CLI akkaunti bilan kiring. Bitta hujjat va 1–5 ta manba tanlang, **Solishtirish** ni bosing. Manba/parcha tanlang, original highlight va sahifa/paragrafni ko‘ring. “Tekshiruvlar tarixi” avvalgi snapshotni ochadi yoki tasdiqlab o‘chiradi; “Chiqish” sessionni bekor qiladi. Fayllarni qayta tanlash avvalgi ekrandagi hisobotni tozalaydi, saqlangan tarixga ta’sir qilmaydi. Serverlarni o‘z oynalarida `Ctrl+C` bilan to‘xtating. Faqat loopback manzilida, bitta backend worker bilan ishlating; internetga ochmang.
 
 Brauzer shu origin’dagi `/api/compare` ga `FormData` yuboradi; Next.js server marshruti uni lokal FastAPI `POST /compare` ga oqimli uzatadi. Standart backend manzili `http://127.0.0.1:8000`. Boshqa lokal port kerak bo‘lsa, frontendni ishga tushirishdan oldin `$env:ANTIPLAGIAT_API_URL = 'http://127.0.0.1:8001'` belgilang. Bu server sozlamasi; DB sozlamalari brauzerga uzatilmaydi. CORS ochilmagan, tashqi backend manzili va redirectlar qabul qilinmaydi. Same-origin va maxsus header tekshiruvi tashqi saytdan oddiy forma yuborishni cheklaydi; bu autentifikatsiya o‘rnini bosmaydi.
 
@@ -81,7 +111,7 @@ ZWSP ba’zan haqiqiy so‘z chegarasi bo‘ladi: masalan, `bir<U+200B>ikki` bu 
 
 **Cheklovlar:** o‘xshashlik plagiatning avtomatik isboti emas. Iqtibos/bibliografiya filtri yo‘q. “Moslik topilmadi” faqat yuklangan manbalar doirasida. Parafraz yoki semantik o‘xshashlik aniqlangan deb da’vo qilinmaydi; indekslash keyingi bosqich. Bitta manba yaroqsiz bo‘lsa butun so‘rov xato bilan tugaydi, yashirin qisman hisobot yo‘q.
 
-Fayllar OS vaqtinchalik katalogida tasodifiy katalog va server bergan nomlar bilan ishlanadi. Foydalanuvchi fayl nomi disk yo‘li sifatida ishlatilmaydi. Muvaffaqiyat, parser/yuklash xatosi va timeoutda katalog tozalanadi. Jarayon yoki kompyuter majburan o‘chirilgandagi disk qoldiqlarini yo‘qotish kafolatlanmaydi; bu xavfsiz o‘chirish tizimi emas. Hisobot brauzer xotirasida qoladi. Hujjatlar internetga yuborilmaydi; kod matn yoki maxfiy qiymatlarni loglamaydi. Parser worker stdout/stderr va logging chiqishlari bostirilgan. Hujjat matni React text node sifatida render qilinadi, HTML sifatida bajarilmaydi.
+Fayllar OS vaqtinchalik katalogida tasodifiy katalog va server bergan nomlar bilan ishlanadi. Foydalanuvchi fayl nomi disk yo‘li sifatida ishlatilmaydi. Muvaffaqiyat, parser/yuklash xatosi, timeout va saqlash xatosida katalog tozalanadi. Jarayon yoki kompyuter majburan o‘chirilgandagi disk qoldiqlarini yo‘qotish kafolatlanmaydi; bu xavfsiz o‘chirish tizimi emas. Hisobot PostgreSQL’dagi shaxsiy snapshot sifatida saqlanadi. Hujjatlar internetga yuborilmaydi; kod matn yoki maxfiy qiymatlarni loglamaydi. Parser worker stdout/stderr va logging chiqishlari bostirilgan. Hujjat matni React text node sifatida render qilinadi, HTML sifatida bajarilmaydi.
 
 Yangi dependencylar (mavjudlari yangilanmagan):
 
@@ -106,11 +136,15 @@ Set-Location D:\aniplagiat
 .\.venv\Scripts\python.exe scripts/check_e2e.py
 ```
 
-`check_e2e.py` faqat sun’iy namunalar bilan haqiqiy HTTP orqali production frontend → backend → worker → hisobot oqimini tekshiradi. Bo‘sh loopback portlaridan foydalanadi, o‘z serverlarini to‘xtatadi va vaqtinchalik ma’lumotlarini tozalaydi. PostgreSQLga ulanmaydi; `/ready` konfiguratsiyasiz 503 bo‘lishi tekshiriladi. Mock DB testlari haqiqiy DB testi deb hisoblanmaydi. Backendning 29 ta unittest’i (shu jumladan 7 readiness regressiya testi), haqiqiy worker xotira/timeout testlari va `pip check` muvaffaqiyatli o‘tdi. Yangi regressiyalar to‘rtta ko‘rinmas belgi va ularning ketma-ketligi, chegaralar, boshqa yozuvlar, original highlight/exact yorlig‘i, Unicode/apostrof/urg‘u, arab ogohlantirishi va policy’dan olinadigan kasrli timeout xabarini qamraydi. Timeout xabari qiymatlari mock worker bilan; workerning haqiqiy to‘xtashi alohida testda tekshiriladi.
+Joriy backend: **39 ta unittest** va `pip check` o‘tdi. Auth DB/owner/CSRF/expiry va CLI yashirin parol testlarining bir qismi mock, Argon2 hash/verify va worker xotira/timeout testlari haqiqiy jarayonlarda. Comparison/readiness regressiyalari saqlandi: Unicode/apostrof/urg‘u, to‘rtta ko‘rinmas belgi/ketma-ketlik, boshqa yozuvlar, offsetlar, exact/shingle yorlig‘i, arab ogohlantirishi, kasrli timeout, parser/limit/cleanup. Mock testlar PostgreSQL testi sifatida hisoblanmaydi. CLI echo fallbackga o‘tishdan bosh tortadi; parolni yashirish imkoni bo‘lmasa kiritishni rad etadi.
+
+`scripts/check_e2e.py` haqiqiy PostgreSQL 18 `initdb/pg_ctl` bilan **alohida disposable klaster** yaratadi; mavjud DB yoki maxfiy fayllarga murojaat qilmaydi. 64 ta HTTP tekshiruvi production frontend → FastAPI → worker → PostgreSQL oqimida o‘tdi: login generic xatolari, cookie/session hashi, anonymous/expiry/logout, owner isolation (B roli admin), CSRF, uch format, retry/conflict, tarix pagination, snapshot o‘zgarmasligi, runtime huquqlari, backend restart, DB saqlash xatosi va tozalash. Migratsiya replay/checksum/runtime denial ham haqiqiy DBda tekshiriladi. `/ready` bu testda 200, avvalgi konfiguratsiyasiz 503 holati readiness unit testida saqlanadi.
+
+Ixtiyoriy browser testi uchun `.venv`ga `pip install -r scripts/test-requirements.txt`, so‘ng `python scripts/check_e2e.py --browser`. Test-only paketlar: Playwright 1.63.0, pyee 13.0.1, greenlet 3.5.6; runtime/npm dependencylariga qo‘shilmadi. Mavjud Edge headless rejimida 1440×1000 va 375×812 uchun login, solishtirish/retry, saqlangan highlight va ogohlantirishlar, tarix, owner denial, cancel/delete va logout o‘tdi; horizontal overflow tekshirildi. Bu avtomatik browser tekshiruvi; screenshot asosida qo‘lda vizual audit emas. Interactive browser helper `sandbox setup refresh` xatosi bilan ochilmadi. Testlar faqat o‘z server/brauzer/klasterini to‘xtatadi va vaqtinchalik kataloglarini olib tashlaydi. Haqiqiy foydalanuvchi bazasida migratsiya, HTTPS end-to-end, toza muhitdan o‘rnatish, ilmiy benchmark yoki murakkab real Word/PDF baholashi bajarilmadi. HTTPS Secure cookie mock response testi bilan tekshirildi.
 
 ## Frontendni ishga tushirish va tekshirish
 
-`frontend/` — Next.js App Router, TypeScript va ESLint asosidagi alohida npm loyiha. Bosh sahifa tili `uz`; oddiy CSS va tizim shriftlari ishlatiladi. Yuklash, olib tashlash, kutish, xato, manba/parcha tanlash va haqiqiy hisobot holatlari mavjud. Desktop uchun ikki ustunli, mobil uchun bir ustunli CSS ishlatiladi. Tashqi font/CDN, Tailwind, UI kutubxonasi, React Compiler va login yo‘q.
+`frontend/` — Next.js App Router, TypeScript va ESLint asosidagi alohida npm loyiha. Tili `uz`; oddiy CSS/tizim shriftlari. Login/logout, yuklash/saqlash, kutish/xato, tarix va saqlangan hisobot, manba/parcha tanlash mavjud. Desktopda ikki, mobilda bir ustun. Tashqi font/CDN, Tailwind, UI kutubxonasi va React Compiler yo‘q. ESLint, TypeScript va production build o‘tdi.
 
 Windows PowerShell 5.1, Node.js 24.21.0 va npm 12.0.2 bilan o‘rnatildi. Barqaror `create-next-app@16.4.0` parametrlarining `--help` chiqishi va [rasmiy CLI hujjati](https://nextjs.org/docs/app/api-reference/cli/create-next-app) tekshirildi; ichki Git repository yaratilmadi.
 
@@ -172,9 +206,9 @@ $response.Content -match 'Islom akademiyasi — Antiplagiat'
 
 Kutiladigan natija: `200` va `True`. Sinov tugagach server oynasida `Ctrl+C` bosing. `node_modules/`, `.next/` va TypeScript build keshi Git’dan chetlashtirilgan.
 
-Mustaqil reviewda desktop va 375×812 mobil brauzer oqimi, hisoblash, original koordinatalar, Windows resurs chegaralari hamda timeout/tozalash tekshirilgan. Bu review natijasi; joriy tuzatishlarda brauzer oqimi qayta tekshirilmadi. Ilmiy benchmark va haqiqiy murakkab Word/PDF hujjatlaridagi extraction/matching sifati hali baholanmagan.
+Oldingi mustaqil reviewda desktop va 375×812 mobil oqim, hisoblash, original koordinatalar, Windows resurs chegaralari va timeout/tozalash tekshirilgan. Yangi auth/tarix bosqichining avtomatik Edge/HTTP dalillari yuqorida. Ilmiy benchmark va murakkab real Word/PDF sifati hali baholanmagan.
 
-Review tuzatishlaridan keyin mavjud muhitda ESLint, TypeScript, production build va 27 ta haqiqiy HTTP tekshiruvi o‘tdi. Frontend → FastAPI → haqiqiy worker orqali to‘rtta ko‘rinmas belgi, ketma-ketlik, normalizatsiya versiyasi, original offsetlar va arab harakatlari bor/yo‘q ogohlantirishlari ham tekshirildi. Skript yaratgan loopback serverlari to‘xtatildi va vaqtinchalik yuklash kataloglari qolmagani tekshirildi. Yangi yuklama testi, katta audit yoki toza muhitdan o‘rnatish bajarilmadi.
+Oldingi prototip bosqichida 27 ta haqiqiy HTTP tekshiruvi o‘tgan; yangi bosqich bu regressiyalarni autentifikatsiya va saqlash bilan saqlaydi. Yangi yuklama testi, katta npm audit yoki toza muhitdan o‘rnatish bajarilmadi.
 
 O‘rnatishdagi npm audit ESLint dependency zanjirida 5 ta yuqori darajadagi topilmani ko‘rsatdi (`braces` orqali); avtomatik majburiy downgrade qo‘llanmadi. `npm.cmd audit --omit=dev` esa 0 ta zaiflik ko‘rsatdi. Generator tanlagan ESLint 9.39.5 uchun npm qo‘llab-quvvatlash muddati tugaganligi haqida ogohlantirdi.
 

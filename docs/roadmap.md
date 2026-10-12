@@ -1,12 +1,12 @@
 # Ish rejasi va BMI tajribalari
 
-Versiya 0.2 · 2026-10-12.
+Versiya 0.3 · 2026-10-13.
 
-Bu kelajakdagi yo‘l xaritasi. Jadvaldagi barcha vazifalar hozir bajarish uchun topshiriq emas. Boshlang‘ich hujjatlar va ilova karkasi mavjud; 3–5-bosqichlarning ayrim qismlarini qamrab oluvchi lokal end-to-end prototip yaratildi. Doimiy korpus, FTS, autentifikatsiya va akademik baholash hali bajarilmagan. Keyingi vazifa alohida kelishiladi. Muddatlar hali belgilanmagan.
+Bu kelajakdagi yo‘l xaritasi. Jadvaldagi barcha vazifalar hozir bajarish uchun topshiriq emas. Prototipga autentifikatsiya va shaxsiy tarix qo‘shildi (3–6-bosqichlarning ayrim qismlari). Doimiy korpus, FTS, topshiriq/rol bo‘yicha ruxsatlar va akademik baholash hali bajarilmagan. Keyingi vazifa alohida kelishiladi.
 
-Amaldagi natija: bitta hujjat va 1–5 manbani TXT/DOCX/matnli PDF formatida yuklash, original koordinatalarni saqlash, exact/5-token shingle solishtirish, noyob tokenlar qoplash foizi va manba/parcha tanlanadigan hisobot. Fayllar vaqtinchalik; DB jadvallari yaratilmagan. Bu akademiyada ishlatishga tayyor tizim yoki himoyalangan MVP-1 emas.
+Amaldagi natija: CLI akkaunti bilan login/logout, himoyalangan TXT/DOCX/matnli PDF solishtirish, original koordinatalar, exact/5-token shingle va PostgreSQL’dagi shaxsiy snapshot. Users/sessions/reports migratsiyasi, scoped sahifalangan tarix, qayta ochish va tasdiqlangan o‘chirish bor. Fayllar vaqtinchalik, snapshot matni maxfiy. Admin boshqa hisoblar hujjatlarini ko‘rmaydi. Bu akademiyada ishlatishga tayyor tizim yoki to‘liq MVP-1 emas.
 
-Mustaqil reviewda desktop va 375×812 mobil brauzer oqimi, hisoblash, original koordinatalar, Windows resurs cheklovlari hamda timeout/tozalash tekshirilgan. Keyingi rejalashtiriladigan ishlar: ruxsatli ilmiy benchmark va haqiqiy murakkab Word/PDF hujjatlarida extraction/matching sifatini baholash, autentifikatsiya va obyekt ruxsatlari, so‘ng korpus/indekslash. Benchmark va murakkab haqiqiy hujjatlar hali baholanmagan. OCR, tashqi qidiruv, parafraz va semantik model bu prototipga kiritilmagan.
+Oldingi mustaqil review algoritm, offset, Windows resurslari va desktop/mobil oqimini tekshirgan. Yangi auth/tarix bosqichi: 39 backend testi, frontend lint/TypeScript/build, disposable PostgreSQL bilan 64 haqiqiy HTTP tekshiruvi va Edge 1440×1000/375×812 avtomatik oqimi. Keyingi ishlar: ilmiy benchmark va murakkab real Word/PDF sifati, topshiriq/rol ruxsatlari va pilot siyosati, so‘ng korpus/indekslash. OCR/tashqi qidiruv/parafraz/semantik model yo‘q.
 
 Review tuzatishi: normalizatsiya siyosati `uz-latin-v2` NFKC/casefold/apostrof ishloviga qo‘shimcha U+200B/U+00AD/U+200C/U+FEFF ketma-ketligini faqat bevosita lotin harflari orasida solishtirish nusxasidan chiqaradi. Original matn, highlight offsetlari va exact/normalizatsiyalangan yorliqlar saqlanadi; versiya hisobot metama’lumotida, ogohlantirish frontendda ko‘rinadi. Barcha Cf/Mn yoki boshqa yozuvlardagi join-control belgilarini global o‘chirish yo‘q. ZWSP haqiqiy so‘z chegarasi bo‘lishi mumkin, shu sabab evristika barcha Unicode chetlab o‘tishlarini hal qilmaydi. Arab harakatlari bo‘yicha tokenizatsiya ochiq kamchilik: harakatlar yashirin olib tashlanmaydi; aniqlanganda moslik va umumiy ko‘rsatkichni ehtiyotkor talqin qilish ogohlantirishi beriladi. Arab tilini to‘liq qo‘llash va yangi arab normalizatsiyasi bu bosqichga kirmaydi.
 
@@ -81,8 +81,8 @@ Tashqi qamrov «internetning X foizi» deb hisoblanmaydi. Maxraji ma’lum nazor
 - Backend unittestlari exact/farqli/qisman/takroriy moslik, Unicode/apostrof, original offsetlar, formatlar, xatolar, hajm/arxiv/resurs chegaralari va vaqtinchalik fayllar tozalanishini tekshiradi. Readiness regressiya testlari ham bajariladi.
 - Frontend ESLint, TypeScript va production build tekshiriladi.
 - `scripts/check_e2e.py` sun’iy namunalar bilan production frontend → FastAPI → worker → hisobot yo‘lini haqiqiy HTTP orqali tekshiradi; bo‘sh loopback portlari va faqat o‘zi yaratgan jarayonlardan foydalanadi.
-- Haqiqiy PostgreSQL readiness muvaffaqiyati oldin foydalanuvchi tomonidan tasdiqlangan. Ushbu solishtirish testlari DBdan mustaqil; yangi haqiqiy DB sinovi bajarilmadi.
-- Mustaqil reviewda desktop va 375×812 mobil brauzer oqimi tekshirilgan; joriy tuzatishlarda bu vizual tekshiruv qayta bajarilmadi.
+- Haqiqiy PostgreSQL/HTTP testi alohida disposable instansiyada: privileged migration va cheklangan runtime hisoblari, ikki sun’iy app foydalanuvchisi, session muddati/logout/restart, egalik, saqlash/tarix/ochish/o‘chirish, retry, DB saqlash xatosi va cleanup. Mavjud foydalanuvchi bazasida migratsiya yoki sinov bajarilmaydi; SQLite/mock PostgreSQL testi sifatida ko‘rsatilmaydi.
+- Yangi auth/tarix browser regressioni headless Edge’da desktop 1440×1000 va mobil 375×812: login, upload/retry, snapshot highlight/warnings, history, owner denial, cancel/delete, logout. Bu avtomatik UI oqimi; screenshot vizual auditi emas. HTTPS to‘liq oqimi va mavjud foydalanuvchi DBsida migratsiya tekshirilmagan.
 - Npm auditning avvalgi ESLint dependency muammosi README’da saqlangan; bu vazifada majburiy downgrade yoki katta takroriy audit bajarilmadi.
 
 Amalda bajarilgan tekshiruv natijalari va PowerShell buyruqlari [README](../README.md#lokal-hujjat-solishtirish) da. Yuklama, haqiqiy ilmiy korpus va akademik sifat tekshiruvlari hali bajarilmagan.

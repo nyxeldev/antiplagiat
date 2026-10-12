@@ -120,6 +120,7 @@ def compare(document, sources):
             "matched_tokens": len(covered), "token_count": len(tokens[0]),
             "document": document, "sources": results,
             "parameters": {"shingle_size": SHINGLE_SIZE, "minimum_match_tokens": SHINGLE_SIZE,
+                           "algorithm_version": "lexical-shingle-v1",
                            "normalization": "NFKC + casefold + apostrophe folding + Latin-internal U+200B/U+00AD/U+200C/U+FEFF runs",
                            "normalization_version": NORMALIZATION_VERSION,
                            "offset_unit": "Unicode code points; zero-based, end-exclusive"},

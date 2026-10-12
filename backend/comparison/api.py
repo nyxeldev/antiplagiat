@@ -7,6 +7,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import ClientDisconnect
+from backend import auth, reports
+from backend.persistence import ServiceError
 
 from .policy import ComparisonError, MAX_BODY_BYTES, UPLOAD_SECONDS
 from .runner import run_worker
@@ -19,10 +21,8 @@ gate = threading.Lock()  # One comparison/upload per backend process; no unbound
 @router.post("/compare")
 async def compare_uploads(request: Request):
     headers = {"Cache-Control": "no-store"}
-    if (request.url.hostname not in {"127.0.0.1", "localhost", "::1"}
-            or not request.client or request.client.host not in {"127.0.0.1", "::1"}
-            or request.headers.get("x-antiplagiat-local") != "1"):
-        return JSONResponse(ComparisonError("local_only", "Faqat lokal interfeys orqali foydalaning.", 403).payload(), 403, headers=headers)
+    owner = (await run_in_threadpool(auth.require_user, request))["id"]
+    key = reports.request_key(request.headers.get("idempotency-key"))
     if not gate.acquire(blocking=False):
         return JSONResponse(ComparisonError("busy", "Boshqa tekshiruv davom etmoqda. Birozdan so‘ng qayta urinib ko‘ring.", 429).payload(), 429, headers=headers)
     try:
@@ -43,6 +43,10 @@ async def compare_uploads(request: Request):
                 raise ComparisonError("upload_format", "Yuklash formati buzilgan.", 400) from None
             finally:
                 upload.close()
+            digest = await run_in_threadpool(reports.fingerprint, folder, items)
+            previous = await run_in_threadpool(reports.retry, owner, key, digest)
+            if previous:
+                return JSONResponse(previous, headers=headers)
             # Shield cleanup from client/task cancellation until the owned worker stops.
             task = asyncio.create_task(run_in_threadpool(run_worker, folder, items))
             try:
@@ -53,7 +57,13 @@ async def compare_uploads(request: Request):
                 except Exception:
                     pass
                 raise
+        # Recheck session after expensive work: logout/expiry cannot save a report.
+        if (await run_in_threadpool(auth.require_user, request))["id"] != owner:
+            raise ServiceError("unauthenticated", "Qayta kiring.", 401)
+        result = await run_in_threadpool(reports.save, owner, key, digest, result)
         return JSONResponse(result, headers=headers)
+    except ServiceError:
+        raise
     except ComparisonError as error:
         return JSONResponse(error.payload(), error.status, headers=headers)
     except (TimeoutError, ClientDisconnect):

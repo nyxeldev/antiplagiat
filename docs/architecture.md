@@ -1,16 +1,16 @@
 # Dastlabki arxitektura
 
-Versiya 0.2 · 2026-10-12 · Lokal end-to-end leksik solishtirish prototipi, `GET /health` va PostgreSQL uchun `GET /ready` mavjud. Bu autentifikatsiyasiz prototip; akademiya piloti uchun tayyor tizim emas.
+Versiya 0.3 · 2026-10-13 · Lokal autentifikatsiya, shaxsiy hisobot tarixi, leksik solishtirish, `GET /health` va `GET /ready` mavjud. Akademiya piloti uchun tayyor tizim emas.
 
 `/health` faqat backend ishlayotganini bildiradi va bazaning tayyorligini tekshirmaydi. `/ready` sinxron Psycopg orqali `SELECT 1` bajaradi: muvaffaqiyatda HTTP 200 va `{"status":"ready"}`, sozlama yoki ulanish/SQL xatosida HTTP 503 va `{"status":"not_ready"}`. Bu sxema tayyorligi tekshiruvi emas. Foydalanuvchi Windows’da haqiqiy PostgreSQL bilan `/ready` → HTTP 200 va `{"status":"ready"}` natijasini tasdiqlagan. Psycopg qo‘shilgan joriy requirements ro‘yxati bilan toza muhitdan qayta o‘rnatish hali tekshirilmagan.
 
 Ulanish uchun `ANTIPLAGIAT_DB_HOST`, `ANTIPLAGIAT_DB_PORT`, `ANTIPLAGIAT_DB_NAME`, `ANTIPLAGIAT_DB_USER`, `ANTIPLAGIAT_DB_PASSWORD` OS muhit o‘zgaruvchilarining barchasi majburiy. Port 1–65535 oralig‘ida tekshiriladi. `.env` avtomatik yuklanmaydi; `.env.example` faqat parolsiz namuna. Standart parol va postgres hisobiga avtomatik qaytish yo‘q.
 
-Import vaqtida ulanish ochilmaydi. Har readiness so‘rovi yangi ulanish ochadi; context manager uni muvaffaqiyat va xatoda yopadi. Ulanish timeouti 3 soniya, SQL statement timeouti 3000 ms. FastAPI sinxron endpointni ishchi threadda bajaradi, event loop bloklanmaydi. Ilova javobida maxfiy sozlamalar yoki xom ulanish xatolari chiqarilmaydi; ilova kodi xom ulanish xatolarini ataylab loglamaydi. Bu uchinchi tomon drayverining barcha loglari tozalanganini kafolatlamaydi; drayver loglarini to‘liq tozalash amalga oshirilmagan. Hozir pool, ORM va migratsiyalar yo‘q.
+Import vaqtida ulanish ochilmaydi. Readiness avvalgi 3 s ulanish va 3000 ms SQL timeout bilan `SELECT 1` bajaradi. Yangi persistence qatlami qisqa psycopg tranzaksiyalari (3 s ulanish, 5 s statement, 3 s lock timeout), commit/rollback va ulanishni yopishdan foydalanadi. Sinxron endpointlar/threadpool DB chaqiruvida event loopni bloklamaydi. Maxfiy qiymat va xom drayver xatolari javob/logga chiqarilmaydi. Pool yoki ORM yo‘q; versiyalangan SQL migratsiya bor.
 
 ## 1. Komponentlar
 
-Amaldagi `frontend/` Next.js 16.4.0 (barqaror), React 19.3.0, TypeScript 5.9.3 va ESLint 9.39.5 asosida yaratilgan. `app/layout.tsx` metadata va `lang="uz"` ni, `app/page.tsx` sahifa karkasini beradi. `app/comparison.tsx` fayl tanlash/olib tashlash, kutish, xato, hisobot, manba va parcha tanlash holatlarini boshqaradi. Oddiy CSS desktopda ikki ustun, mobilda bir ustun beradi; tashqi font/CDN yo‘q. Matn React text node orqali render qilinadi; `dangerouslySetInnerHTML` ishlatilmaydi. Login, Tailwind, UI kutubxonasi va React Compiler yo‘q.
+Next.js/React/TypeScript/ESLint versiyalari lockfile’da saqlandi. `account-shell.tsx` login/logout va sessionni, `comparison.tsx` yuklash/saqlashni, `/history` sahifalangan tarixni, `/reports/[id]` snapshotni boshqaradi. `report-view.tsx` yangi/saqlangan hisobot uchun bir xil manba/parcha tanlash va original Unicode highlightni beradi. Backend 401 bo‘lsa maxfiy sahifa unmount qilinadi; focus/pageshow sessionni qayta tekshiradi. CSS desktopda ikki ustun, mobilda bir ustun; tashqi font/CDN va UI kutubxonasi yo‘q. Matn React text node orqali, HTML bajarilmasdan ko‘rsatiladi.
 
 Frontend paketlari npm bilan boshqariladi, aniq daraxt `package-lock.json` da saqlanadi. `frontend/` ichida alohida Git repository yo‘q; `node_modules/` va `.next/` Git’dan chetlashtirilgan. Windows PowerShell 5.1 uchun tekshiruvlar:
 
@@ -21,7 +21,7 @@ npm.cmd run typecheck
 npm.cmd run build
 ```
 
-Ishga tushirish va test buyruqlari [README](../README.md#lokal-hujjat-solishtirish) da berilgan. Muhit: Node.js 24.21.0 va npm 12.0.2. Mustaqil reviewda desktop va 375×812 mobil brauzer oqimi, hisoblash, original koordinatalar, Windows resurs cheklovlari va timeout/tozalash tekshirilgan. Joriy tuzatishlarda brauzer oqimi qayta tekshirilmadi. Avvalgi ESLint audit topilmalari README’da saqlangan, majburiy downgrade yoki yangi katta audit bajarilmadi. Ilmiy benchmark va haqiqiy murakkab Word/PDF hujjatlaridagi sifat hali baholanmagan.
+Buyruqlar va dalillar [README](../README.md#autentifikatsiya-va-shaxsiy-tarix) da. 39 backend testi, lint/TypeScript/build, disposable PostgreSQL 18 bilan 64 haqiqiy HTTP tekshiruvi va headless Edge 1440×1000/375×812 oqimlari o‘tdi. DB/HTTP va mock dalillar alohida qayd etilgan; production foydalanuvchi DBsiga tegilmadi. Oldingi mustaqil review algoritm/resurs/offsetlarni tekshirgan. Interactive browser helper ishlamadi, screenshot vizual audit bajarilmadi. Avvalgi ESLint audit masalasi saqlandi; benchmark/murakkab real Word/PDF va HTTPS end-to-end hali tekshirilmagan.
 
 ### Amaldagi lokal oqim
 
@@ -32,7 +32,21 @@ Ishga tushirish va test buyruqlari [README](../README.md#lokal-hujjat-solishtiri
 5. Original ajratilgan matn va sahifa/paragraf oraliqlari saqlanadi. Normalizatsiyadan keyingi tokenlar originaldagi Unicode code point koordinatalariga bog‘lanadi.
 6. Har manba to‘liq ko‘rib chiqiladi. Besh tokenli shingles tengligi ketma-ket teng tokenlar bo‘ylab uzaytiriladi. Original parcha belgima-belgi teng bo‘lsa `exact`, aks holda `shingle`; minimal parcha 5 token. Tinish belgisi, registr, bo‘shliq va apostrof farqi normallashtirilgan moslik sifatida ko‘rinishi mumkin.
 7. Umumiy foiz tekshiriluvchi hujjatdagi mos noyob token pozitsiyalari birlashmasidan hisoblanadi. Har manbaning foizi alohida, ularni qo‘shish yo‘q. Hisobot original/manba parchasi, usul, nom, offset, sahifa/paragraf va cheklovlarni beradi.
-8. Worker tugagach vaqtinchalik fayllar tozalanadi; HTTP javobi `Cache-Control: no-store`. Natija brauzer xotirasida. Saqlanadigan korpus, DB jadvali yoki qidiruv indeksi yaratilmaydi.
+8. Worker tugagach vaqtinchalik fayllar tozalanadi va session qayta tekshiriladi. Hisobot egasiga bog‘langan immutable PostgreSQL snapshot sifatida commit qilinadi; shundan keyin `saved: true`, ID va sana qaytadi. DB xatosi 503, “saqlandi” emas. HTTP javobi `Cache-Control: no-store`. Umumiy korpus/qidiruv indeksi yaratilmaydi.
+
+### Hisoblar va persistence qarori
+
+Mavjud psycopg + parametrli SQL saqlandi: uch jadval va owner predicate uchun ORM zarurati yo‘q. `backend/manage.py` alohida vakolatli hisob va yashirin terminal paroli bilan migratsiyani atomic/advisory lock ostida bajaradi. `schema_migrations` version/checksum orqali qayta ishga tushishni tekshiradi. Mavjud DB o‘chirilmaydi. Runtime superuser yoki DB egasi bo‘lishi rad etiladi; schema USAGE, users SELECT, sessions SELECT/INSERT/DELETE va reports SELECT/INSERT + purge ustunlari UPDATE. UUID sabab sequence grant yo‘q. Runtime migratsiya/akkaunt boshqarmaydi.
+
+`users`: UUID, unique login, Argon2id hash, enabled, role va vaqt. Rol user/reviewer/corpus_manager/admin — kelajak maydoni; hozir hamma faqat o‘z tarixini ko‘radi, admin boshqa hisobotlarga kira olmaydi. Signup/email/reset va rol UI yo‘q. Argon2-cffi va pinned bindings/cffi/pycparser Windows/Python 3.14 da tekshirildi; versiyalar requirements’da.
+
+`sessions`: 32 baytli tasodifiy opaque tokenning SHA-256 hashi, user FK va vaqt/muddat (8 soat). Cookie HttpOnly/Path=/SameSite=Strict; Secure public origin HTTPS bo‘lsa yoqiladi. Token URL/localStoragega berilmaydi; login oldingi cookie sessionini, logout esa amaldagi DB sessionni bekor qiladi. Restart sessionni saqlaydi. Origin/custom header/loopback va Next proxy aniq Host tekshiruvlari CSRFni cheklaydi; CORS ochilmagan. Frontend/backend bir xil `ANTIPLAGIAT_PUBLIC_ORIGIN` bilan sozlanadi; lokal TLS terminatsiyasida backend loopback HTTP bo‘lishi mumkin.
+
+Login generic xato, noma’lum hisob uchun dummy Argon2 verify; 5 daqiqada socket peerga 10 urinish, bir paytda 2 hash. Bu bitta process limiti, restartda yo‘qoladi va proxy foydalanuvchilari loopback limitni bo‘lishadi. Ko‘p worker/ommaviy deployment uchun yetarli deb da’vo qilinmaydi. Cookie/Authorization/parol/matn loglanmaydi. `start_backend.ps1` yashirin parolni process muhitiga beradi va tugaganda avvalgi envni tiklaydi; `.env` ochilmaydi.
+
+`reports`: UUID, owner, created_at, `lexical-shingle-v1`, `uz-latin-v2` va immutable JSONB snapshot. Ajratilgan hujjat/manba matni maxfiy; binarlar doimiy saqlanmaydi. Get/list/delete/retry owner predicate bilan; begona/yo‘q ID 404. Tarix 20 tadan. `(owner, request_key)` unique va input digest ayni yuborishni duplicate qilmaydi; boshqa kontent 409. Frontend kalitni ayni fayl tanlovi uchun xotirada saqlaydi; reloaddan keyin noaniq natijani avval tarixdan tekshirish kerak.
+
+Trigger snapshot tahririni taqiqlaydi. Tasdiqlangan o‘chirish snapshotni NULL qiladi va minimal texnik tombstone qoldiradi; qayta ochish 404, shu kalitni qayta yuborish 410. Bu WAL/backup yoki disk izlarini xavfsiz tozalash kafolati emas. Real pilot uchun DB disk/backuplari va retention siyosati kelishiladi. App administratori privileged DB migratsiya hisobidan alohida tushuncha.
 
 `/compare` uchun loopback host/client va `X-Antiplagiat-Local: 1` talab qilinadi. Ikkala server ham faqat `127.0.0.1` da, backend bitta worker bilan ishlatiladi. Bu lokal cheklovlar autentifikatsiya o‘rnini bosmaydi.
 
@@ -57,14 +71,14 @@ Boshlanishida modulli monolit taklif qilinadi: bitta FastAPI backend ichida must
 
 | Komponent | Vazifasi |
 | --- | --- |
-| Next.js + TypeScript | Hozir: lokal yuklash va mos parchali hisobot. Reja: autentifikatsiyalangan ish oqimi |
-| FastAPI | Hozir: health/readiness va vaqtinchalik hujjat solishtirish. Reja: autentifikatsiya, obyekt ruxsatlari va doimiy ishlar |
+| Next.js + TypeScript | Login/logout, lokal yuklash, shaxsiy tarix va snapshot hisoboti |
+| FastAPI | Health/readiness, autentifikatsiya/egalik, solishtirish va shaxsiy persistence |
 | PostgreSQL | Foydalanuvchilar, huquqlar, versiyalar, parchalar, ish holati va FTS indekslari |
 | Himoyalangan fayl saqlash | Original hujjatlar va hosila fayllar; dastlab mahalliy yopiq katalog |
 | Tahlil modullari | Extraction, normalization, retrieval, matching, reporting |
 | Tashqi adapterlar | OpenAlex/Crossref metama’lumoti va alohida ruxsatli matn olish |
 
-Frontendning o‘rnatilgan versiyalari yuqorida va lockfile’da, parserlar requirements’da qayd etilgan; autentifikatsiya kutubxonasi hali tanlanmagan. PostgreSQL fayl saqlashning o‘rniga avtomatik qo‘llanmaydi.
+Frontend versiyalari lockfile’da, parser/hash paketlari requirements’da. PostgreSQL hisobot snapshotini saqlaydi; original binar fayl ombori sifatida ishlatilmaydi.
 
 ## 2. Tekshiruv oqimi
 
