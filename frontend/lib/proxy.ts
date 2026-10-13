@@ -45,6 +45,10 @@ export async function proxy(request: NextRequest, path: string) {
     };
     const url = new URL(path, api);
     if (path === "/reports") url.search = request.nextUrl.search;
+    // The only compare option forwarded; everything else stays server decided.
+    if (path === "/compare" && request.nextUrl.searchParams.get("include_corpus") === "true") {
+      url.search = "include_corpus=true";
+    }
     const response = await fetch(url, options);
     const outgoing = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
     for (const value of response.headers.getSetCookie()) outgoing.append("Set-Cookie", value);
