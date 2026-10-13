@@ -148,6 +148,50 @@ Autentifikatsiya/tarix bosqichida **39 ta unittest** va `pip check` o‘tgan. Au
 
 Ixtiyoriy browser testi uchun `.venv`ga `pip install -r scripts/test-requirements.txt`, so‘ng `python scripts/check_e2e.py --browser`. Test-only paketlar: Playwright 1.63.0, pyee 13.0.1, greenlet 3.5.6; runtime/npm dependencylariga qo‘shilmadi. Mavjud Edge headless rejimida 1440×1000 va 375×812 uchun login, solishtirish/retry, saqlangan highlight va ogohlantirishlar, tarix, owner denial, cancel/delete va logout o‘tdi; horizontal overflow tekshirildi. Bu avtomatik browser tekshiruvi; screenshot asosida qo‘lda vizual audit emas. Interactive browser helper `sandbox setup refresh` xatosi bilan ochilmadi. Testlar faqat o‘z server/brauzer/klasterini to‘xtatadi va vaqtinchalik kataloglarini olib tashlaydi. Haqiqiy foydalanuvchi bazasida migratsiya, HTTPS end-to-end, toza muhitdan o‘rnatish, ilmiy benchmark yoki murakkab real Word/PDF baholashi bajarilmadi. HTTPS Secure cookie mock response testi bilan tekshirildi.
 
+## Ichki ilmiy korpus
+
+Ruxsat asosida saqlanadigan ichki korpus. Korpusni **faqat `admin` roli** boshqaradi; oddiy foydalanuvchi korpus manbasidan to‘liq matnni olmaydi — faqat metama’lumot, mos parcha va har tomondan 200 belgigacha kontekst. Korpus tekshiruvi ixtiyoriy: solishtirish formasidagi «Ichki korpus bo‘yicha ham tekshirish» belgisi, default o‘chiq. Belgilanmasa mavjud oqim va natijalar o‘zgarmaydi.
+
+Avval migratsiyani qo‘llang (`002_internal_corpus` qo‘shilgan):
+
+```powershell
+Set-Location D:\aniplagiat
+.\.venv\Scripts\python.exe -m backend.manage migrate --check
+.\.venv\Scripts\python.exe -m backend.manage migrate
+```
+
+**Admin rolini berish.** Yangi hisobni admin sifatida yarating:
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.manage create-user akademiya_admin --role admin
+```
+
+Mavjud hisobga admin rolini berish uchun alohida CLI buyrug‘i yo‘q. Buni vakolatli DB hisobi bilan qo‘lda bajaring; parolni buyruq argumentiga yozmang:
+
+```powershell
+.\.venv\Scripts\python.exe -c "import getpass, psycopg; psycopg.connect(host='127.0.0.1', port=5432, dbname='antiplagiat', user=input('Vakolatli DB hisobi: '), password=getpass.getpass('Parol: ')).execute(\"UPDATE antiplagiat.users SET role='admin' WHERE username=%s\", (input('Login: '),)).connection.commit()"
+```
+
+**Korpus buyruqlari.** Har biri vakolatli DB hisobini va parolni terminalda yashirin so‘raydi:
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.manage corpus-add D:\yol\hujjat.docx --as-user akademiya_admin
+.\.venv\Scripts\python.exe -m backend.manage corpus-list --status active
+.\.venv\Scripts\python.exe -m backend.manage corpus-withdraw <hujjat-id>
+```
+
+`corpus-add` sarlavha, muallif, tur (`bmi/dissertatsiya/kurs_ishi/maqola/boshqa`), til belgisi, manba izohi, **ruxsat asosi** va yilni so‘raydi. Ruxsat asosi bo‘sh bo‘lsa hujjat saqlanmaydi. Fayl mavjud sandboxlangan parser orqali o‘qiladi; binar fayl saqlanmaydi, faqat ajratilgan matn, uning chunklari va `content_sha256` qoladi. Bir xil fayl faol holatda ikki marta kirmaydi. `corpus-withdraw` hujjatni qidiruvdan chiqaradi va uning matni hamda chunk matnlarini o‘chiradi; dalil uchun minimal yozuv qoladi (bu zaxira/WAL izlarini yo‘qotmaydi).
+
+**Admin HTTP endpointlari** (login bo‘lmaganda 401, admin bo‘lmaganda 403):
+
+| Endpoint | Vazifasi |
+| --- | --- |
+| `POST /corpus/documents` | multipart: `file` + `title`, `author_display`, `doc_type`, `year`, `language_hint`, `source_note`, `permission_basis` |
+| `GET /corpus/documents?page=&status=` | `active`/`withdrawn`/`all` ro‘yxati |
+| `POST /corpus/documents/{id}/withdraw` | Korpusdan chiqarish va matnni o‘chirish |
+
+Korpus uchun admin UI sahifasi **qilinmadi**; boshqaruv CLI va yuqoridagi endpointlar orqali. Nomzodlar PostgreSQL full-text qidiruvi bilan tanlanadi (`simple` konfiguratsiyasi, sababi [arxitekturada](docs/architecture.md)); bu reyting o‘xshashlik ko‘rsatkichi emas. Har tekshiruvda nomzodlar soni limit bilan cheklangan, shuning uchun hisobotda «limit tufayli korpusdagi barcha hujjatlar solishtirilmagan» izohi beriladi. Metama’lumot bilan amalda o‘qilgan to‘liq matn farqlanadi: korpus faqat ajratilgan to‘liq matn ustida ishlaydi va «butun internet» yoki to‘liq qamrov da’vosi yo‘q.
+
 ## Frontendni ishga tushirish va tekshirish
 
 Auth review tuzatishlari: faqat `antiplagiat.users.users_username_key` buzilishi CLI’da “Bu login allaqachon band.” va exit code 1 beradi; `UsernameTakenError` DB wrapper tomonidan 503ga o‘ralmaydi. Boshqa DB xatolari sanitizatsiyalangan `database_unavailable` semantikasini saqlaydi. Hisobot INSERT natijasiz va keyingi retry ham None bo‘lsa `409/report_conflict` qaytadi, `200 null` emas. `request_conflict`, `report_deleted`, oddiy save va idempotent retry saqlangan.

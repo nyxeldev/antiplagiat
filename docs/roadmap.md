@@ -1,6 +1,12 @@
 # Ish rejasi va BMI tajribalari
 
-Versiya 0.3 · 2026-10-13.
+Versiya 0.4 · 2026-10-13.
+
+**Bu bosqichda bajarildi — ichki ilmiy korpus MVP.** Ruxsat asosi majburiy bo‘lgan ichki korpus (`corpus_documents`/`corpus_chunks`, migratsiya `002_internal_corpus`), PostgreSQL FTS (`simple`) bilan nomzod tanlash (`pg-fts-candidate-v1`), nomzodlarni **mavjud** exact/5-token shingle algoritmi bilan solishtirish va natijani mavjud hisobot snapshotiga qo‘shish. Korpus tekshiruvi opt-in, default o‘chiq; qo‘lda 1–5 manba oqimi o‘zgarmagan. Korpusni faqat `admin` boshqaradi (CLI va HTTP), oddiy foydalanuvchi to‘liq korpus matnini olmaydi. 93 backend testi (33 tasi yangi), frontend lint/TypeScript/build o‘tdi.
+
+**Keyingi qadamlar:** retrieval sifatini ruxsatli nazorat korpusida o‘lchash (recall/precision, morfologik variantlar `simple` konfiguratsiyasida bog‘lanmaydi); korpus uchun admin UI sahifasi; topshiriq/rol bo‘yicha ruxsatlar (`reviewer`, `corpus_manager` hozir qo‘shimcha huquq bermaydi); retention/backup siyosati; so‘ng kengroq indekslash. OCR, tashqi qidiruv, parafraz va semantik model hamon doiradan tashqarida.
+
+**Test avtomatlashtirishdagi ma’lum bo‘shliq:** o‘chirish oqimidagi native `window.confirm` oynasini ichki brauzer vositasi qabul qila olmaydi — oyna ochiladi, lekin faqat bekor qilinadi va `DELETE` so‘rovi yuborilmaydi. Bu ilovaning to‘g‘ri xulqi (o‘chirish haqiqatan tasdiqlash ortida), ammo uchdan-uchiga avtomatik regressiyani to‘sadi. Variantlar keyin baholanadi: `window.confirm` o‘rniga ilova ichidagi modal dialog, yoki dialogni qabul qila oladigan test drayveri (masalan Playwright/CDP). Hozircha bu qadam qo‘lda tasdiqlanadi.
 
 Bu kelajakdagi yo‘l xaritasi. Jadvaldagi barcha vazifalar hozir bajarish uchun topshiriq emas. Prototipga autentifikatsiya va shaxsiy tarix qo‘shildi (3–6-bosqichlarning ayrim qismlari). Doimiy korpus, FTS, topshiriq/rol bo‘yicha ruxsatlar va akademik baholash hali bajarilmagan. Keyingi vazifa alohida kelishiladi.
 
@@ -84,5 +90,7 @@ Tashqi qamrov «internetning X foizi» deb hisoblanmaydi. Maxraji ma’lum nazor
 - Haqiqiy PostgreSQL/HTTP testi alohida disposable instansiyada: privileged migration va cheklangan runtime hisoblari, ikki sun’iy app foydalanuvchisi, session muddati/logout/restart, egalik, saqlash/tarix/ochish/o‘chirish, retry, DB saqlash xatosi va cleanup. Mavjud foydalanuvchi bazasida migratsiya yoki sinov bajarilmaydi; SQLite/mock PostgreSQL testi sifatida ko‘rsatilmaydi.
 - Yangi auth/tarix browser regressioni headless Edge’da desktop 1440×1000 va mobil 375×812: login, upload/retry, snapshot highlight/warnings, history, owner denial, cancel/delete, logout. Bu avtomatik UI oqimi; screenshot vizual auditi emas. HTTPS to‘liq oqimi va mavjud foydalanuvchi DBsida migratsiya tekshirilmagan.
 - Npm auditning avvalgi ESLint dependency muammosi README’da saqlangan; bu vazifada majburiy downgrade yoki katta takroriy audit bajarilmadi.
+
+- Ichki korpus bosqichi uchun: `backend/tests/test_corpus.py` (chunking/offset mosligi, so‘rov oynalari, metama’lumot qoidalari, excerpt kesish va budjet, rol tekshiruvi) va `backend/tests/test_corpus_integration.py` (haqiqiy disposable PostgreSQL: chunk+FTS indeksi, takror `content_sha256` rad etilishi, withdraw matnni o‘chirishi, retrieval ijobiy/salbiy holati, `include_corpus` o‘chiq/yoniq, non-admin javobida to‘liq korpus matni yo‘qligi, shaxsiy hisobot matni korpusga tushmasligi, runtime hisobining DELETE/provenance urinishlari bloklanishi). Mavjud testlar o‘zgartirilmagan yoki yumshatilmagan.
 
 Amalda bajarilgan tekshiruv natijalari va PowerShell buyruqlari [README](../README.md#lokal-hujjat-solishtirish) da. Yuklama, haqiqiy ilmiy korpus va akademik sifat tekshiruvlari hali bajarilmagan.

@@ -21,6 +21,17 @@ Versiya 0.1 · 2026-10-12 · Boshlang‘ich taklif.
 
 Administrator roli avtomatik ravishda barcha ilmiy matnlarni o‘qish huquqini bermaydi. Solishtirishga ruxsat va manba matnini foydalanuvchiga ko‘rsatish huquqi alohida belgilanadi. Cheklangan manba uchun faqat ruxsat etilgan rekvizit yoki parcha ko‘rsatiladi. Barcha ruxsatlar serverda tekshiriladi; interfeysdagi yashirish yetarli emas.
 
+**Amaldagi holat:** `users.role` ustuni `user/reviewer/corpus_manager/admin` qiymatlarini qabul qiladi, ammo hozir faqat `admin` qo‘shimcha huquq beradi — u ham faqat ichki korpusni boshqarish uchun. `reviewer` va `corpus_manager` hozircha oddiy foydalanuvchi bilan bir xil. Administrator **boshqa foydalanuvchining shaxsiy hisobotini ko‘rmaydi**; bu qoida korpus bosqichida ham o‘zgarmadi.
+
+### 2.1 Ichki korpus ruxsat modeli
+
+- Korpusga hujjat qo‘shish, ro‘yxatini ko‘rish va chiqarish (withdraw) — faqat `admin`. Autentifikatsiyasiz so‘rov 401, admin bo‘lmagan sessiya 403 oladi.
+- Har bir korpus hujjati uchun **ruxsat asosi (`permission_basis`) majburiy**; u bo‘sh bo‘lsa hujjat umuman saqlanmaydi. Ruxsat asosi keyinchalik o‘zgartirilmaydi (DB triggeri taqiqlaydi).
+- Oddiy foydalanuvchi korpus manbasidan **to‘liq matnni hech qachon olmaydi**: faqat metama’lumot, mos kelgan parcha va har tomondan cheklangan kontekst (`<=200` belgi), hisobot bo‘yicha umumiy kontekst budjeti bilan.
+- Shaxsiy tekshiruv hujjatlari va hisobot matnlari **avtomatik korpusga qo‘shilmaydi**. Korpusga kirish faqat adminning aniq amali bilan bo‘ladi.
+- Korpus tekshiruvi **opt-in**: solishtirish so‘rovidagi ixtiyoriy bayroq, default o‘chiq.
+- Withdraw qilingan hujjatning matni va chunk matnlari o‘chiriladi; qidiruvdan chiqadi. Faqat minimal yozuv (ID, ruxsat asosi, digest, sana) dalil sifatida qoladi. Bu WAL/zaxiradagi izlarning xavfsiz yo‘qotilishi emas.
+
 ## 3. Funksional talablar va tekshirish mezonlari
 
 | ID | Talab | Qabul mezoni |
@@ -61,6 +72,13 @@ Cosine similarity semantik ball sifatida ko‘rsatiladi, «plagiat foizi»ga ayl
 - Tashqi URL olishda ichki IP, localhost, metadata manzillari va xavfli redirectlar bloklanadi; hostlar ruxsat ro‘yxati bilan cheklanadi.
 - Kalitlar muhit sozlamalarida; namunaviy sozlamalarda faqat placeholder. Loglarda kalit, to‘liq hujjat matni va maxfiy qidiruv parchalari bo‘lmaydi.
 - Saqlash muddati, zaxira, o‘chirish tartibi, server joylashuvi va akademiya siyosati haqiqiy pilotdan oldin kelishiladi. Bu hujjat huquqiy muvofiqlikni tasdiqlamaydi.
+
+### 5.1 Ichki korpus uchun qo‘shimcha shartlar
+
+- Runtime DB hisobiga korpus jadvallarida faqat `SELECT`/`INSERT` va ustun darajasidagi `UPDATE` beriladi; `DELETE`, DDL va `PUBLIC` huquqlari yo‘q. Shuning uchun ilova dalilni qattiq o‘chira olmaydi.
+- Yuklangan binar fayl doimiy saqlanmaydi; faqat ajratilgan matn, uning chunklari va `content_sha256` qoladi.
+- Bir xil fayl (`content_sha256`) faol holatda ikki marta kiritilmaydi; takror yuklash aniq xato bilan rad etiladi.
+- Korpus matni faqat parserning sandboxlangan worker jarayonida ajratiladi; worker DB ma’lumotlarini olmaydi, korpus so‘rovlari esa faqat ota jarayonda bajariladi.
 
 ## 6. MVP uchun yakuniy tekshiruv
 

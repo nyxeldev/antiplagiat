@@ -80,6 +80,38 @@ Boshlanishida modulli monolit taklif qilinadi: bitta FastAPI backend ichida must
 
 Frontend versiyalari lockfile’da, parser/hash paketlari requirements’da. PostgreSQL hisobot snapshotini saqlaydi; original binar fayl ombori sifatida ishlatilmaydi.
 
+### Ichki ilmiy korpus (amaldagi MVP)
+
+Migratsiya `002_internal_corpus` ikkita jadval qo‘shadi. Nomlar koddagidek:
+
+| Jadval | Asosiy ustunlar |
+| --- | --- |
+| `antiplagiat.corpus_documents` | `id`, `title`, `author_display`, `doc_type` (`bmi/dissertatsiya/kurs_ishi/maqola/boshqa`), `year`, `language_hint`, `source_note`, **`permission_basis`** (bo‘sh bo‘lmasligi majburiy), `uploaded_by_user_id`, `original_filename`, `content_sha256`, `extracted_text`, `extraction_policy`, `char_count`, `token_count`, `segments` (jsonb), `status` (`active/withdrawn`), `created_at`, `updated_at`, `withdrawn_at` |
+| `antiplagiat.corpus_chunks` | `id`, `corpus_document_id` (FK, `ON DELETE CASCADE`), `chunk_index`, `char_start`, `char_end`, `token_start`, `token_end`, `chunk_text`, `fts` (generated stored tsvector) |
+
+Indekslar: `corpus_documents_active_digest` — `content_sha256` bo‘yicha **unique partial index** faqat `status='active'` uchun (takror yuklash rad etiladi, withdrawdan keyin qayta kiritish mumkin); `corpus_chunks_fts` — GIN; `corpus_documents_listing` va `corpus_chunks_document`. `guard_corpus_document()` triggeri `id`, `content_sha256`, `permission_basis`, `uploaded_by_user_id`, `original_filename`, `created_at` va `extraction_policy` o‘zgartirilishini hamda withdrawn yozuvni qayta tahrirlashni taqiqlaydi.
+
+**FTS konfiguratsiyasi `simple`, sababi bilan.** PostgreSQL tarkibida o‘zbek lug‘ati yo‘q. `english` stemmeri o‘zbek so‘z shakllarini noto‘g‘ri qisqartiradi va lotin yozuvidagi o‘zbek matnini buzadi, shuning uchun u tanlanmadi. `simple` konfiguratsiyasi stemming qilmaydi va stop-so‘z ro‘yxatini qo‘llamaydi: har bir so‘z shakli alohida leksema bo‘lib qoladi. Bu nomzod tanlash uchun yetarli, chunki yakuniy qaror baribir exact/shingle algoritmida chiqadi. Kamchiligi: morfologik variantlar (`ishida` va `ishi`) turli leksema bo‘ladi va retrieval ularni bog‘lamaydi. Bu cheklov baholash bosqichida o‘lchanadi.
+
+**Chunking.** `CHUNK_TOKENS = 40`, `CHUNK_OVERLAP_TOKENS = 20`. Oyna 40 token, qadam 20 token. Sabab: minimal mos parcha 5 token, shuning uchun 20 tokenli ustma-ustlik har qanday 5 tokenli shingle kamida bitta chunk ichida butun qolishini kafolatlaydi — ko‘chirilgan jumla ikki chunk orasiga tushib ketmaydi. Har chunk `extracted_text` ichidagi `char_start/char_end` koordinatalarini saqlaydi, shuning uchun offsetlar original matnga bog‘langan holda qoladi.
+
+**Retrieval oqimi (`pg-fts-candidate-v1`).**
+
+1. Tekshiriladigan hujjat sandboxlangan workerda ajratiladi (`mode: extract`), ota jarayon faqat tayyor matnni oladi.
+2. Matn tokenlaridan `QUERY_WINDOW_TOKENS = 40` uzunlikdagi, ko‘pi bilan `MAX_QUERY_WINDOWS = 12` ta teng taqsimlangan so‘rov oynasi yasaladi — uzun hujjat ham chegaralangan sonli tsquery bajaradi.
+3. Har oyna `plainto_tsquery('simple', ...)` bilan parse qilinadi, so‘ng tayyor tsquery matnidagi ` & ` ` | ` ga almashtiriladi. Sabab: `plainto_tsquery` barcha so‘zlarni **AND** bilan bog‘laydi va 40 tokenli oyna bitta chunkda aynan uchrashini talab qilgan bo‘lardi; OR semantikasi esa ustma-ustlik darajasi bo‘yicha reyting beradi. Almashtirish allaqachon parse qilingan va qo‘shtirnoqlangan leksemalar ustida bajariladi, shuning uchun inyeksiya xavfi yo‘q.
+4. `ts_rank` ballari hujjat darajasida yig‘iladi, faqat `status='active'` hujjatlar hisobga olinadi va top N nomzod olinadi (`DEFAULT_CANDIDATES = 5`, `MAX_CANDIDATES = 10`).
+5. Nomzodlarning saqlangan matni qo‘lda yuklangan manbalar bilan birga `prepared.json` ga yoziladi va **mavjud exact/5-token shingle algoritmi** bitta `compare()` chaqiruvida ishlaydi. Shuning uchun qoplash foizi noyob token pozitsiyalari birlashmasi bo‘lib qoladi va bir token ikki marta sanalmaydi.
+6. Javobda korpus manbalarining to‘liq matni olib tashlanadi; faqat mos parcha va cheklangan kontekst qoladi.
+
+**FTS reytingi hech qayerda o‘xshashlik yoki plagiat foizi sifatida ko‘rsatilmaydi.** U faqat nomzod tanlash vositasi; hisobotga chiqmaydi.
+
+**Chegaralar.** Retrieval uchun alohida `RETRIEVAL_TIMEOUT_MS = 5000` (`SET LOCAL statement_timeout`), umumiy solishtirish esa avvalgidek `WORKER_SECONDS = 30` worker timeouti bilan chegaralangan. Excerpt: `CORPUS_CONTEXT_CHARS = 200` (har tomondan), `CORPUS_MATCH_CHARS = 1200` (ko‘rsatiladigan mos parcha), `CORPUS_EXCERPT_BUDGET = 20000` (hisobot bo‘yicha umumiy **kontekst** budjeti). Budjet faqat kontekstni cheklaydi: mos parchaning o‘zi ta’rifi bo‘yicha tekshiriladigan hujjatda allaqachon mavjud, uni yashirish dalilni yo‘qotadi, himoya bermaydi.
+
+**Huquqlar.** Runtime hisobiga: `corpus_documents` va `corpus_chunks` uchun `SELECT, INSERT`; `corpus_documents` uchun `UPDATE(status, withdrawn_at, updated_at, extracted_text)`; `corpus_chunks` uchun `UPDATE(chunk_text)`. `DELETE`, DDL va `PUBLIC` huquqlari berilmaydi. Migratsiya alohida vakolatli hisobdan bajariladi.
+
+**Cheklovlar.** Korpus faqat ruxsat asosi qayd etilgan hujjatlardan iborat va «butun internet» yoki to‘liq qamrov da’vosi yo‘q. Limit tufayli har tekshiruvda korpusdagi barcha hujjatlar solishtirilmaydi — bu hisobotda ochiq yoziladi. Retrieval metama’lumot emas, **amalda o‘qilgan to‘liq matn** ustida ishlaydi; tashqi provayderlardagi metama’lumot bilan aralashtirilmaydi. Semantik/parafraz aniqlash, iqtibos filtri va morfologik normalizatsiya bu bosqichda yo‘q.
+
 ## 2. Tekshiruv oqimi
 
 Quyidagi oqim himoyalangan korpus va tashqi adapterlar uchun kelajak rejasi; amaldagi lokal prototip oqimi yuqorida alohida berilgan.
@@ -115,8 +147,8 @@ ZWSP haqiqiy so‘z chegarasi ham bo‘lishi mumkin; ikki lotin harfi orasidagi 
 | --- | --- |
 | User / Role / Assignment | Hisob, rol, tekshiruvga biriktirish |
 | Document / DocumentVersion | Egasi, tur, immutable versiya, hash, fayl joyi, matn holati |
-| CorpusEntry / Permission | Qaysi versiya, ruxsat dalili, solishtirish va ko‘rsatish huquqi |
-| Chunk | Original koordinata, normalizatsiya xaritasi, matn, token oralig‘i |
+| CorpusEntry / Permission | Qaysi versiya, ruxsat dalili, solishtirish va ko‘rsatish huquqi. **Amalda:** `corpus_documents` (`permission_basis` majburiy) |
+| Chunk | Original koordinata, normalizatsiya xaritasi, matn, token oralig‘i. **Amalda:** `corpus_chunks` (`char_start/char_end`, `token_start/token_end`, generated `fts`) |
 | CheckJob | Hujjat versiyasi, snapshot, sozlamalar, holat, progress, xato |
 | SourceRecord / SourceVersion | DOI yoki boshqa ID, provider, versiya, URL, kontent hash va litsenziya |
 | RetrievalAttempt | Provider, vaqt, qidiruv rejimi, natija/xato, limit holati |
