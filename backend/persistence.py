@@ -23,11 +23,26 @@ def settings(prefix="ANTIPLAGIAT_DB_"):
 
 
 @contextmanager
-def database(config=None):
+def database(config=None, *, diagnostic=None):
+    connection = None
     try:
-        with psycopg.connect(**(config or settings()), connect_timeout=3,
-                             options="-c statement_timeout=5000 -c lock_timeout=3000",
-                             row_factory=dict_row) as connection:
+        if diagnostic:
+            diagnostic("configuration")
+        configured = config or settings()
+        if diagnostic:
+            diagnostic("connect")
+        connection = psycopg.connect(**configured, connect_timeout=3,
+                                     options="-c statement_timeout=5000 -c lock_timeout=3000",
+                                     row_factory=dict_row)
+        with connection:
             yield connection
-    except (psycopg.Error, ValueError):
+            if diagnostic:
+                diagnostic("commit")
+    except (psycopg.Error, ValueError) as error:
+        if diagnostic:
+            diagnostic(None, error)
         raise ServiceError("database_unavailable", "Ma’lumotlar bazasi hozir mavjud emas.", 503) from None
+    finally:
+        # psycopg __exit__ does not reach close() when commit itself raises.
+        if connection is not None and not connection.closed:
+            connection.close()
