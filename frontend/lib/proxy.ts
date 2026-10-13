@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
 const MAX_UPLOAD = 30 * 1024 * 1024 + 64 * 1024;
+const MAX_CORPUS_UPLOAD = 10 * 1024 * 1024 + 64 * 1024;
 function error(message: string, status: number) {
   return Response.json({ error: { message } }, { status, headers: { "Cache-Control": "no-store" } });
 }
@@ -16,7 +17,8 @@ export async function proxy(request: NextRequest, path: string) {
       !["localhost", "127.0.0.1", "[::1]"].includes(request.nextUrl.hostname)) {
     return error("Faqat lokal sahifa orqali foydalaning.", 403);
   }
-  const limit = path === "/compare" ? MAX_UPLOAD : 8192;
+  // Corpus ingest carries one file, so it needs a file sized budget as well.
+  const limit = path === "/compare" ? MAX_UPLOAD : path === "/corpus/documents" ? MAX_CORPUS_UPLOAD : 8192;
   const length = Number(request.headers.get("content-length") ?? "0");
   if (!Number.isFinite(length) || length < 0 || length > limit) return error("So‘rov hajmi chegaradan oshdi.", 413);
   const type = request.headers.get("content-type") ?? "";

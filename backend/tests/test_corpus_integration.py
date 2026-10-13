@@ -235,7 +235,9 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
         self.assertLessEqual(result["coverage_percent"], 100.0)
 
     def test_non_admin_response_never_carries_full_corpus_text(self):
-        self.add(self.unique(UZ), "leak-" + uuid.uuid4().hex[:8])
+        filler = " ".join(f"toldiruvchi{i} jumla matni" for i in range(120))
+        secret = "MAXFIYKORPUSJUMLASI faqat korpusda turadi va javobga chiqmasligi kerak"
+        self.add(f"{UZ} {filler} {secret}", "leak-" + uuid.uuid4().hex[:8])
         body, kind = multipart([("document", "t.txt", UZ.encode()),
                                 ("sources", "s.txt", UNRELATED.encode())])
         response = self.request(body, kind, include_corpus=True)
@@ -250,6 +252,9 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
             self.assertLessEqual(len(excerpt["before"]), corpus.CORPUS_CONTEXT_CHARS)
             self.assertLessEqual(len(excerpt["after"]), corpus.CORPUS_CONTEXT_CHARS)
         self.assertEqual(result["excerpt_policy"]["context_chars"], corpus.CORPUS_CONTEXT_CHARS)
+        # Corpus text away from the matched passage must never be returned.
+        self.assertNotIn("MAXFIYKORPUSJUMLASI", raw)
+        self.assertNotIn("toldiruvchi60", raw)
 
     def test_personal_report_text_never_reaches_the_corpus(self):
         before = corpus.list_documents(1, "all")["items"]
