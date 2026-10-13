@@ -19,6 +19,11 @@ from psycopg.errors import UniqueViolation
 
 from backend.persistence import ServiceError, database
 
+# Local development setting, lowered on the owner's instruction. A pilot
+# deployment must raise this again before real accounts are created.
+MIN_PASSWORD_CHARS = 4
+MAX_PASSWORD_CHARS = 256
+
 
 class MigrationError(Exception):
     """Safe actionable migration errors, separate from raw driver errors."""
@@ -171,8 +176,9 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
 
 def create_user(config, username, password, role="user"):
     from backend.auth import password_hash, valid_username
-    if not valid_username(username) or not 12 <= len(password) <= 256:
-        raise ValueError("Login: 3–64 kichik lotin harfi/son/_.-; parol: 12–256 belgi.")
+    if not valid_username(username) or not MIN_PASSWORD_CHARS <= len(password) <= MAX_PASSWORD_CHARS:
+        raise ValueError(f"Login: 3–64 kichik lotin harfi/son/_.-; "
+                         f"parol: {MIN_PASSWORD_CHARS}–{MAX_PASSWORD_CHARS} belgi.")
     user_id = uuid.uuid4()
     hashed = password_hash(password)
     with database(config) as conn:
@@ -212,7 +218,7 @@ def main():
             if diagnostic:
                 print(diagnostic.summary())
         else:
-            password = hidden_password("Yangi akkaunt paroli (kamida 12 belgi): ")
+            password = hidden_password(f"Yangi akkaunt paroli (kamida {MIN_PASSWORD_CHARS} belgi): ")
             if password != hidden_password("Parolni takrorlang: "):
                 raise ValueError("Parollar bir xil emas.")
             create_user(config, args.username, password, args.role)

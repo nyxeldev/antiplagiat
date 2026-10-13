@@ -9,7 +9,7 @@ import psycopg
 from starlette.requests import Request
 
 from backend import auth, reports
-from backend import accounts_api
+from backend import accounts_api, manage
 from backend.manage import hidden_password
 from backend.persistence import ServiceError, database
 
@@ -36,6 +36,19 @@ class AuthTests(unittest.TestCase):
         with patch("backend.manage.getpass.getpass", side_effect=fallback), self.assertRaises(ValueError) as raised:
             hidden_password("Parol: ")
         self.assertNotIn("synthetic-secret", str(raised.exception))
+
+    def test_password_length_policy_is_enforced_before_any_connection(self):
+        low, high = manage.MIN_PASSWORD_CHARS, manage.MAX_PASSWORD_CHARS
+        self.assertLessEqual(low, high)
+        with patch.object(manage, "database") as never:
+            for password in ("x" * (low - 1), "x" * (high + 1)):
+                with self.subTest(length=len(password)), self.assertRaises(ValueError) as raised:
+                    manage.create_user({}, "policy.test", password)
+                self.assertIn(f"{low}–{high}", str(raised.exception))
+                self.assertNotIn(password, str(raised.exception))
+            with self.assertRaises(ValueError):
+                manage.create_user({}, "BAD NAME", "x" * low)
+            never.assert_not_called()
 
     def test_argon2_real_hash_verify(self):
         password = secrets.token_urlsafe(20)
