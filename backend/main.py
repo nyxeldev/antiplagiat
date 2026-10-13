@@ -5,12 +5,14 @@ from fastapi.exceptions import RequestValidationError
 from backend.database import database_ready
 from backend.comparison.api import router as comparison_router
 from backend.accounts_api import router as accounts_router
+from backend.corpus_api import router as corpus_router
 from backend.persistence import ServiceError
 
 
 app = FastAPI()
 app.include_router(comparison_router)
 app.include_router(accounts_router)
+app.include_router(corpus_router)
 
 
 @app.exception_handler(ServiceError)

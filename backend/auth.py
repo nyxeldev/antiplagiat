@@ -122,6 +122,14 @@ def require_user(request):
     return {**row, "id": str(row["id"])}
 
 
+def require_admin(request):
+    # Corpus administration only; it never widens access to personal reports.
+    user = require_user(request)
+    if user.get("role") != "admin":
+        raise ServiceError("forbidden", "Bu amal uchun administrator roli kerak.", 403)
+    return user
+
+
 def logout(request):
     require_user(request)
     with database() as conn:

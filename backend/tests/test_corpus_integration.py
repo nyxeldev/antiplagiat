@@ -1,0 +1,313 @@
+"""Corpus integration against a real, owned, disposable PostgreSQL cluster.
+
+Never touches an existing database. All documents are synthetic.
+"""
+import asyncio
+import json
+import secrets
+import unittest
+import uuid
+from pathlib import Path
+from unittest.mock import patch
+
+from starlette.requests import Request
+
+from backend import corpus, corpus_api, manage, persistence
+from backend.comparison import api
+from backend.tests.fixtures import multipart
+from backend.tests.postgres_fixture import isolated_postgres, runtime_environment
+
+UZ = ("Ilmiy tadqiqot ishida matn oxshashligini aniqlash usullari batafsil tahlil qilinadi "
+      "va olingan natijalar jadval korinishida keltiriladi hamda xulosalar asoslanadi")
+RU = ("Nauchnaya rabota soderzhit analiz metodov opredeleniya shodstva teksta "
+      "i rezultaty predstavleny v tablice s obosnovaniem vyvodov avtora")
+EN = ("This research paper analyses lexical similarity detection methods and reports "
+      "the measured outcomes in a table together with the reasoning behind each conclusion")
+UNRELATED = ("Bogda olma anor va uzum pishdi dehqonlar hosilni yigib omborga joyladi "
+             "ertalab yomgir yogdi va havo salqin boldi deb aytishdi qishloqda")
+
+
+def corpus_metadata(title, **extra):
+    return {"title": title, "author_display": "Sinov Muallif", "doc_type": "bmi", "year": 2024,
+            "language_hint": "uz", "source_note": "sintetik", "original_filename": title + ".txt",
+            "permission_basis": "Sintetik sinov uchun akademiya ruxsati", **extra}
+
+
+def extracted(text, name):
+    return {"name": name, "format": "txt", "text": text,
+            "segments": [{"kind": "paragraph", "number": 1, "start": 0, "end": len(text)}]}
+
+
+CLUSTER = {}
+
+
+def setUpModule():
+    """One owned disposable cluster for the whole module."""
+    CLUSTER["handle"] = isolated_postgres()
+    CLUSTER["admin"], CLUSTER["runtime"] = CLUSTER["handle"].__enter__()
+    manage.migrate(CLUSTER["admin"])
+    CLUSTER["admin_id"] = manage.create_user(CLUSTER["admin"], "corpus.admin",
+                                             secrets.token_urlsafe(24), role="admin")
+    CLUSTER["user_id"] = manage.create_user(CLUSTER["admin"], "corpus.reader",
+                                            secrets.token_urlsafe(24))
+
+
+def tearDownModule():
+    CLUSTER["handle"].__exit__(None, None, None)
+
+
+class CorpusFixture:
+    """Shared helpers; not a TestCase so suites do not re-run each other's tests."""
+
+    def setUp(self):
+        self.admin = CLUSTER["admin"]
+        self.runtime = CLUSTER["runtime"]
+        self.admin_id = CLUSTER["admin_id"]
+        self.user_id = CLUSTER["user_id"]
+        self.environment = runtime_environment(self.runtime)
+        self.environment.__enter__()
+        self.addCleanup(self.environment.__exit__, None, None, None)
+
+    def unique(self, text):
+        # Distinct content per test; the digest uniqueness rule is tested on purpose.
+        return f"{text} sinovbelgisi{uuid.uuid4().hex[:10]}"
+
+    def add(self, text, title, raw=None):
+        return corpus.add_document(corpus_metadata(title), extracted(text, title),
+                                   self.admin_id, raw if raw is not None else text.encode())
+
+
+class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
+
+    def test_add_builds_chunks_and_a_searchable_index(self):
+        text = self.unique(UZ)
+        stored = self.add(text, "uz-" + uuid.uuid4().hex[:8])
+        self.assertGreaterEqual(stored["chunk_count"], 1)
+        with persistence.database(self.admin) as conn:
+            row = conn.execute("SELECT char_count, token_count, extraction_policy, status, segments"
+                               " FROM antiplagiat.corpus_documents WHERE id=%s", (stored["id"],)).fetchone()
+            chunks = conn.execute("SELECT chunk_text, char_start, char_end, fts IS NOT NULL AS indexed"
+                                  " FROM antiplagiat.corpus_chunks WHERE corpus_document_id=%s"
+                                  " ORDER BY chunk_index", (stored["id"],)).fetchall()
+        self.assertEqual(row["char_count"], len(text))
+        self.assertEqual(row["extraction_policy"], "uz-latin-v2")
+        self.assertEqual(row["status"], "active")
+        self.assertEqual(len(chunks), stored["chunk_count"])
+        for chunk in chunks:
+            self.assertTrue(chunk["indexed"])
+            self.assertEqual(text[chunk["char_start"]:chunk["char_end"]], chunk["chunk_text"])
+
+    def test_duplicate_content_is_refused_until_the_first_copy_is_withdrawn(self):
+        raw = (UZ + " takroriy").encode()
+        first = self.add(UZ + " takroriy", "dup-a", raw)
+        with self.assertRaises(corpus.CorpusError) as raised:
+            self.add(UZ + " takroriy", "dup-b", raw)
+        self.assertEqual((raised.exception.status, raised.exception.code), (409, "corpus_duplicate"))
+        corpus.withdraw(first["id"])
+        again = self.add(UZ + " takroriy", "dup-c", raw)
+        self.assertNotEqual(again["id"], first["id"])
+
+    def test_withdraw_purges_text_and_removes_the_document_from_retrieval(self):
+        from backend.comparison.matching import tokenize
+        text = self.unique(RU)
+        stored = self.add(text, "ru-" + uuid.uuid4().hex[:8])
+        tokens = tokenize(text)
+        found, _ = corpus.candidates(tokens)
+        self.assertIn(stored["id"], [c["id"] for c in found])
+        corpus.withdraw(stored["id"])
+        found_after, _ = corpus.candidates(tokens)
+        self.assertNotIn(stored["id"], [c["id"] for c in found_after])
+        self.assertIsNone(corpus.load_for_comparison(stored["id"]))
+        with persistence.database(self.admin) as conn:
+            row = conn.execute("SELECT extracted_text, status, withdrawn_at FROM antiplagiat.corpus_documents"
+                               " WHERE id=%s", (stored["id"],)).fetchone()
+            texts = conn.execute("SELECT DISTINCT chunk_text FROM antiplagiat.corpus_chunks"
+                                 " WHERE corpus_document_id=%s", (stored["id"],)).fetchall()
+        self.assertIsNone(row["extracted_text"])
+        self.assertEqual(row["status"], "withdrawn")
+        self.assertIsNotNone(row["withdrawn_at"])
+        self.assertEqual([t["chunk_text"] for t in texts], [""])
+        with self.assertRaises(corpus.CorpusError):
+            corpus.withdraw(stored["id"])
+
+    def test_retrieval_ranks_the_matching_language_above_unrelated_text(self):
+        from backend.comparison.matching import tokenize
+        stored, bodies = {}, {}
+        for text, label in [(UZ, "uz"), (RU, "ru"), (EN, "en"), (UNRELATED, "other")]:
+            bodies[label] = self.unique(text)
+            stored[label] = self.add(bodies[label], f"ret-{label}-" + uuid.uuid4().hex[:6])["id"]
+        for label in ("uz", "ru", "en"):
+            with self.subTest(language=label):
+                found, limit = corpus.candidates(tokenize(bodies[label]))
+                self.assertLessEqual(len(found), limit)
+                ranked = [c["id"] for c in found]
+                self.assertIn(stored[label], ranked)
+                if stored["other"] in ranked:
+                    self.assertLess(ranked.index(stored[label]), ranked.index(stored["other"]))
+
+    def test_unrelated_document_produces_no_matching_passage(self):
+        from backend.comparison.matching import tokenize
+        body = self.unique(UZ)
+        stored = self.add(body, "neg-" + uuid.uuid4().hex[:8])
+        far = ("kompyuter tarmogi protokol server marshrutizator kabel signal uzatish tezligi oshdi "
+               "va yangi uskunalar sinovdan otkazildi deb qayd etildi hisobotda")
+        found, _ = corpus.candidates(tokenize(far))
+        if stored["id"] in [c["id"] for c in found]:
+            # Retrieval may still rank it; the shingle algorithm must find nothing.
+            from backend.comparison.matching import compare
+            loaded = corpus.load_for_comparison(stored["id"])
+            result = compare(extracted(far, "far.txt"), [loaded])
+            self.assertEqual(result["coverage_percent"], 0.0)
+            self.assertEqual(result["sources"][0]["matches"], [])
+
+    def test_listing_and_withdrawn_filter(self):
+        stored = self.add(self.unique(EN), "list-" + uuid.uuid4().hex[:8])
+        active = corpus.list_documents(1, "active")
+        self.assertIn(stored["id"], [i["id"] for i in active["items"]])
+        corpus.withdraw(stored["id"])
+        self.assertNotIn(stored["id"], [i["id"] for i in corpus.list_documents(1, "active")["items"]])
+        self.assertIn(stored["id"], [i["id"] for i in corpus.list_documents(1, "withdrawn")["items"]])
+
+    def test_runtime_role_cannot_delete_or_rewrite_corpus_provenance(self):
+        stored = self.add(self.unique(UZ + " himoya"), "guard-" + uuid.uuid4().hex[:8])
+        attempts = [("delete", "DELETE FROM antiplagiat.corpus_documents WHERE id=%s"),
+                    ("rewrite permission", "UPDATE antiplagiat.corpus_documents SET permission_basis='x' WHERE id=%s"),
+                    ("rewrite digest", "UPDATE antiplagiat.corpus_documents SET content_sha256=repeat('0',64) WHERE id=%s"),
+                    ("delete chunks", "DELETE FROM antiplagiat.corpus_chunks WHERE corpus_document_id=%s")]
+        for label, statement in attempts:
+            with self.subTest(attempt=label), self.assertRaises(Exception):
+                with persistence.database(self.runtime) as conn:
+                    conn.execute(statement, (stored["id"],))
+
+
+class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
+    """The compare endpoint with the corpus flag off and on."""
+
+    def request(self, body, content_type, include_corpus=False, role="user"):
+        sent = False
+        async def receive():
+            nonlocal sent
+            if sent:
+                return {"type": "http.disconnect"}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+        scope = {"type": "http", "method": "POST", "scheme": "http", "path": "/compare",
+                 "query_string": b"include_corpus=true" if include_corpus else b"",
+                 "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                 "headers": [(b"content-type", content_type.encode()), (b"x-antiplagiat-local", b"1"),
+                             (b"idempotency-key", str(uuid.uuid4()).encode())]}
+        owner = str(self.admin_id if role == "admin" else self.user_id)
+        with patch.object(api.auth, "require_user", return_value={"id": owner, "role": role}):
+            return asyncio.run(api.compare_uploads(Request(scope, receive), include_corpus=include_corpus))
+
+    def payload(self, response):
+        return json.loads(bytes(response.body))
+
+    def test_flag_off_keeps_the_existing_result_shape(self):
+        self.add(self.unique(UZ), "off-" + uuid.uuid4().hex[:8])
+        body, kind = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UZ.encode())])
+        result = self.payload(self.request(body, kind))
+        self.assertEqual(result["coverage_percent"], 100.0)
+        self.assertEqual(len(result["sources"]), 1)
+        self.assertNotIn("corpus", result)
+        self.assertNotIn("excerpt_policy", result)
+        self.assertTrue(all("corpus" not in s for s in result["sources"]))
+
+    def test_flag_on_adds_the_corpus_candidate_with_usable_offsets(self):
+        stored = self.add(UZ, "on-" + uuid.uuid4().hex[:8])
+        document = UZ + " Qoshimcha mustaqil xulosa qismi bu yerda yozilgan."
+        body, kind = multipart([("document", "t.txt", document.encode()),
+                                ("sources", "s.txt", UNRELATED.encode())])
+        result = self.payload(self.request(body, kind, include_corpus=True))
+        self.assertEqual(result["corpus"]["retrieval_policy"], "pg-fts-candidate-v1")
+        self.assertEqual(result["corpus"]["fts_configuration"], "simple")
+        self.assertGreaterEqual(result["corpus"]["candidates_compared"], 1)
+        self.assertTrue(any("limit tufayli" in line for line in result["limitations"]))
+        corpus_sources = [s for s in result["sources"] if s.get("corpus")]
+        self.assertEqual(len(corpus_sources), result["corpus"]["candidates_compared"])
+        source = next(s for s in corpus_sources if s["corpus"]["id"] == stored["id"])
+        self.assertTrue(source["matches"])
+        match = source["matches"][0]
+        self.assertEqual(result["document"]["text"][match["document"]["start"]:match["document"]["end"]],
+                         match["document"]["text"])
+        self.assertIn(match["source"]["text"], UZ)
+        self.assertGreater(source["coverage_percent"], 0)
+        self.assertLessEqual(result["coverage_percent"], 100.0)
+
+    def test_non_admin_response_never_carries_full_corpus_text(self):
+        self.add(self.unique(UZ), "leak-" + uuid.uuid4().hex[:8])
+        body, kind = multipart([("document", "t.txt", UZ.encode()),
+                                ("sources", "s.txt", UNRELATED.encode())])
+        response = self.request(body, kind, include_corpus=True)
+        raw = bytes(response.body).decode("utf-8")
+        result = json.loads(raw)
+        source = next(s for s in result["sources"] if s.get("corpus"))
+        self.assertNotIn("text", source)
+        self.assertNotIn("segments", source)
+        self.assertTrue(source["text_withheld"])
+        for match in source["matches"]:
+            excerpt = match["source"]["excerpt"]
+            self.assertLessEqual(len(excerpt["before"]), corpus.CORPUS_CONTEXT_CHARS)
+            self.assertLessEqual(len(excerpt["after"]), corpus.CORPUS_CONTEXT_CHARS)
+        self.assertEqual(result["excerpt_policy"]["context_chars"], corpus.CORPUS_CONTEXT_CHARS)
+
+    def test_personal_report_text_never_reaches_the_corpus(self):
+        before = corpus.list_documents(1, "all")["items"]
+        secret = "Shaxsiy hisobot matni " + uuid.uuid4().hex + " korpusga tushmasligi kerak albatta"
+        body, kind = multipart([("document", "p.txt", secret.encode()),
+                                ("sources", "q.txt", secret.encode())])
+        for flag in (False, True):
+            with self.subTest(include_corpus=flag):
+                self.payload(self.request(body, kind, include_corpus=flag))
+        after = corpus.list_documents(1, "all")["items"]
+        self.assertEqual([i["id"] for i in before], [i["id"] for i in after])
+        with persistence.database(self.admin) as conn:
+            hit = conn.execute("SELECT count(*) AS n FROM antiplagiat.corpus_chunks"
+                               " WHERE chunk_text LIKE %s", ("%" + secret[:40] + "%",)).fetchone()["n"]
+            docs = conn.execute("SELECT count(*) AS n FROM antiplagiat.corpus_documents"
+                                " WHERE extracted_text LIKE %s", ("%" + secret[:40] + "%",)).fetchone()["n"]
+        self.assertEqual((hit, docs), (0, 0))
+
+
+class CorpusAccessTests(CorpusFixture, unittest.TestCase):
+    def scope(self, method, path, query=b""):
+        return {"type": "http", "method": method, "scheme": "http", "path": path,
+                "query_string": query, "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                "headers": [(b"x-antiplagiat-local", b"1")]}
+
+    def test_listing_requires_an_admin_session(self):
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.user_id), "role": "user"}):
+            with self.assertRaises(persistence.ServiceError) as raised:
+                corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
+        self.assertEqual(raised.exception.status, 403)
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.admin_id), "role": "admin"}):
+            response = corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
+        self.assertEqual(response.status_code, 200)
+
+    def test_withdraw_requires_an_admin_session(self):
+        stored = self.add(self.unique(EN + " ruxsat"), "acl-" + uuid.uuid4().hex[:8])
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.user_id), "role": "user"}):
+            with self.assertRaises(persistence.ServiceError) as raised:
+                corpus_api.withdraw(Request(self.scope("POST", "/corpus/documents")), stored["id"])
+        self.assertEqual(raised.exception.status, 403)
+        self.assertIsNotNone(corpus.load_for_comparison(stored["id"]))
+
+    def test_anonymous_corpus_access_is_unauthenticated(self):
+        with self.assertRaises(persistence.ServiceError) as raised:
+            corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
+        self.assertEqual(raised.exception.status, 401)
+
+    def test_unknown_identifier_is_not_found_rather_than_a_driver_error(self):
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.admin_id), "role": "admin"}):
+            for identifier in ("not-a-uuid", str(uuid.uuid4())):
+                with self.subTest(identifier=identifier), self.assertRaises(corpus.CorpusError) as raised:
+                    corpus_api.withdraw(Request(self.scope("POST", "/corpus/documents")), identifier)
+                self.assertEqual(raised.exception.status, 404)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -20,9 +20,19 @@ def main(directory):
         try:
             from .extract import extract
             from .matching import compare
-            items = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
-            documents = [extract(folder / item["path"], item["name"]) for item in items]
-            result = compare(documents[0], documents[1:])
+            manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+            # A bare list keeps the original single-pass behaviour unchanged.
+            mode = "compare" if isinstance(manifest, list) else manifest.get("mode", "compare")
+            items = manifest if isinstance(manifest, list) else manifest.get("items", [])
+            if mode == "prepared":
+                # Corpus runs: the parent already holds extracted text and adds
+                # retrieved corpus sources, so nothing is parsed a second time.
+                prepared = json.loads((folder / "prepared.json").read_text(encoding="utf-8"))
+                result = compare(prepared["document"], prepared["sources"])
+            else:
+                documents = [extract(folder / item["path"], item["name"]) for item in items]
+                result = ({"status": "extracted", "documents": documents} if mode == "extract"
+                          else compare(documents[0], documents[1:]))
         except ComparisonError as error:
             result = error.payload()
             result["http_status"] = error.status
