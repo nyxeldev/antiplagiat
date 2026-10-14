@@ -1,10 +1,26 @@
 # Ish rejasi va BMI tajribalari
 
-Versiya 0.4 · 2026-10-13.
+Versiya 0.5 · 2026-10-14.
 
-**Bu bosqichda bajarildi — ichki ilmiy korpus MVP.** Ruxsat asosi majburiy bo‘lgan ichki korpus (`corpus_documents`/`corpus_chunks`, migratsiya `002_internal_corpus`), PostgreSQL FTS (`simple`) bilan nomzod tanlash (`pg-fts-candidate-v1`), nomzodlarni **mavjud** exact/5-token shingle algoritmi bilan solishtirish va natijani mavjud hisobot snapshotiga qo‘shish. Korpus tekshiruvi opt-in, default o‘chiq; qo‘lda 1–5 manba oqimi o‘zgarmagan. Korpusni faqat `admin` boshqaradi (CLI va HTTP), oddiy foydalanuvchi to‘liq korpus matnini olmaydi. 93 backend testi (33 tasi yangi), frontend lint/TypeScript/build o‘tdi.
+**Bu bosqichda bajarildi — ichki ilmiy korpus MVP, real bazaga qo‘llangan.** Ruxsat asosi majburiy bo‘lgan ichki korpus (`corpus_documents`/`corpus_chunks`, migratsiya `002_internal_corpus`), PostgreSQL FTS (`simple`) bilan nomzod tanlash (`pg-fts-candidate-v1`), nomzodlarni **mavjud** exact/5-token shingle algoritmi bilan solishtirish va natijani mavjud hisobot snapshotiga qo‘shish. Korpus tekshiruvi opt-in, default o‘chiq; qo‘lda 1–5 manba oqimi o‘zgarmagan.
 
-**Keyingi qadamlar:** retrieval sifatini ruxsatli nazorat korpusida o‘lchash (recall/precision, morfologik variantlar `simple` konfiguratsiyasida bog‘lanmaydi); korpus uchun admin UI sahifasi; topshiriq/rol bo‘yicha ruxsatlar (`reviewer`, `corpus_manager` hozir qo‘shimcha huquq bermaydi); retention/backup siyosati; so‘ng kengroq indekslash. OCR, tashqi qidiruv, parafraz va semantik model hamon doiradan tashqarida.
+Migratsiya `antiplagiat` ishlab chiqish bazasiga **haqiqatan qo‘llandi** (avval to‘liq `pg_dump` zaxirasi olingach): `D:\antiplagiat_backups\antiplagiat-pre-002-20261014-135628.dump` (40 345 bayt). `migrate --check` toza o‘tdi, so‘ng `migrate` ikkala migratsiyani (`001_accounts_reports`, `002_internal_corpus`) ro‘yxatga oldi; `corpus_documents`/`corpus_chunks` jadvallari mavjudligi tasdiqlandi.
+
+**Korpus boshqaruv rol matritsasi** (koddagidek, `backend/auth.py` dagi `CORPUS_MANAGEMENT_ROLES`):
+
+| Rol | `/corpus/documents*` | Shaxsiy hisobotlar |
+| --- | --- | --- |
+| `admin` | 200 | faqat o‘ziniki |
+| `corpus_manager` | 200 | faqat o‘ziniki |
+| `user` | 403 | faqat o‘ziniki |
+| `reviewer` | 403 | faqat o‘ziniki |
+| login yo‘q | 401 | 401 |
+
+`corpus_manager` boshqa hech qanday qo‘shimcha huquqqa ega emas — faqat korpus boshqaruvi uchun. `admin`/`corpus_manager` ham boshqa foydalanuvchining shaxsiy hisobotini ko‘rmaydi.
+
+**Shu bosqichda topilgan va tuzatilgan nuqson:** qisqa korpus hujjatlarida kontekst oynasi (`CORPUS_CONTEXT_CHARS = 200`, flat) hujjatning butun qolgan matnini fosh qilishi mumkin edi — bu `docs/requirements.md` 2.1-bo‘limidagi «to‘liq matnni hech qachon olmaydi» talabini buzgan haqiqiy nuqson edi (mexanizm xato ishlagani emas, kafolat qisqa hujjatlar uchun yetarli bo‘lmagani). `CORPUS_CONTEXT_FRACTION = 0.5` bilan tuzatildi — tafsilot va test nomi [docs/architecture.md](architecture.md), 1-bo‘lim, «Qisqa korpus hujjatlarida kontekst sizishi» da.
+
+**Keyingi qadamlar:** retrieval sifatini ruxsatli nazorat korpusida o‘lchash (recall/precision, morfologik variantlar `simple` konfiguratsiyasida bog‘lanmaydi — benchmark hujjatlari korpusdan **qisman** o‘xshash, mos kelmaydigan dum bilan tanlanishi shart, [architecture.md](architecture.md) da izohlangan); korpus uchun admin UI sahifasi (hozir faqat CLI/HTTP); `reviewer` roliga hali qo‘shimcha huquq berilmagan; retention/backup siyosati; `scripts/check_e2e.py` hali korpusni qamramaydi (faqat qo‘lda browser tekshiruvi bo‘ldi); DOCX/PDF formatidagi korpus kiritish yo‘li (`corpus-add`) faqat TXT bilan sinaldi; so‘ng kengroq indekslash. OCR, tashqi qidiruv, parafraz va semantik model hamon doiradan tashqarida.
 
 **Test avtomatlashtirishdagi ma’lum bo‘shliq:** o‘chirish oqimidagi native `window.confirm` oynasini ichki brauzer vositasi qabul qila olmaydi — oyna ochiladi, lekin faqat bekor qilinadi va `DELETE` so‘rovi yuborilmaydi. Bu ilovaning to‘g‘ri xulqi (o‘chirish haqiqatan tasdiqlash ortida), ammo uchdan-uchiga avtomatik regressiyani to‘sadi. Variantlar keyin baholanadi: `window.confirm` o‘rniga ilova ichidagi modal dialog, yoki dialogni qabul qila oladigan test drayveri (masalan Playwright/CDP). Hozircha bu qadam qo‘lda tasdiqlanadi.
 
