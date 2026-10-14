@@ -15,7 +15,7 @@ Next.js/React/TypeScript/ESLint versiyalari lockfile’da saqlandi. `account-she
 Frontend paketlari npm bilan boshqariladi, aniq daraxt `package-lock.json` da saqlanadi. `frontend/` ichida alohida Git repository yo‘q; `node_modules/` va `.next/` Git’dan chetlashtirilgan. Windows PowerShell 5.1 uchun tekshiruvlar:
 
 ```powershell
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd run build
@@ -38,7 +38,7 @@ Buyruqlar va dalillar [README](../README.md#autentifikatsiya-va-shaxsiy-tarix) d
 
 Mavjud psycopg + parametrli SQL saqlandi: uch jadval va owner predicate uchun ORM zarurati yo‘q. `backend/manage.py` alohida vakolatli hisob va yashirin terminal paroli bilan migratsiyani atomic/advisory lock ostida bajaradi. `schema_migrations` version/checksum orqali qayta ishga tushishni tekshiradi. Mavjud DB o‘chirilmaydi. Runtime superuser yoki DB egasi bo‘lishi rad etiladi; schema USAGE, users SELECT, sessions SELECT/INSERT/DELETE va reports SELECT/INSERT + purge ustunlari UPDATE. UUID sabab sequence grant yo‘q. Runtime migratsiya/akkaunt boshqarmaydi.
 
-`users`: UUID, unique login, Argon2id hash, enabled, role va vaqt. Rol user/reviewer/corpus_manager/admin — kelajak maydoni; hozir hamma faqat o‘z tarixini ko‘radi, admin boshqa hisobotlarga kira olmaydi. Signup/email/reset va rol UI yo‘q. Argon2-cffi va pinned bindings/cffi/pycparser Windows/Python 3.14 da tekshirildi; versiyalar requirements’da.
+`users`: UUID, unique login, Argon2id hash, enabled, role va vaqt. Rol user/reviewer/corpus_manager/admin. `admin` va `corpus_manager` korpus boshqaruviga (`CORPUS_MANAGEMENT_ROLES`, [backend/auth.py](../backend/auth.py)) kirish huquqiga ega; `reviewer` hozircha `user` bilan bir xil, boshqa qo‘shimcha huquqlar yo‘q. Hamma rol o‘z shaxsiy tarixini ko‘radi; `admin`/`corpus_manager` ham boshqa hisobotlarga kira olmaydi. Signup/email/reset va rol UI yo‘q. Argon2-cffi va pinned bindings/cffi/pycparser Windows/Python 3.14 da tekshirildi; versiyalar requirements’da.
 
 `sessions`: 32 baytli tasodifiy opaque tokenning SHA-256 hashi, user FK va vaqt/muddat (8 soat). Cookie HttpOnly/Path=/SameSite=Strict; Secure public origin HTTPS bo‘lsa yoqiladi. Token URL/localStoragega berilmaydi; login oldingi cookie sessionini, logout esa amaldagi DB sessionni bekor qiladi. Restart sessionni saqlaydi. Origin/custom header/loopback va Next proxy aniq Host tekshiruvlari CSRFni cheklaydi; CORS ochilmagan. Frontend/backend bir xil `ANTIPLAGIAT_PUBLIC_ORIGIN` bilan sozlanadi; lokal TLS terminatsiyasida backend loopback HTTP bo‘lishi mumkin.
 

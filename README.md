@@ -60,12 +60,12 @@ Bir fayl tanlovi uchun frontend bir xil `Idempotency-Key` UUIDni qayta urinishla
 Lokal birinchi sozlash (parollarni argument yoki chatga yozmang):
 
 ```powershell
-Set-Location D:\aniplagiat
+Set-Location D:\antiplagiat
 .\.venv\Scripts\python.exe -m backend.manage migrate
 .\.venv\Scripts\python.exe -m backend.manage create-user akademiya_user
 .\scripts\start_backend.ps1
 # Backend ishlayotganida ikkinchi terminal:
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 npm.cmd run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
@@ -82,7 +82,7 @@ Tasdiqlangan alohida tuzatish: psycopg context managerida commit exception bo‘
 Mavjud `.venv` uchun yangilangan aniq dependency ro‘yxatini o‘rnatish (Node/npm yoki Python qayta o‘rnatilmaydi):
 
 ```powershell
-Set-Location D:\aniplagiat
+Set-Location D:\antiplagiat
 .\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
 .\.venv\Scripts\python.exe -m pip check
 ```
@@ -90,14 +90,14 @@ Set-Location D:\aniplagiat
 Birinchi PowerShell oynasida backend:
 
 ```powershell
-Set-Location D:\aniplagiat
+Set-Location D:\antiplagiat
 .\scripts\start_backend.ps1
 ```
 
 Ikkinchi PowerShell oynasida frontend:
 
 ```powershell
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 npm.cmd run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
@@ -132,13 +132,13 @@ DOCX uchun `zipfile` + `defusedxml` tanlandi: matn ajratishga yetarli va qo‘sh
 Tekshiruv buyruqlari:
 
 ```powershell
-Set-Location D:\aniplagiat
+Set-Location D:\antiplagiat
 .\.venv\Scripts\python.exe -m unittest discover -s backend/tests -v
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd run build
-Set-Location D:\aniplagiat
+Set-Location D:\antiplagiat
 .\.venv\Scripts\python.exe scripts/check_e2e.py
 ```
 
@@ -150,39 +150,51 @@ Ixtiyoriy browser testi uchun `.venv`ga `pip install -r scripts/test-requirement
 
 ## Ichki ilmiy korpus
 
-Ruxsat asosida saqlanadigan ichki korpus. Korpusni **faqat `admin` roli** boshqaradi; oddiy foydalanuvchi korpus manbasidan to‘liq matnni olmaydi — faqat metama’lumot, mos parcha va har tomondan 200 belgigacha kontekst. Korpus tekshiruvi ixtiyoriy: solishtirish formasidagi «Ichki korpus bo‘yicha ham tekshirish» belgisi, default o‘chiq. Belgilanmasa mavjud oqim va natijalar o‘zgarmaydi.
+Ruxsat asosida saqlanadigan ichki korpus. Korpusni **`admin` yoki `corpus_manager` roli** boshqaradi; oddiy foydalanuvchi korpus manbasidan to‘liq matnni olmaydi — faqat metama’lumot, mos parcha va har tomondan 200 belgigacha kontekst. Korpus tekshiruvi ixtiyoriy: solishtirish formasidagi «Ichki korpus bo‘yicha ham tekshirish» belgisi, default o‘chiq. Belgilanmasa mavjud oqim va natijalar o‘zgarmaydi.
+
+**Rol matritsasi** (koddagidek, [backend/auth.py](backend/auth.py)dagi `CORPUS_MANAGEMENT_ROLES`):
+
+| Rol | `/corpus/documents` (qo‘shish/ro‘yxat/withdraw) | O‘z shaxsiy hisobotlari |
+| --- | --- | --- |
+| `admin` | 200 | 200 (faqat o‘ziniki) |
+| `corpus_manager` | 200 | 200 (faqat o‘ziniki) |
+| `user` | 403 | 200 (faqat o‘ziniki) |
+| `reviewer` | 403 | 200 (faqat o‘ziniki) |
+| login qilinmagan | 401 | 401 |
+
+`corpus_manager` boshqa foydalanuvchilarning shaxsiy hisobotlarini ko‘rmaydi — korpus huquqi va hisobot egaligi butunlay mustaqil tekshiriladi.
 
 Avval migratsiyani qo‘llang (`002_internal_corpus` qo‘shilgan):
 
 ```powershell
-Set-Location D:\aniplagiat
+Set-Location D:\antiplagiat
 .\.venv\Scripts\python.exe -m backend.manage migrate --check
 .\.venv\Scripts\python.exe -m backend.manage migrate
 ```
 
-**Admin rolini berish.** Yangi hisobni admin sifatida yarating:
+**Korpus boshqaruvchi hisob yaratish.** `--role` sifatida `admin` yoki `corpus_manager` beriladi — ikkalasi ham korpusni boshqaradi, farqi yo‘q (`corpus_manager` boshqa admin huquqlariga ega emas, faqat korpus uchun):
 
 ```powershell
-.\.venv\Scripts\python.exe -m backend.manage create-user akademiya_admin --role admin
+.\.venv\Scripts\python.exe -m backend.manage create-user korpus_admin --role corpus_manager
 ```
 
-Mavjud hisobga admin rolini berish uchun alohida CLI buyrug‘i yo‘q. Buni vakolatli DB hisobi bilan qo‘lda bajaring; parolni buyruq argumentiga yozmang:
+Mavjud hisobga rolni berish uchun alohida CLI buyrug‘i yo‘q. Buni vakolatli DB hisobi bilan qo‘lda bajaring; parolni buyruq argumentiga yozmang (`role` qiymatini `admin` yoki `corpus_manager` qiling):
 
 ```powershell
-.\.venv\Scripts\python.exe -c "import getpass, psycopg; psycopg.connect(host='127.0.0.1', port=5432, dbname='antiplagiat', user=input('Vakolatli DB hisobi: '), password=getpass.getpass('Parol: ')).execute(\"UPDATE antiplagiat.users SET role='admin' WHERE username=%s\", (input('Login: '),)).connection.commit()"
+.\.venv\Scripts\python.exe -c "import getpass, psycopg; psycopg.connect(host='127.0.0.1', port=5432, dbname='antiplagiat', user=input('Vakolatli DB hisobi: '), password=getpass.getpass('Parol: ')).execute(\"UPDATE antiplagiat.users SET role=%s WHERE username=%s\", (input('Rol (admin/corpus_manager): '), input('Login: '))).connection.commit()"
 ```
 
-**Korpus buyruqlari.** Har biri vakolatli DB hisobini va parolni terminalda yashirin so‘raydi:
+**Korpus buyruqlari.** Har biri vakolatli DB hisobini va parolni terminalda yashirin so‘raydi; `--as-user` `admin` yoki `corpus_manager` rolidagi hisobni ko‘rsatishi kerak:
 
 ```powershell
-.\.venv\Scripts\python.exe -m backend.manage corpus-add D:\yol\hujjat.docx --as-user akademiya_admin
+.\.venv\Scripts\python.exe -m backend.manage corpus-add D:\yol\hujjat.docx --as-user korpus_admin
 .\.venv\Scripts\python.exe -m backend.manage corpus-list --status active
 .\.venv\Scripts\python.exe -m backend.manage corpus-withdraw <hujjat-id>
 ```
 
 `corpus-add` sarlavha, muallif, tur (`bmi/dissertatsiya/kurs_ishi/maqola/boshqa`), til belgisi, manba izohi, **ruxsat asosi** va yilni so‘raydi. Ruxsat asosi bo‘sh bo‘lsa hujjat saqlanmaydi. Fayl mavjud sandboxlangan parser orqali o‘qiladi; binar fayl saqlanmaydi, faqat ajratilgan matn, uning chunklari va `content_sha256` qoladi. Bir xil fayl faol holatda ikki marta kirmaydi. `corpus-withdraw` hujjatni qidiruvdan chiqaradi va uning matni hamda chunk matnlarini o‘chiradi; dalil uchun minimal yozuv qoladi (bu zaxira/WAL izlarini yo‘qotmaydi).
 
-**Admin HTTP endpointlari** (login bo‘lmaganda 401, admin bo‘lmaganda 403):
+**Korpus boshqaruv HTTP endpointlari** (login bo‘lmaganda 401, `admin`/`corpus_manager` bo‘lmaganda 403):
 
 | Endpoint | Vazifasi |
 | --- | --- |
@@ -214,14 +226,14 @@ Windows PowerShell 5.1, Node.js 24.21.0 va npm 12.0.2 bilan o‘rnatildi. Barqar
 Aniq dependency daraxti `frontend/package-lock.json` da saqlanadi. Yangi checkoutda frontend paketlarini o‘rnatish (Node/npm qayta o‘rnatilmaydi):
 
 ```powershell
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 npm.cmd ci
 ```
 
 Ishlab chiqish serveri:
 
 ```powershell
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 npm.cmd run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
@@ -230,7 +242,7 @@ npm.cmd run dev -- --hostname 127.0.0.1 --port 3000
 Tekshiruvlar va production build:
 
 ```powershell
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd run build
@@ -239,7 +251,7 @@ npm.cmd run build
 Production builddan keyin bo‘sh lokal portni tanlab ishga tushirish:
 
 ```powershell
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
 $listener.Start()
 $frontendPort = $listener.LocalEndpoint.Port
@@ -251,7 +263,7 @@ npm.cmd run start -- --hostname 127.0.0.1 --port $frontendPort
 Ikkinchi PowerShell oynasida chiqarilgan portni kiriting va HTTP javobini tekshiring:
 
 ```powershell
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 $frontendPort = Read-Host 'Server oynasidagi port'
 $response = Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:$frontendPort/"
 $response.StatusCode
@@ -271,7 +283,7 @@ O‘rnatishdagi npm audit ESLint dependency zanjirida 5 ta yuqori darajadagi top
 Faqat toza checkoutda, `.venv` hali mavjud bo‘lmasa, Python 3.14 orqali virtual muhit yarating va backend paketlarini o‘rnating. Quyidagi tayyorlash buyruqlarini mavjud `.venv` ustida bajarmang:
 
 ```powershell
-Set-Location D:\aniplagiat
+Set-Location D:\antiplagiat
 py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
 .\.venv\Scripts\python.exe -m pip check
@@ -279,17 +291,17 @@ py -3.14 -m venv .venv
 
 Oldingi 14 paketli backend ro‘yxati toza Python 3.14.3 muhitida tekshirilgan. Psycopg qo‘shilgan joriy ro‘yxatni toza muhitdan qayta o‘rnatish hali tekshirilmagan.
 
-PowerShell’da loyiha ildizidan (`D:\aniplagiat`), mavjud `.venv` orqali:
+PowerShell’da loyiha ildizidan (`D:\antiplagiat`), mavjud `.venv` orqali:
 
 ```powershell
-Set-Location D:\aniplagiat
+Set-Location D:\antiplagiat
 .\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
 Ikkinchi PowerShell oynasida haqiqiy HTTP javobini tekshirish:
 
 ```powershell
-Set-Location D:\aniplagiat
+Set-Location D:\antiplagiat
 .\.venv\Scripts\python.exe -c "import json, urllib.request; r = urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5); body = r.read().decode('utf-8'); print(r.status, body); assert r.status == 200; assert json.loads(body) == {'status': 'ok'}"
 ```
 

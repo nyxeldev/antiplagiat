@@ -9,7 +9,7 @@ bir xil highlight va ogohlantirishlar bilan ko‘rsatiladi.
 Avval boshqa PowerShell oynasida backendni ishga tushiring:
 
 ```powershell
-Set-Location D:\aniplagiat
+Set-Location D:\antiplagiat
 .\scripts\start_backend.ps1
 ```
 
@@ -25,14 +25,14 @@ HTTPS origin’da Secure. Token URL/localStorage’da saqlanmaydi.
 Buyruqlar Windows PowerShell 5.1 uchun:
 
 ```powershell
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 npm.cmd run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
 3000-port bo‘sh bo‘lishi kerak. Serverni shu oynada `Ctrl+C` bilan to‘xtating.
 
 ```powershell
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd run build

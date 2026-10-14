@@ -21,11 +21,21 @@ Versiya 0.1 · 2026-10-12 · Boshlang‘ich taklif.
 
 Administrator roli avtomatik ravishda barcha ilmiy matnlarni o‘qish huquqini bermaydi. Solishtirishga ruxsat va manba matnini foydalanuvchiga ko‘rsatish huquqi alohida belgilanadi. Cheklangan manba uchun faqat ruxsat etilgan rekvizit yoki parcha ko‘rsatiladi. Barcha ruxsatlar serverda tekshiriladi; interfeysdagi yashirish yetarli emas.
 
-**Amaldagi holat:** `users.role` ustuni `user/reviewer/corpus_manager/admin` qiymatlarini qabul qiladi, ammo hozir faqat `admin` qo‘shimcha huquq beradi — u ham faqat ichki korpusni boshqarish uchun. `reviewer` va `corpus_manager` hozircha oddiy foydalanuvchi bilan bir xil. Administrator **boshqa foydalanuvchining shaxsiy hisobotini ko‘rmaydi**; bu qoida korpus bosqichida ham o‘zgarmadi.
+**Amaldagi holat:** `users.role` ustuni `user/reviewer/corpus_manager/admin` qiymatlarini qabul qiladi. `admin` va `corpus_manager` — ikkalasi ham korpusni boshqaradi (`backend/auth.py`dagi `CORPUS_MANAGEMENT_ROLES`); `corpus_manager` boshqa hech qanday qo‘shimcha huquqqa ega emas, faqat shu bitta amal uchun. `reviewer` hozircha oddiy foydalanuvchi bilan bir xil. Administrator va `corpus_manager` ham **boshqa foydalanuvchining shaxsiy hisobotini ko‘rmaydi**; bu qoida korpus bosqichida ham o‘zgarmadi.
+
+**Rol matritsasi (koddagidek):**
+
+| Rol | Korpus boshqaruvi (`/corpus/documents*`) | Shaxsiy hisobotlar |
+| --- | --- | --- |
+| `admin` | 200 | Faqat o‘ziniki |
+| `corpus_manager` | 200 | Faqat o‘ziniki |
+| `user` | 403 | Faqat o‘ziniki |
+| `reviewer` | 403 | Faqat o‘ziniki |
+| (login yo‘q) | 401 | 401 |
 
 ### 2.1 Ichki korpus ruxsat modeli
 
-- Korpusga hujjat qo‘shish, ro‘yxatini ko‘rish va chiqarish (withdraw) — faqat `admin`. Autentifikatsiyasiz so‘rov 401, admin bo‘lmagan sessiya 403 oladi.
+- Korpusga hujjat qo‘shish, ro‘yxatini ko‘rish va chiqarish (withdraw) — `admin` yoki `corpus_manager`. Autentifikatsiyasiz so‘rov 401, bu ikki roldan boshqa sessiya 403 oladi.
 - Har bir korpus hujjati uchun **ruxsat asosi (`permission_basis`) majburiy**; u bo‘sh bo‘lsa hujjat umuman saqlanmaydi. Ruxsat asosi keyinchalik o‘zgartirilmaydi (DB triggeri taqiqlaydi).
 - Oddiy foydalanuvchi korpus manbasidan **to‘liq matnni hech qachon olmaydi**: faqat metama’lumot, mos kelgan parcha va har tomondan cheklangan kontekst (`<=200` belgi), hisobot bo‘yicha umumiy kontekst budjeti bilan.
 - Shaxsiy tekshiruv hujjatlari va hisobot matnlari **avtomatik korpusga qo‘shilmaydi**. Korpusga kirish faqat adminning aniq amali bilan bo‘ladi.
