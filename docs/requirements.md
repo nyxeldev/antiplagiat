@@ -37,7 +37,8 @@ Administrator roli avtomatik ravishda barcha ilmiy matnlarni o‘qish huquqini b
 
 - Korpusga hujjat qo‘shish, ro‘yxatini ko‘rish va chiqarish (withdraw) — `admin` yoki `corpus_manager`. Autentifikatsiyasiz so‘rov 401, bu ikki roldan boshqa sessiya 403 oladi.
 - Har bir korpus hujjati uchun **ruxsat asosi (`permission_basis`) majburiy**; u bo‘sh bo‘lsa hujjat umuman saqlanmaydi. Ruxsat asosi keyinchalik o‘zgartirilmaydi (DB triggeri taqiqlaydi).
-- Oddiy foydalanuvchi korpus manbasidan **to‘liq matnni hech qachon olmaydi**: faqat metama’lumot, mos kelgan parcha va har tomondan cheklangan kontekst (`<=200` belgi), hisobot bo‘yicha umumiy kontekst budjeti bilan.
+- Oddiy foydalanuvchi korpus manbasidan **to‘liq matnni hech qachon olmaydi**: faqat metama’lumot, mos kelgan parcha va har tomondan cheklangan kontekst (`<=200` belgi, uzunligi qo‘shimcha ravishda shu tomonda mavjud matnning yarmidan oshmaydi), hisobot bo‘yicha umumiy kontekst budjeti bilan.
+- **Doira: bitta hisobot.** Yuqoridagi kafolat (excerpt, kontekst budjeti) faqat **bitta solishtirish so‘rovi/hisobot** doirasida amal qiladi. Hozir **ko‘p so‘rov bo‘yicha jamlanishdan himoya yo‘q**: bir foydalanuvchi bir xil korpus hujjatiga nisbatan turlicha qisman mos keladigan matnlar bilan bir necha marta so‘rov yuborib, har safar olingan kontekst bo‘laklarini o‘zi tashqarida birlashtirib, korpus hujjatining katta qismini yoki barchasini qayta tiklashi mumkin. Bu ma’lum cheklov, kelajak yechimlari [docs/roadmap.md](roadmap.md) da.
 - Shaxsiy tekshiruv hujjatlari va hisobot matnlari **avtomatik korpusga qo‘shilmaydi**. Korpusga kirish faqat adminning aniq amali bilan bo‘ladi.
 - Korpus tekshiruvi **opt-in**: solishtirish so‘rovidagi ixtiyoriy bayroq, default o‘chiq.
 - Withdraw qilingan hujjatning matni va chunk matnlari o‘chiriladi; qidiruvdan chiqadi. Faqat minimal yozuv (ID, ruxsat asosi, digest, sana) dalil sifatida qoladi. Bu WAL/zaxiradagi izlarning xavfsiz yo‘qotilishi emas.
