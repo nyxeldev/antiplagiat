@@ -33,6 +33,12 @@ RETRIEVAL_TIMEOUT_MS = 5000
 CORPUS_CONTEXT_CHARS = 200
 CORPUS_MATCH_CHARS = 1200
 CORPUS_EXCERPT_BUDGET = 20_000
+# A flat per-side cap alone can expose nearly a whole short document: a 200-char
+# window on each side of a short match can cover everything outside the match.
+# This second cap limits context to a fraction of what is actually available on
+# that side (outside the match), so some of a short document's text always
+# stays hidden even when the flat cap alone would not have limited it.
+CORPUS_CONTEXT_FRACTION = 0.5
 DOC_TYPES = ("bmi", "dissertatsiya", "kurs_ishi", "maqola", "boshqa")
 PAGE_SIZE = 20
 
@@ -233,9 +239,13 @@ def redact(result):
             side = match["source"]
             start, end = side["start"], side["end"]
             truncated = len(side["text"]) > CORPUS_MATCH_CHARS
-            room = max(0, min(CORPUS_CONTEXT_CHARS, budget // 2))
-            before = text[max(0, start - room):start]
-            after = text[end:end + room]
+            flat_room = max(0, min(CORPUS_CONTEXT_CHARS, budget // 2))
+            # Independently cap each side by a fraction of what that side
+            # actually has available outside the match.
+            room_before = min(flat_room, int(start * CORPUS_CONTEXT_FRACTION))
+            room_after = min(flat_room, int((len(text) - end) * CORPUS_CONTEXT_FRACTION))
+            before = text[max(0, start - room_before):start]
+            after = text[end:end + room_after]
             budget = max(0, budget - len(before) - len(after))
             side["text"] = side["text"][:CORPUS_MATCH_CHARS] if truncated else side["text"]
             side["match_truncated"] = truncated

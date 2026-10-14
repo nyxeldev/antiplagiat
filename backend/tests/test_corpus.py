@@ -132,6 +132,22 @@ class RedactionTests(unittest.TestCase):
         joined = excerpt["before"] + source["matches"][0]["source"]["text"] + excerpt["after"]
         self.assertNotIn(body, joined)
 
+    def test_short_document_never_exposes_its_full_remaining_text(self):
+        # A match near the start of a SHORT document: a flat 200-char context
+        # cap alone would cover the entire remaining text, defeating "never
+        # the full text". The fraction cap must leave some of it hidden.
+        tail = "T" * 177
+        body = "Ilmiy tadqiqot metodologiyasi haqida umumiy tushuncha. " + tail
+        match = "Ilmiy tadqiqot metodologiyasi haqida umumiy tushuncha"
+        result = corpus.redact(self.report(body, match, 0))
+        side = result["sources"][1]["matches"][0]["source"]
+        excerpt = side["excerpt"]
+        revealed = side["text"] + excerpt["before"] + excerpt["after"]
+        self.assertNotIn(body, revealed)
+        self.assertNotIn(tail, excerpt["after"])
+        self.assertLess(len(excerpt["after"]), len(tail))
+        self.assertAlmostEqual(len(excerpt["after"]), len(tail) * corpus.CORPUS_CONTEXT_FRACTION, delta=1)
+
     def test_long_match_text_is_truncated(self):
         match = "M" * (corpus.CORPUS_MATCH_CHARS + 500)
         result = corpus.redact(self.report("x" + match + "y", match, 1))
