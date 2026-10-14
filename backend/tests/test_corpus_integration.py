@@ -50,6 +50,10 @@ def setUpModule():
                                              secrets.token_urlsafe(24), role="admin")
     CLUSTER["user_id"] = manage.create_user(CLUSTER["admin"], "corpus.reader",
                                             secrets.token_urlsafe(24))
+    CLUSTER["manager_id"] = manage.create_user(CLUSTER["admin"], "corpus.manager",
+                                               secrets.token_urlsafe(24), role="corpus_manager")
+    CLUSTER["reviewer_id"] = manage.create_user(CLUSTER["admin"], "corpus.reviewer",
+                                                secrets.token_urlsafe(24), role="reviewer")
 
 
 def tearDownModule():
@@ -64,6 +68,8 @@ class CorpusFixture:
         self.runtime = CLUSTER["runtime"]
         self.admin_id = CLUSTER["admin_id"]
         self.user_id = CLUSTER["user_id"]
+        self.manager_id = CLUSTER["manager_id"]
+        self.reviewer_id = CLUSTER["reviewer_id"]
         self.environment = runtime_environment(self.runtime)
         self.environment.__enter__()
         self.addCleanup(self.environment.__exit__, None, None, None)
@@ -312,6 +318,22 @@ class CorpusAccessTests(CorpusFixture, unittest.TestCase):
                 with self.subTest(identifier=identifier), self.assertRaises(corpus.CorpusError) as raised:
                     corpus_api.withdraw(Request(self.scope("POST", "/corpus/documents")), identifier)
                 self.assertEqual(raised.exception.status, 404)
+
+    def test_corpus_manager_role_has_the_same_access_as_admin(self):
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.manager_id), "role": "corpus_manager"}):
+            response = corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
+            self.assertEqual(response.status_code, 200)
+            stored = self.add(self.unique(UZ + " manager"), "mgr-" + uuid.uuid4().hex[:8])
+            removed = corpus_api.withdraw(Request(self.scope("POST", "/corpus/documents")), stored["id"])
+        self.assertEqual(json.loads(bytes(removed.body))["status"], "withdrawn")
+
+    def test_reviewer_role_is_refused_like_an_ordinary_user(self):
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.reviewer_id), "role": "reviewer"}):
+            with self.assertRaises(persistence.ServiceError) as raised:
+                corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
+        self.assertEqual(raised.exception.status, 403)
 
 
 if __name__ == "__main__":

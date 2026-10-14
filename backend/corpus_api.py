@@ -152,7 +152,7 @@ def ingest(folder, name, metadata, uploaded_by):
 
 @router.post("/corpus/documents")
 async def add(request: Request):
-    admin = await run_in_threadpool(auth.require_admin, request)
+    manager = await run_in_threadpool(auth.require_corpus_manager, request)
     if not gate.acquire(blocking=False):
         return JSONResponse(ComparisonError("busy", "Boshqa korpus yuklash davom etmoqda.", 429).payload(), 429, headers=HEADERS)
     try:
@@ -173,7 +173,7 @@ async def add(request: Request):
                 raise ComparisonError("upload_format", "Yuklash formati buzilgan.", 400) from None
             finally:
                 upload.close()
-            stored = await run_in_threadpool(ingest, folder, upload.name, metadata, admin["id"])
+            stored = await run_in_threadpool(ingest, folder, upload.name, metadata, manager["id"])
         return JSONResponse({"status": "added", **stored}, headers=HEADERS)
     except (ServiceError, ComparisonError) as error:
         if isinstance(error, ServiceError):
@@ -189,11 +189,11 @@ async def add(request: Request):
 
 @router.get("/corpus/documents")
 def listing(request: Request, page: int = 1, status: str = "active"):
-    auth.require_admin(request)
+    auth.require_corpus_manager(request)
     return JSONResponse(corpus.list_documents(page, status), headers=HEADERS)
 
 
 @router.post("/corpus/documents/{document_id}/withdraw")
 def withdraw(request: Request, document_id: str):
-    auth.require_admin(request)
+    auth.require_corpus_manager(request)
     return JSONResponse(corpus.withdraw(document_id), headers=HEADERS)

@@ -160,18 +160,22 @@ class RoleTests(unittest.TestCase):
     def signed_in(self, role):
         return patch.object(auth, "require_user", return_value={"id": "u", "username": "t", "role": role})
 
-    def test_admin_passes_and_other_roles_are_refused(self):
+    def test_admin_passes_and_non_management_roles_are_refused(self):
         with self.signed_in("admin"):
-            self.assertEqual(auth.require_admin(request())["role"], "admin")
-        for role in ("user", "reviewer", "corpus_manager"):
+            self.assertEqual(auth.require_corpus_manager(request())["role"], "admin")
+        for role in ("user", "reviewer"):
             with self.subTest(role=role), self.signed_in(role):
                 with self.assertRaises(ServiceError) as raised:
-                    auth.require_admin(request())
+                    auth.require_corpus_manager(request())
                 self.assertEqual(raised.exception.status, 403)
+
+    def test_corpus_manager_role_is_also_accepted(self):
+        with self.signed_in("corpus_manager"):
+            self.assertEqual(auth.require_corpus_manager(request())["role"], "corpus_manager")
 
     def test_anonymous_request_is_unauthenticated_not_forbidden(self):
         with self.assertRaises(ServiceError) as raised:
-            auth.require_admin(request())
+            auth.require_corpus_manager(request())
         self.assertEqual(raised.exception.status, 401)
 
 

@@ -211,14 +211,15 @@ def create_user(config, username, password, role="user"):
     return user_id
 
 
-def admin_user_id(config, username):
+def corpus_manager_user_id(config, username):
+    from backend.auth import CORPUS_MANAGEMENT_ROLES
     with database(config) as conn:
         row = conn.execute("SELECT id, role FROM antiplagiat.users WHERE username=%s AND enabled",
                            (username,)).fetchone()
     if not row:
         raise ValueError("Bunday faol akkaunt topilmadi.")
-    if row["role"] != "admin":
-        raise ValueError("Korpusni faqat admin roli boshqaradi.")
+    if row["role"] not in CORPUS_MANAGEMENT_ROLES:
+        raise ValueError("Korpusni faqat admin yoki corpus_manager roli boshqaradi.")
     return row["id"]
 
 
@@ -232,7 +233,7 @@ def corpus_add(config, path, username):
     source = Path(path)
     if not source.is_file():
         raise ValueError("Fayl topilmadi.")
-    uploaded_by = admin_user_id(config, username)
+    uploaded_by = corpus_manager_user_id(config, username)
     metadata = {
         "title": input("Sarlavha: ").strip(),
         "author_display": input("Muallif (ko‘rsatiladigan nom): ").strip(),
@@ -268,7 +269,7 @@ def main():
     account.add_argument("--role", choices=["user", "reviewer", "corpus_manager", "admin"], default="user")
     add_corpus = sub.add_parser("corpus-add")
     add_corpus.add_argument("path", help="Lokal TXT/DOCX/matnli PDF fayl yo‘li.")
-    add_corpus.add_argument("--as-user", required=True, help="Korpusni boshqaradigan admin login.")
+    add_corpus.add_argument("--as-user", required=True, help="Korpusni boshqaradigan admin yoki corpus_manager login.")
     show_corpus = sub.add_parser("corpus-list")
     show_corpus.add_argument("--page", type=int, default=1)
     show_corpus.add_argument("--status", choices=["active", "withdrawn", "all"], default="active")
