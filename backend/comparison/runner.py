@@ -10,8 +10,9 @@ from .policy import ComparisonError, MAX_RESULT_BYTES
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def run_worker(folder, items):
-    (folder / "manifest.json").write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
+def run_worker(folder, manifest):
+    # A bare list is the original single-pass manifest; a dict selects a mode.
+    (folder / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     # The parser needs no database credentials, API keys or inherited Python paths.
     env = {key: value for key, value in os.environ.items()
            if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP"}}

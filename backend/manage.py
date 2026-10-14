@@ -105,15 +105,25 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
     for version, content in files:
         if version in applied and applied[version] != hashlib.sha256(content.encode()).hexdigest():
             raise MigrationError("Bajarilgan migratsiya o‘zgargan; yangi versiya yarating.")
-    if "001_accounts_reports" in known and "001_accounts_reports" not in applied:
-        for step, statement in [
+    pending_objects = {
+        "001_accounts_reports": [
             ("initial_users", "SELECT to_regclass('antiplagiat.users') IS NOT NULL AS present"),
             ("initial_sessions", "SELECT to_regclass('antiplagiat.sessions') IS NOT NULL AS present"),
             ("initial_reports", "SELECT to_regclass('antiplagiat.reports') IS NOT NULL AS present"),
             ("initial_guard_report", "SELECT to_regprocedure('antiplagiat.guard_report()') IS NOT NULL AS present"),
-        ]:
+        ],
+        "002_internal_corpus": [
+            ("corpus_documents", "SELECT to_regclass('antiplagiat.corpus_documents') IS NOT NULL AS present"),
+            ("corpus_chunks", "SELECT to_regclass('antiplagiat.corpus_chunks') IS NOT NULL AS present"),
+            ("corpus_guard", "SELECT to_regprocedure('antiplagiat.guard_corpus_document()') IS NOT NULL AS present"),
+        ],
+    }
+    for version, probes in pending_objects.items():
+        if version not in known or version in applied:
+            continue
+        for step, statement in probes:
             if query(step, statement).fetchone()["present"]:
-                raise MigrationError("Boshlang‘ich migratsiya yaratadigan obyekt allaqachon mavjud; avtomatik almashtirish bajarilmaydi.")
+                raise MigrationError("Migratsiya yaratadigan obyekt allaqachon mavjud; avtomatik almashtirish bajarilmaydi.")
     return applied
 
 
@@ -166,9 +176,17 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                 ("sessions_access", "GRANT SELECT, INSERT, DELETE ON antiplagiat.sessions TO {}"),
                 ("reports_access", "GRANT SELECT, INSERT ON antiplagiat.reports TO {}"),
                 ("reports_purge", "GRANT UPDATE(snapshot, deleted_at) ON antiplagiat.reports TO {}"),
+                ("corpus_documents_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_documents TO {}"),
+                ("corpus_documents_withdraw", "GRANT UPDATE(status, withdrawn_at, updated_at, extracted_text) ON antiplagiat.corpus_documents TO {}"),
+                ("corpus_chunks_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_chunks TO {}"),
+                ("corpus_chunks_purge", "GRANT UPDATE(chunk_text) ON antiplagiat.corpus_chunks TO {}"),
             ]:
                 migration_step(conn, diagnostic, "migration", step, sql.SQL(statement).format(ident))
-            migration_step(conn, diagnostic, "migration", "function_revoke", "REVOKE ALL ON FUNCTION antiplagiat.guard_report() FROM PUBLIC")
+            for step, statement in [
+                ("function_revoke", "REVOKE ALL ON FUNCTION antiplagiat.guard_report() FROM PUBLIC"),
+                ("corpus_function_revoke", "REVOKE ALL ON FUNCTION antiplagiat.guard_corpus_document() FROM PUBLIC"),
+            ]:
+                migration_step(conn, diagnostic, "migration", step, statement)
     if check and diagnostic:
         diagnostic.mark("preflight", "check_complete")
     return len(files)
@@ -193,6 +211,52 @@ def create_user(config, username, password, role="user"):
     return user_id
 
 
+def corpus_manager_user_id(config, username):
+    from backend.auth import CORPUS_MANAGEMENT_ROLES
+    with database(config) as conn:
+        row = conn.execute("SELECT id, role FROM antiplagiat.users WHERE username=%s AND enabled",
+                           (username,)).fetchone()
+    if not row:
+        raise ValueError("Bunday faol akkaunt topilmadi.")
+    if row["role"] not in CORPUS_MANAGEMENT_ROLES:
+        raise ValueError("Korpusni faqat admin yoki corpus_manager roli boshqaradi.")
+    return row["id"]
+
+
+def corpus_add(config, path, username):
+    """Parse the file in the sandboxed worker, then store it with its permission basis."""
+    import shutil
+    import tempfile
+    from backend import corpus
+    from backend.comparison.runner import run_worker
+
+    source = Path(path)
+    if not source.is_file():
+        raise ValueError("Fayl topilmadi.")
+    uploaded_by = corpus_manager_user_id(config, username)
+    metadata = {
+        "title": input("Sarlavha: ").strip(),
+        "author_display": input("Muallif (ko‘rsatiladigan nom): ").strip(),
+        "doc_type": input(f"Turi ({'/'.join(corpus.DOC_TYPES)}): ").strip(),
+        "language_hint": input("Til belgisi [uz]: ").strip() or "uz",
+        "source_note": input("Manba izohi (ixtiyoriy): ").strip(),
+        "permission_basis": input("Ruxsat asosi (majburiy): ").strip(),
+        "original_filename": source.name,
+    }
+    year = input("Yil (ixtiyoriy): ").strip()
+    metadata["year"] = int(year) if year.isdecimal() else None
+    problems = corpus.metadata_errors(metadata)
+    if problems:
+        raise ValueError(" ".join(problems))
+    with tempfile.TemporaryDirectory(prefix="antiplagiat-corpus-cli-") as directory:
+        folder = Path(directory)
+        shutil.copyfile(source, folder / "corpus-upload")
+        extracted = run_worker(folder, {"mode": "extract",
+                                        "items": [{"path": "corpus-upload", "name": source.name}]})
+        raw = (folder / "corpus-upload").read_bytes()
+        return corpus.add_document(metadata, extracted["documents"][0], uploaded_by, raw, config)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -203,6 +267,14 @@ def main():
     account = sub.add_parser("create-user")
     account.add_argument("username")
     account.add_argument("--role", choices=["user", "reviewer", "corpus_manager", "admin"], default="user")
+    add_corpus = sub.add_parser("corpus-add")
+    add_corpus.add_argument("path", help="Lokal TXT/DOCX/matnli PDF fayl yo‘li.")
+    add_corpus.add_argument("--as-user", required=True, help="Korpusni boshqaradigan admin yoki corpus_manager login.")
+    show_corpus = sub.add_parser("corpus-list")
+    show_corpus.add_argument("--page", type=int, default=1)
+    show_corpus.add_argument("--status", choices=["active", "withdrawn", "all"], default="active")
+    drop_corpus = sub.add_parser("corpus-withdraw")
+    drop_corpus.add_argument("document_id")
     args = parser.parse_args()
     diagnostic = MigrationDiagnostics() if args.command == "migrate" and args.diagnostic else None
     driver_logger = logging.getLogger("psycopg")
@@ -217,6 +289,21 @@ def main():
             print("Preflight: PASS (read-only; migratsiya qo‘llanmadi)." if args.check else f"Migratsiyalar tayyor: {count}; runtime huquqlari cheklangan.")
             if diagnostic:
                 print(diagnostic.summary())
+        elif args.command == "corpus-add":
+            stored = corpus_add(config, args.path, getattr(args, "as_user"))
+            print(f"Korpusga qo‘shildi: {stored['id']}; chunk: {stored['chunk_count']}, token: {stored['token_count']}.")
+        elif args.command == "corpus-list":
+            from backend import corpus
+            page = corpus.list_documents(args.page, args.status, config)
+            for item in page["items"]:
+                year = item["year"] or "-"
+                print(f"{item['id']}  {item['status']:9} {year:>4}  {item['doc_type']:14} {item['title']}")
+            print(f"{len(page['items'])} ta yozuv; sahifa {page['page']}; keyingi sahifa: "
+                  f"{'bor' if page['has_next'] else 'yo‘q'}.")
+        elif args.command == "corpus-withdraw":
+            from backend import corpus
+            removed = corpus.withdraw(args.document_id, config)
+            print(f"Korpusdan chiqarildi va matni o‘chirildi: {removed['id']}.")
         else:
             password = hidden_password(f"Yangi akkaunt paroli (kamida {MIN_PASSWORD_CHARS} belgi): ")
             if password != hidden_password("Parolni takrorlang: "):

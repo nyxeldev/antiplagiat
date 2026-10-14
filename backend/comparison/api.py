@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 import tempfile
 import threading
 from pathlib import Path
@@ -7,9 +9,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import ClientDisconnect
-from backend import auth, reports
+from backend import auth, corpus, reports
 from backend.persistence import ServiceError
 
+from .matching import tokenize
 from .policy import ComparisonError, MAX_BODY_BYTES, UPLOAD_SECONDS
 from .runner import run_worker
 from .uploads import Uploads
@@ -18,8 +21,36 @@ router = APIRouter()
 gate = threading.Lock()  # One comparison/upload per backend process; no unbounded queue.
 
 
+def with_corpus(folder, items):
+    """Extract once, retrieve candidates, then compare uploads and corpus together.
+
+    The parser stays in the sandboxed worker and the database stays in this
+    process, so the worker never receives credentials.
+    """
+    extracted = run_worker(folder, {"mode": "extract", "items": items})["documents"]
+    document, sources = extracted[0], extracted[1:]
+    found, limit = corpus.candidates(tokenize(document["text"]))
+    loaded = [doc for doc in (corpus.load_for_comparison(c["id"]) for c in found) if doc]
+    (folder / "prepared.json").write_text(
+        json.dumps({"document": document, "sources": sources + loaded}, ensure_ascii=False),
+        encoding="utf-8")
+    result = run_worker(folder, {"mode": "prepared"})
+    result["corpus"] = {
+        "included": True, "retrieval_policy": corpus.RETRIEVAL_POLICY,
+        "fts_configuration": corpus.FTS_CONFIGURATION, "candidate_limit": limit,
+        "candidates_compared": len(loaded),
+        "note": "Nomzodlar PostgreSQL full-text qidiruvi bilan tanlanadi; bu o‘xshashlik ko‘rsatkichi emas.",
+    }
+    result["limitations"] = [
+        f"Ichki korpusdan faqat {len(loaded)} ta nomzod ({limit} limiti bilan) solishtirildi; "
+        "limit tufayli korpusdagi barcha hujjatlar solishtirilmagan.",
+        "Korpus manbasidan to‘liq matn ko‘rsatilmaydi; faqat mos parcha va cheklangan kontekst beriladi.",
+    ] + result.get("limitations", [])
+    return corpus.redact(result)
+
+
 @router.post("/compare")
-async def compare_uploads(request: Request):
+async def compare_uploads(request: Request, include_corpus: bool = False):
     headers = {"Cache-Control": "no-store"}
     owner = (await run_in_threadpool(auth.require_user, request))["id"]
     key = reports.request_key(request.headers.get("idempotency-key"))
@@ -44,11 +75,15 @@ async def compare_uploads(request: Request):
             finally:
                 upload.close()
             digest = await run_in_threadpool(reports.fingerprint, folder, items)
+            if include_corpus:
+                # A corpus run is a different request even with identical files.
+                digest = hashlib.sha256(f"{digest}|corpus".encode()).hexdigest()
             previous = await run_in_threadpool(reports.retry, owner, key, digest)
             if previous:
                 return JSONResponse(previous, headers=headers)
             # Shield cleanup from client/task cancellation until the owned worker stops.
-            task = asyncio.create_task(run_in_threadpool(run_worker, folder, items))
+            work = with_corpus if include_corpus else run_worker
+            task = asyncio.create_task(run_in_threadpool(work, folder, items))
             try:
                 result = await asyncio.shield(task)
             except asyncio.CancelledError:

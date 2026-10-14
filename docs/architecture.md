@@ -15,7 +15,7 @@ Next.js/React/TypeScript/ESLint versiyalari lockfile’da saqlandi. `account-she
 Frontend paketlari npm bilan boshqariladi, aniq daraxt `package-lock.json` da saqlanadi. `frontend/` ichida alohida Git repository yo‘q; `node_modules/` va `.next/` Git’dan chetlashtirilgan. Windows PowerShell 5.1 uchun tekshiruvlar:
 
 ```powershell
-Set-Location D:\aniplagiat\frontend
+Set-Location D:\antiplagiat\frontend
 npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd run build
@@ -38,7 +38,7 @@ Buyruqlar va dalillar [README](../README.md#autentifikatsiya-va-shaxsiy-tarix) d
 
 Mavjud psycopg + parametrli SQL saqlandi: uch jadval va owner predicate uchun ORM zarurati yo‘q. `backend/manage.py` alohida vakolatli hisob va yashirin terminal paroli bilan migratsiyani atomic/advisory lock ostida bajaradi. `schema_migrations` version/checksum orqali qayta ishga tushishni tekshiradi. Mavjud DB o‘chirilmaydi. Runtime superuser yoki DB egasi bo‘lishi rad etiladi; schema USAGE, users SELECT, sessions SELECT/INSERT/DELETE va reports SELECT/INSERT + purge ustunlari UPDATE. UUID sabab sequence grant yo‘q. Runtime migratsiya/akkaunt boshqarmaydi.
 
-`users`: UUID, unique login, Argon2id hash, enabled, role va vaqt. Rol user/reviewer/corpus_manager/admin — kelajak maydoni; hozir hamma faqat o‘z tarixini ko‘radi, admin boshqa hisobotlarga kira olmaydi. Signup/email/reset va rol UI yo‘q. Argon2-cffi va pinned bindings/cffi/pycparser Windows/Python 3.14 da tekshirildi; versiyalar requirements’da.
+`users`: UUID, unique login, Argon2id hash, enabled, role va vaqt. Rol user/reviewer/corpus_manager/admin. `admin` va `corpus_manager` korpus boshqaruviga (`CORPUS_MANAGEMENT_ROLES`, [backend/auth.py](../backend/auth.py)) kirish huquqiga ega; `reviewer` hozircha `user` bilan bir xil, boshqa qo‘shimcha huquqlar yo‘q. Hamma rol o‘z shaxsiy tarixini ko‘radi; `admin`/`corpus_manager` ham boshqa hisobotlarga kira olmaydi. Signup/email/reset va rol UI yo‘q. Argon2-cffi va pinned bindings/cffi/pycparser Windows/Python 3.14 da tekshirildi; versiyalar requirements’da.
 
 `sessions`: 32 baytli tasodifiy opaque tokenning SHA-256 hashi, user FK va vaqt/muddat (8 soat). Cookie HttpOnly/Path=/SameSite=Strict; Secure public origin HTTPS bo‘lsa yoqiladi. Token URL/localStoragega berilmaydi; login oldingi cookie sessionini, logout esa amaldagi DB sessionni bekor qiladi. Restart sessionni saqlaydi. Origin/custom header/loopback va Next proxy aniq Host tekshiruvlari CSRFni cheklaydi; CORS ochilmagan. Frontend/backend bir xil `ANTIPLAGIAT_PUBLIC_ORIGIN` bilan sozlanadi; lokal TLS terminatsiyasida backend loopback HTTP bo‘lishi mumkin.
 
@@ -80,6 +80,44 @@ Boshlanishida modulli monolit taklif qilinadi: bitta FastAPI backend ichida must
 
 Frontend versiyalari lockfile’da, parser/hash paketlari requirements’da. PostgreSQL hisobot snapshotini saqlaydi; original binar fayl ombori sifatida ishlatilmaydi.
 
+### Ichki ilmiy korpus (amaldagi MVP)
+
+Migratsiya `002_internal_corpus` ikkita jadval qo‘shadi. Nomlar koddagidek:
+
+| Jadval | Asosiy ustunlar |
+| --- | --- |
+| `antiplagiat.corpus_documents` | `id`, `title`, `author_display`, `doc_type` (`bmi/dissertatsiya/kurs_ishi/maqola/boshqa`), `year`, `language_hint`, `source_note`, **`permission_basis`** (bo‘sh bo‘lmasligi majburiy), `uploaded_by_user_id`, `original_filename`, `content_sha256`, `extracted_text`, `extraction_policy`, `char_count`, `token_count`, `segments` (jsonb), `status` (`active/withdrawn`), `created_at`, `updated_at`, `withdrawn_at` |
+| `antiplagiat.corpus_chunks` | `id`, `corpus_document_id` (FK, `ON DELETE CASCADE`), `chunk_index`, `char_start`, `char_end`, `token_start`, `token_end`, `chunk_text`, `fts` (generated stored tsvector) |
+
+Indekslar: `corpus_documents_active_digest` — `content_sha256` bo‘yicha **unique partial index** faqat `status='active'` uchun (takror yuklash rad etiladi, withdrawdan keyin qayta kiritish mumkin); `corpus_chunks_fts` — GIN; `corpus_documents_listing` va `corpus_chunks_document`. `guard_corpus_document()` triggeri `id`, `content_sha256`, `permission_basis`, `uploaded_by_user_id`, `original_filename`, `created_at` va `extraction_policy` o‘zgartirilishini hamda withdrawn yozuvni qayta tahrirlashni taqiqlaydi.
+
+**FTS konfiguratsiyasi `simple`, sababi bilan.** PostgreSQL tarkibida o‘zbek lug‘ati yo‘q. `english` stemmeri o‘zbek so‘z shakllarini noto‘g‘ri qisqartiradi va lotin yozuvidagi o‘zbek matnini buzadi, shuning uchun u tanlanmadi. `simple` konfiguratsiyasi stemming qilmaydi va stop-so‘z ro‘yxatini qo‘llamaydi: har bir so‘z shakli alohida leksema bo‘lib qoladi. Bu nomzod tanlash uchun yetarli, chunki yakuniy qaror baribir exact/shingle algoritmida chiqadi. Kamchiligi: morfologik variantlar (`ishida` va `ishi`) turli leksema bo‘ladi va retrieval ularni bog‘lamaydi. Bu cheklov baholash bosqichida o‘lchanadi.
+
+**Chunking.** `CHUNK_TOKENS = 40`, `CHUNK_OVERLAP_TOKENS = 20`. Oyna 40 token, qadam 20 token. Sabab: minimal mos parcha 5 token, shuning uchun 20 tokenli ustma-ustlik har qanday 5 tokenli shingle kamida bitta chunk ichida butun qolishini kafolatlaydi — ko‘chirilgan jumla ikki chunk orasiga tushib ketmaydi. Har chunk `extracted_text` ichidagi `char_start/char_end` koordinatalarini saqlaydi, shuning uchun offsetlar original matnga bog‘langan holda qoladi.
+
+**Retrieval oqimi (`pg-fts-candidate-v1`).**
+
+1. Tekshiriladigan hujjat sandboxlangan workerda ajratiladi (`mode: extract`), ota jarayon faqat tayyor matnni oladi.
+2. Matn tokenlaridan `QUERY_WINDOW_TOKENS = 40` uzunlikdagi, ko‘pi bilan `MAX_QUERY_WINDOWS = 12` ta teng taqsimlangan so‘rov oynasi yasaladi — uzun hujjat ham chegaralangan sonli tsquery bajaradi.
+3. Har oyna `plainto_tsquery('simple', ...)` bilan parse qilinadi, so‘ng tayyor tsquery matnidagi ` & ` ` | ` ga almashtiriladi. Sabab: `plainto_tsquery` barcha so‘zlarni **AND** bilan bog‘laydi va 40 tokenli oyna bitta chunkda aynan uchrashini talab qilgan bo‘lardi; OR semantikasi esa ustma-ustlik darajasi bo‘yicha reyting beradi. Almashtirish allaqachon parse qilingan va qo‘shtirnoqlangan leksemalar ustida bajariladi, shuning uchun inyeksiya xavfi yo‘q.
+4. `ts_rank` ballari hujjat darajasida yig‘iladi, faqat `status='active'` hujjatlar hisobga olinadi va top N nomzod olinadi (`DEFAULT_CANDIDATES = 5`, `MAX_CANDIDATES = 10`).
+5. Nomzodlarning saqlangan matni qo‘lda yuklangan manbalar bilan birga `prepared.json` ga yoziladi va **mavjud exact/5-token shingle algoritmi** bitta `compare()` chaqiruvida ishlaydi. Shuning uchun qoplash foizi noyob token pozitsiyalari birlashmasi bo‘lib qoladi va bir token ikki marta sanalmaydi.
+6. Javobda korpus manbalarining to‘liq matni olib tashlanadi; faqat mos parcha va cheklangan kontekst qoladi.
+
+**FTS reytingi hech qayerda o‘xshashlik yoki plagiat foizi sifatida ko‘rsatilmaydi.** U faqat nomzod tanlash vositasi; hisobotga chiqmaydi.
+
+**Chegaralar.** Retrieval uchun alohida `RETRIEVAL_TIMEOUT_MS = 5000` (`SET LOCAL statement_timeout`), umumiy solishtirish esa avvalgidek `WORKER_SECONDS = 30` worker timeouti bilan chegaralangan. Excerpt: `CORPUS_CONTEXT_CHARS = 200` (har tomondan, flat chegara), `CORPUS_CONTEXT_FRACTION = 0.5` (har tomonda shu flat chegaradan tashqari, mos parchadan tashqarida haqiqatan mavjud matnning yarmidan ko‘pi ko‘rsatilmaydi), `CORPUS_MATCH_CHARS = 1200` (ko‘rsatiladigan mos parcha), `CORPUS_EXCERPT_BUDGET = 20000` (hisobot bo‘yicha umumiy **kontekst** budjeti). Budjet faqat kontekstni cheklaydi: mos parchaning o‘zi ta’rifi bo‘yicha tekshiriladigan hujjatda allaqachon mavjud, uni yashirish dalilni yo‘qotadi, himoya bermaydi.
+
+**Qisqa korpus hujjatlarida kontekst sizishi (tuzatilgan, 2026-10-14).** Faqat `CORPUS_CONTEXT_CHARS` flat chegarasiga tayanish qisqa hujjatlarda butun qolgan matnni fosh qilishi mumkin edi: agar mos parchadan keyin (yoki oldin) qolgan matn 200 belgidan kam bo‘lsa, flat chegara hech narsani kesmaydi va amalda **butun qolgan hujjat** "kontekst" sifatida ko‘rsatilardi — bu `docs/requirements.md` 2.1-bo‘limidagi «to‘liq matnni hech qachon olmaydi» talabini buzadi. `CORPUS_CONTEXT_FRACTION = 0.5` qo‘shildi: har tomondagi kontekst endi `min(CORPUS_CONTEXT_CHARS, shu tomonda haqiqatan mavjud belgilar soni × 0.5)` bilan cheklanadi, shuning uchun qisqa hujjatda ham har doim kamida yarmi yashirin qoladi. Uzun hujjatlarda xulq o‘zgarmaydi (flat chegara baribir pastroq). Testi: `backend/tests/test_corpus.py::RedactionTests::test_short_document_never_exposes_its_full_remaining_text`.
+
+**Keyingi baholash bosqichi uchun ogohlantirish.** Sinov/benchmark hujjati korpus hujjatining deyarli to‘liq nusxasi (yoki unga juda yaqin parafraz) bo‘lib, **mos kelmaydigan dum qoldirmasa**, butun mos parcha (`match`) o‘zi — ta’rifi bo‘yicha — korpus matnining deyarli barchasini qamrab olishi mumkin. Bu kontekst sizishi emas (mos parcha hisobga kiritilmaydi, chunki u allaqachon tekshiruvchida mavjud), lekin amalda ko‘rinadigan natija xuddi "to‘liq matn ko‘rsatildi"ga o‘xshab ko‘rinishi mumkin. Benchmark/sinov hujjatlari tanlanganda korpus hujjatidan **qisman** o‘xshash va undan **aniq farq qiluvchi, mos kelmaydigan qism** (dum) saqlanadigan qilib tuzilishi shart — aks holda natija noto‘g‘ri talqin qilinishi mumkin.
+
+**Excerpt kafolatining doirasi: bitta hisobot.** `redact()` dagi barcha chegaralar (`CORPUS_CONTEXT_CHARS`, `CORPUS_CONTEXT_FRACTION`, `CORPUS_EXCERPT_BUDGET`) faqat **bitta `/compare` so‘rovi** ichida hisoblanadi — har safar nol budjetdan boshlanadi. Natijada **ko‘p so‘rov bo‘yicha jamlanishdan himoya yo‘q**: bir foydalanuvchi bir xil korpus hujjatiga turlicha qisman mos keladigan tekshiriluvchi matnlar yuborib, har bir hisobotdan olingan kontekst bo‘laklarini o‘zi tashqarida birlashtirsa, vaqt o‘tishi bilan korpus hujjatining katta qismini yoki barchasini qayta tiklashi mumkin. Bu `docs/requirements.md` 2.1-bo‘limida ham qayd etilgan ma’lum cheklov (kod hozircha o‘zgartirilmagan); kelajak yechimlari — foydalanuvchi×hujjat darajasidagi excerpt hisobi, korpus excerpt chiqarilishining audit jurnali, so‘rov tezligi cheklovi — [docs/roadmap.md](roadmap.md) da.
+
+**Huquqlar.** Runtime hisobiga: `corpus_documents` va `corpus_chunks` uchun `SELECT, INSERT`; `corpus_documents` uchun `UPDATE(status, withdrawn_at, updated_at, extracted_text)`; `corpus_chunks` uchun `UPDATE(chunk_text)`. `DELETE`, DDL va `PUBLIC` huquqlari berilmaydi. Migratsiya alohida vakolatli hisobdan bajariladi.
+
+**Cheklovlar.** Korpus faqat ruxsat asosi qayd etilgan hujjatlardan iborat va «butun internet» yoki to‘liq qamrov da’vosi yo‘q. Limit tufayli har tekshiruvda korpusdagi barcha hujjatlar solishtirilmaydi — bu hisobotda ochiq yoziladi. Retrieval metama’lumot emas, **amalda o‘qilgan to‘liq matn** ustida ishlaydi; tashqi provayderlardagi metama’lumot bilan aralashtirilmaydi. Semantik/parafraz aniqlash, iqtibos filtri va morfologik normalizatsiya bu bosqichda yo‘q.
+
 ## 2. Tekshiruv oqimi
 
 Quyidagi oqim himoyalangan korpus va tashqi adapterlar uchun kelajak rejasi; amaldagi lokal prototip oqimi yuqorida alohida berilgan.
@@ -115,8 +153,8 @@ ZWSP haqiqiy so‘z chegarasi ham bo‘lishi mumkin; ikki lotin harfi orasidagi 
 | --- | --- |
 | User / Role / Assignment | Hisob, rol, tekshiruvga biriktirish |
 | Document / DocumentVersion | Egasi, tur, immutable versiya, hash, fayl joyi, matn holati |
-| CorpusEntry / Permission | Qaysi versiya, ruxsat dalili, solishtirish va ko‘rsatish huquqi |
-| Chunk | Original koordinata, normalizatsiya xaritasi, matn, token oralig‘i |
+| CorpusEntry / Permission | Qaysi versiya, ruxsat dalili, solishtirish va ko‘rsatish huquqi. **Amalda:** `corpus_documents` (`permission_basis` majburiy) |
+| Chunk | Original koordinata, normalizatsiya xaritasi, matn, token oralig‘i. **Amalda:** `corpus_chunks` (`char_start/char_end`, `token_start/token_end`, generated `fts`) |
 | CheckJob | Hujjat versiyasi, snapshot, sozlamalar, holat, progress, xato |
 | SourceRecord / SourceVersion | DOI yoki boshqa ID, provider, versiya, URL, kontent hash va litsenziya |
 | RetrievalAttempt | Provider, vaqt, qidiruv rejimi, natija/xato, limit holati |

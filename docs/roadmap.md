@@ -1,6 +1,30 @@
 # Ish rejasi va BMI tajribalari
 
-Versiya 0.3 · 2026-10-13.
+Versiya 0.5 · 2026-10-14.
+
+**Bu bosqichda bajarildi — ichki ilmiy korpus MVP, real bazaga qo‘llangan.** Ruxsat asosi majburiy bo‘lgan ichki korpus (`corpus_documents`/`corpus_chunks`, migratsiya `002_internal_corpus`), PostgreSQL FTS (`simple`) bilan nomzod tanlash (`pg-fts-candidate-v1`), nomzodlarni **mavjud** exact/5-token shingle algoritmi bilan solishtirish va natijani mavjud hisobot snapshotiga qo‘shish. Korpus tekshiruvi opt-in, default o‘chiq; qo‘lda 1–5 manba oqimi o‘zgarmagan.
+
+Migratsiya `antiplagiat` ishlab chiqish bazasiga **haqiqatan qo‘llandi** (avval to‘liq `pg_dump` zaxirasi olingach): `D:\antiplagiat_backups\antiplagiat-pre-002-20261014-135628.dump` (40 345 bayt). `migrate --check` toza o‘tdi, so‘ng `migrate` ikkala migratsiyani (`001_accounts_reports`, `002_internal_corpus`) ro‘yxatga oldi; `corpus_documents`/`corpus_chunks` jadvallari mavjudligi tasdiqlandi.
+
+**Korpus boshqaruv rol matritsasi** (koddagidek, `backend/auth.py` dagi `CORPUS_MANAGEMENT_ROLES`):
+
+| Rol | `/corpus/documents*` | Shaxsiy hisobotlar |
+| --- | --- | --- |
+| `admin` | 200 | faqat o‘ziniki |
+| `corpus_manager` | 200 | faqat o‘ziniki |
+| `user` | 403 | faqat o‘ziniki |
+| `reviewer` | 403 | faqat o‘ziniki |
+| login yo‘q | 401 | 401 |
+
+`corpus_manager` boshqa hech qanday qo‘shimcha huquqqa ega emas — faqat korpus boshqaruvi uchun. `admin`/`corpus_manager` ham boshqa foydalanuvchining shaxsiy hisobotini ko‘rmaydi.
+
+**Shu bosqichda topilgan va tuzatilgan nuqson:** qisqa korpus hujjatlarida kontekst oynasi (`CORPUS_CONTEXT_CHARS = 200`, flat) hujjatning butun qolgan matnini fosh qilishi mumkin edi — bu `docs/requirements.md` 2.1-bo‘limidagi «to‘liq matnni hech qachon olmaydi» talabini buzgan haqiqiy nuqson edi (mexanizm xato ishlagani emas, kafolat qisqa hujjatlar uchun yetarli bo‘lmagani). `CORPUS_CONTEXT_FRACTION = 0.5` bilan tuzatildi — tafsilot va test nomi [docs/architecture.md](architecture.md), 1-bo‘lim, «Qisqa korpus hujjatlarida kontekst sizishi» da.
+
+**Keyingi qadamlar:** retrieval sifatini ruxsatli nazorat korpusida o‘lchash (recall/precision, morfologik variantlar `simple` konfiguratsiyasida bog‘lanmaydi — benchmark hujjatlari korpusdan **qisman** o‘xshash, mos kelmaydigan dum bilan tanlanishi shart, [architecture.md](architecture.md) da izohlangan); korpus uchun admin UI sahifasi (hozir faqat CLI/HTTP); retention/backup siyosati; `scripts/check_e2e.py` hali korpusni qamramaydi (faqat qo‘lda browser tekshiruvi bo‘ldi); DOCX/PDF formatidagi korpus kiritish yo‘li (`corpus-add`) faqat TXT bilan sinaldi; so‘ng kengroq indekslash. OCR, tashqi qidiruv, parafraz va semantik model hamon doiradan tashqarida.
+
+**Ma’lum cheklov — ko‘p so‘rov bo‘yicha excerpt jamlanishi:** korpus excerpt kafolati (`CORPUS_CONTEXT_CHARS`/`CORPUS_CONTEXT_FRACTION`/`CORPUS_EXCERPT_BUDGET`) faqat bitta hisobot doirasida hisoblanadi; ko‘p marta turlicha qisman mos matn yuborib, natijalarni tashqarida birlashtirishdan himoya yo‘q ([architecture.md](architecture.md) da tafsilot). Kelajak yechimlari: (1) foydalanuvchi×korpus hujjati darajasida kümülatif excerpt hisobi (DB’da saqlanadigan, so‘rovlar oralig‘ida budjetni kamaytiruvchi hisoblagich), (2) korpus excerpt chiqarilishining audit jurnali (kim, qachon, qaysi hujjatdan, qancha belgi ko‘rdi), (3) `/compare?include_corpus=true` uchun alohida so‘rov tezligi cheklovi. Kod hozircha o‘zgartirilmagan.
+
+**Test avtomatlashtirishdagi ma’lum bo‘shliq:** o‘chirish oqimidagi native `window.confirm` oynasini ichki brauzer vositasi qabul qila olmaydi — oyna ochiladi, lekin faqat bekor qilinadi va `DELETE` so‘rovi yuborilmaydi. Bu ilovaning to‘g‘ri xulqi (o‘chirish haqiqatan tasdiqlash ortida), ammo uchdan-uchiga avtomatik regressiyani to‘sadi. Variantlar keyin baholanadi: `window.confirm` o‘rniga ilova ichidagi modal dialog, yoki dialogni qabul qila oladigan test drayveri (masalan Playwright/CDP). Hozircha bu qadam qo‘lda tasdiqlanadi.
 
 Bu kelajakdagi yo‘l xaritasi. Jadvaldagi barcha vazifalar hozir bajarish uchun topshiriq emas. Prototipga autentifikatsiya va shaxsiy tarix qo‘shildi (3–6-bosqichlarning ayrim qismlari). Doimiy korpus, FTS, topshiriq/rol bo‘yicha ruxsatlar va akademik baholash hali bajarilmagan. Keyingi vazifa alohida kelishiladi.
 
@@ -84,5 +108,7 @@ Tashqi qamrov «internetning X foizi» deb hisoblanmaydi. Maxraji ma’lum nazor
 - Haqiqiy PostgreSQL/HTTP testi alohida disposable instansiyada: privileged migration va cheklangan runtime hisoblari, ikki sun’iy app foydalanuvchisi, session muddati/logout/restart, egalik, saqlash/tarix/ochish/o‘chirish, retry, DB saqlash xatosi va cleanup. Mavjud foydalanuvchi bazasida migratsiya yoki sinov bajarilmaydi; SQLite/mock PostgreSQL testi sifatida ko‘rsatilmaydi.
 - Yangi auth/tarix browser regressioni headless Edge’da desktop 1440×1000 va mobil 375×812: login, upload/retry, snapshot highlight/warnings, history, owner denial, cancel/delete, logout. Bu avtomatik UI oqimi; screenshot vizual auditi emas. HTTPS to‘liq oqimi va mavjud foydalanuvchi DBsida migratsiya tekshirilmagan.
 - Npm auditning avvalgi ESLint dependency muammosi README’da saqlangan; bu vazifada majburiy downgrade yoki katta takroriy audit bajarilmadi.
+
+- Ichki korpus bosqichi uchun: `backend/tests/test_corpus.py` (chunking/offset mosligi, so‘rov oynalari, metama’lumot qoidalari, excerpt kesish va budjet, rol tekshiruvi) va `backend/tests/test_corpus_integration.py` (haqiqiy disposable PostgreSQL: chunk+FTS indeksi, takror `content_sha256` rad etilishi, withdraw matnni o‘chirishi, retrieval ijobiy/salbiy holati, `include_corpus` o‘chiq/yoniq, non-admin javobida to‘liq korpus matni yo‘qligi, shaxsiy hisobot matni korpusga tushmasligi, runtime hisobining DELETE/provenance urinishlari bloklanishi). Mavjud testlar o‘zgartirilmagan yoki yumshatilmagan.
 
 Amalda bajarilgan tekshiruv natijalari va PowerShell buyruqlari [README](../README.md#lokal-hujjat-solishtirish) da. Yuklama, haqiqiy ilmiy korpus va akademik sifat tekshiruvlari hali bajarilmagan.

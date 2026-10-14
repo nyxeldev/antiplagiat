@@ -17,6 +17,7 @@ function fileError(files: File[]) {
 export default function Comparison() {
   const expired = useSessionExpired(); const key = useRef<string | null>(null); const inFlight = useRef(false);
   const [document, setDocument] = useState<File | null>(null); const [sources, setSources] = useState<File[]>([]);
+  const [includeCorpus, setIncludeCorpus] = useState(false);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const [report, setReport] = useState<Report | null>(null);
   function resetResult() { key.current = null; setReport(null); setError(null); }
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -25,7 +26,8 @@ export default function Comparison() {
     inFlight.current = true; setBusy(true); setError(null); setReport(null); key.current ??= crypto.randomUUID();
     const data = new FormData(); data.append("document", document); sources.forEach(source => data.append("sources", source));
     try {
-      const result = await api("/compare", { method: "POST", body: data, headers: { "Idempotency-Key": key.current }, signal: AbortSignal.timeout(100_000) });
+      const path = includeCorpus ? "/compare?include_corpus=true" : "/compare";
+      const result = await api(path, { method: "POST", body: data, headers: { "Idempotency-Key": key.current }, signal: AbortSignal.timeout(100_000) });
       if (!result.saved || !result.report_id) throw new Error("Hisobot saqlanganligi tasdiqlanmadi.");
       setReport(result);
     } catch (reason) {
@@ -47,6 +49,14 @@ export default function Comparison() {
         if (problem) setError(problem); else { resetResult(); setSources(next); }
       }} />{sources.map((file, index) => <div className={styles.file} key={`${index}-${file.name}`}><span>{file.name}<small>{(file.size / MIB).toFixed(2)} MiB</small></span><button type="button" aria-label={`${file.name} manbasini olib tashlash`} onClick={() => { setSources(sources.filter((_, i) => i !== index)); resetResult(); }}>Olib tashlash</button></div>)}</div>
     </fieldset>
+    <div className={styles.uploadBox}>
+      <label className={styles.corpusOption} htmlFor="include-corpus">
+        <input id="include-corpus" type="checkbox" checked={includeCorpus} disabled={busy}
+          onChange={event => { setIncludeCorpus(event.target.checked); resetResult(); }} />
+        <span>Ichki korpus bo‘yicha ham tekshirish</span>
+      </label>
+      <p className={styles.muted}>Qo‘shimcha ravishda akademiyaning ruxsat asosida saqlangan ichki korpusidan nomzod manbalar tanlanadi. Korpus manbasidan faqat mos parcha va qisqa kontekst ko‘rsatiladi; to‘liq matn berilmaydi. Limit tufayli korpusdagi barcha hujjatlar solishtirilmaydi.</p>
+    </div>
     <p className={styles.notice}>Muvaffaqiyatli hisobot, shu jumladan ajratilgan hujjat va manba matnlari shaxsiy tarixingizda saqlanadi. Binar fayllar saqlanmaydi; umumiy korpusga qo‘shilmaydi va internetga yuborilmaydi.</p>
     <button className={styles.primary} disabled={busy || !document || !sources.length} type="submit">{busy ? "Solishtirilmoqda…" : "Solishtirish"}</button>
     <p role="status" className={styles.muted}>{busy ? "Fayllar yuklanmoqda, solishtirilmoqda va hisobot saqlanmoqda…" : report ? "Hisobot shaxsiy tarixingizga saqlandi." : ""}</p>

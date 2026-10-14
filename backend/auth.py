@@ -122,6 +122,17 @@ def require_user(request):
     return {**row, "id": str(row["id"])}
 
 
+CORPUS_MANAGEMENT_ROLES = {"admin", "corpus_manager"}
+
+
+def require_corpus_manager(request):
+    # Corpus administration only; it never widens access to personal reports.
+    user = require_user(request)
+    if user.get("role") not in CORPUS_MANAGEMENT_ROLES:
+        raise ServiceError("forbidden", "Bu amal uchun administrator yoki korpus boshqaruvchisi roli kerak.", 403)
+    return user
+
+
 def logout(request):
     require_user(request)
     with database() as conn:
