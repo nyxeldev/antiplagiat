@@ -1,0 +1,122 @@
+{
+  "version": "corpus-v1",
+  "note": "Synthetic/public-domain-style control set, authored for this benchmark. No real student work, personal report, or ambiguously-licensed text is included. match_text entries are exact substrings expected inside the query file; the harness resolves them to character offsets with str.index() rather than hand-typed numbers, to avoid manual offset errors.",
+  "corpus": [
+    {"id": "uz_tarix", "file": "corpus/uz_tarix.txt", "language": "uz_latin", "topic": "tarix"},
+    {"id": "uz_biologiya", "file": "corpus/uz_biologiya.txt", "language": "uz_latin", "topic": "biologiya"},
+    {"id": "uz_iqtisodiyot", "file": "corpus/uz_iqtisodiyot.txt", "language": "uz_latin", "topic": "iqtisodiyot"},
+    {"id": "uz_adabiyot", "file": "corpus/uz_adabiyot.txt", "language": "uz_latin", "topic": "adabiyot"},
+    {"id": "uz_ekologiya", "file": "corpus/uz_ekologiya.txt", "language": "uz_latin", "topic": "ekologiya"},
+    {"id": "uz_pedagogika", "file": "corpus/uz_pedagogika.txt", "language": "uz_latin", "topic": "pedagogika"},
+    {"id": "ru_istoriya", "file": "corpus/ru_istoriya.txt", "language": "ru", "topic": "istoriya"},
+    {"id": "ru_biologiya", "file": "corpus/ru_biologiya.txt", "language": "ru", "topic": "biologiya"},
+    {"id": "ru_ekonomika", "file": "corpus/ru_ekonomika.txt", "language": "ru", "topic": "ekonomika"},
+    {"id": "ru_literatura", "file": "corpus/ru_literatura.txt", "language": "ru", "topic": "literatura"},
+    {"id": "ru_ekologiya", "file": "corpus/ru_ekologiya.txt", "language": "ru", "topic": "ekologiya"},
+    {"id": "ru_pedagogika", "file": "corpus/ru_pedagogika.txt", "language": "ru", "topic": "pedagogika"},
+    {"id": "en_history", "file": "corpus/en_history.txt", "language": "en", "topic": "history"},
+    {"id": "en_biology", "file": "corpus/en_biology.txt", "language": "en", "topic": "biology"},
+    {"id": "en_economics", "file": "corpus/en_economics.txt", "language": "en", "topic": "economics"},
+    {"id": "en_literature", "file": "corpus/en_literature.txt", "language": "en", "topic": "literature"},
+    {"id": "en_ecology", "file": "corpus/en_ecology.txt", "language": "en", "topic": "ecology"},
+    {"id": "en_pedagogy", "file": "corpus/en_pedagogy.txt", "language": "en", "topic": "pedagogy"}
+  ],
+  "queries": [
+    {
+      "id": "uz_verbatim", "file": "queries/uz_verbatim.txt", "language": "uz_latin",
+      "category": "verbatim", "expected_sources": ["uz_tarix"],
+      "match_text": ["O'rta Osiyo tarixida Ipak yo'li savdo va madaniy aloqalarning muhim vositasi bo'lgan. Bu yo'l orqali Xitoydan Yevropagacha ipak, ziravorlar va metall buyumlar tashilgan, shuningdek diniy ta'limotlar va ilmiy bilimlar ham tarqalgan. Samarqand va Buxoro kabi shaharlar savdogarlar uchun muhim to'xtash nuqtalariga aylangan. Mintaqadagi hukmdorlar savdo yo'llarini himoya qilish uchun maxsus qo'shinlar tashkil etgan va karvonsaroylar qurdirgan. Ipak yo'lining gullab-yashnashi natijasida mahalliy hunarmandchilik va me'morchilik ham rivojlangan. Olimlar bu davrni O'rta Osiyo tarixining eng faol savdo-iqtisodiy bosqichlaridan biri deb hisoblaydilar. Tarixchilar arxeologik topilmalar asosida savdo yo'nalishlarini aniq xaritalashga harakat qilmoqdalar."]
+    },
+    {
+      "id": "ru_verbatim", "file": "queries/ru_verbatim.txt", "language": "ru",
+      "category": "verbatim", "expected_sources": ["ru_biologiya"],
+      "match_text": ["В процессе фотосинтеза растения преобразуют солнечную энергию в химическую энергию. Этот процесс происходит в хлоропластах листа при участии пигмента хлорофилла. Углекислый газ и вода соединяются, образуя глюкозу и кислород. Образовавшаяся глюкоза служит основным источником энергии для растения, а кислород выделяется в атмосферу. Скорость фотосинтеза зависит от интенсивности света, температуры и концентрации углекислого газа. Учёные проводят исследования по повышению эффективности фотосинтеза для улучшения урожайности сельскохозяйственных культур. Этот процесс считается отправной точкой энергетической цепи почти для всех живых организмов на Земле."]
+    },
+    {
+      "id": "en_verbatim", "file": "queries/en_verbatim.txt", "language": "en",
+      "category": "verbatim", "expected_sources": ["en_economics"],
+      "match_text": ["Inflation refers to a sustained rise in the general level of prices over time. Central banks use changes in interest rates as a tool to control inflation. High inflation reduces the purchasing power of the population and increases economic uncertainty. At the same time, extremely low inflation or deflation can also be dangerous for an economy, since it slows down investment and consumption. Economists regard a stable and predictable inflation rate as a favourable condition for economic growth. Fiscal policy and monetary policy together are the main factors influencing the inflation rate."]
+    },
+    {
+      "id": "uz_partial", "file": "queries/uz_partial.txt", "language": "uz_latin",
+      "category": "partial", "expected_sources": ["uz_biologiya"],
+      "match_text": ["Fotosintez jarayonida o'simliklar quyosh energiyasini kimyoviy energiyaga aylantiradi. Bu jarayon xlorofill pigmenti ishtirokida bargning xloroplast organellalarida sodir bo'ladi. Karbonat angidrid va suv birikib, glyukoza va kislorod hosil qiladi."]
+    },
+    {
+      "id": "ru_partial", "file": "queries/ru_partial.txt", "language": "ru",
+      "category": "partial", "expected_sources": ["ru_ekonomika"],
+      "match_text": ["Инфляция означает устойчивый рост общего уровня цен с течением времени. Центральные банки используют изменение процентных ставок как инструмент для контроля инфляции. Высокая инфляция снижает покупательную способность населения и усиливает экономическую неопределённость."]
+    },
+    {
+      "id": "en_partial", "file": "queries/en_partial.txt", "language": "en",
+      "category": "partial", "expected_sources": ["en_literature"],
+      "match_text": ["In classical Eastern poetry, the ghazal genre occupies a special place. A ghazal usually portrays love, the philosophy of life, and human experience, is written in couplet form, and strictly follows a rhyme scheme. In the work of Alisher Navoi, this genre was developed with exceptional artistic skill, expressing deep philosophical meanings through symbolic imagery."]
+    },
+    {
+      "id": "uz_paraphrase", "file": "queries/uz_paraphrase.txt", "language": "uz_latin",
+      "category": "paraphrase", "expected_sources": ["uz_ekologiya"], "match_text": []
+    },
+    {
+      "id": "ru_paraphrase", "file": "queries/ru_paraphrase.txt", "language": "ru",
+      "category": "paraphrase", "expected_sources": ["ru_pedagogika"], "match_text": []
+    },
+    {
+      "id": "en_paraphrase", "file": "queries/en_paraphrase.txt", "language": "en",
+      "category": "paraphrase", "expected_sources": ["en_biology"], "match_text": []
+    },
+    {
+      "id": "uz_morph_tarix", "file": "queries/uz_morph_tarix.txt", "language": "uz_latin",
+      "category": "morphological", "expected_sources": ["uz_tarix"], "match_text": []
+    },
+    {
+      "id": "uz_morph_pedagogika", "file": "queries/uz_morph_pedagogika.txt", "language": "uz_latin",
+      "category": "morphological", "expected_sources": ["uz_pedagogika"], "match_text": []
+    },
+    {
+      "id": "uz_morph_adabiyot", "file": "queries/uz_morph_adabiyot.txt", "language": "uz_latin",
+      "category": "morphological", "expected_sources": ["uz_adabiyot"], "match_text": []
+    },
+    {
+      "id": "uz_quoted", "file": "queries/uz_quoted.txt", "language": "uz_latin",
+      "category": "quoted", "expected_sources": ["uz_iqtisodiyot"],
+      "match_text": ["Yuqori inflatsiya aholining xarid qobiliyatini pasaytiradi va iqtisodiy noaniqlikni kuchaytiradi"]
+    },
+    {
+      "id": "ru_quoted", "file": "queries/ru_quoted.txt", "language": "ru",
+      "category": "quoted", "expected_sources": ["ru_istoriya"],
+      "match_text": ["Историки считают этот период одним из самых активных торгово-экономических этапов в истории региона"]
+    },
+    {
+      "id": "en_quoted", "file": "queries/en_quoted.txt", "language": "en",
+      "category": "quoted", "expected_sources": ["en_ecology"],
+      "match_text": ["Ecologists note that fully restoring the situation is difficult, but the consequences can be reduced"]
+    },
+    {
+      "id": "uz_hard_negative", "file": "queries/uz_hard_negative.txt", "language": "uz_latin",
+      "category": "hard_negative", "topic_neighbor": "uz_pedagogika",
+      "expected_sources": [], "match_text": []
+    },
+    {
+      "id": "ru_hard_negative", "file": "queries/ru_hard_negative.txt", "language": "ru",
+      "category": "hard_negative", "topic_neighbor": "ru_literatura",
+      "expected_sources": [], "match_text": []
+    },
+    {
+      "id": "en_hard_negative", "file": "queries/en_hard_negative.txt", "language": "en",
+      "category": "hard_negative", "topic_neighbor": "en_ecology",
+      "expected_sources": [], "match_text": []
+    },
+    {
+      "id": "uz_unrelated", "file": "queries/uz_unrelated.txt", "language": "uz_latin",
+      "category": "unrelated", "expected_sources": [], "match_text": []
+    },
+    {
+      "id": "ru_unrelated", "file": "queries/ru_unrelated.txt", "language": "ru",
+      "category": "unrelated", "expected_sources": [], "match_text": []
+    },
+    {
+      "id": "en_unrelated", "file": "queries/en_unrelated.txt", "language": "en",
+      "category": "unrelated", "expected_sources": [], "match_text": []
+    }
+  ]
+}
