@@ -102,8 +102,15 @@ def metadata_errors(metadata):
 
 
 def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
-                 chunk_tokens=CHUNK_TOKENS, overlap_tokens=CHUNK_OVERLAP_TOKENS):
-    """Store one already extracted document together with its retrieval chunks."""
+                 chunk_tokens=CHUNK_TOKENS, overlap_tokens=CHUNK_OVERLAP_TOKENS, document_id=None):
+    """Store one already extracted document together with its retrieval chunks.
+
+    document_id defaults to a fresh random uuid4, as before. The retrieval
+    evaluation harness is the only caller that passes a fixed uuid5 (derived
+    from the benchmark manifest's own document id), so that the ranking tie
+    break on corpus_document_id in candidates() is reproducible across runs,
+    not dependent on a freshly randomised id each time.
+    """
     problems = metadata_errors(metadata)
     if problems:
         raise CorpusError("corpus_metadata", " ".join(problems), 400)
@@ -111,7 +118,7 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
     chunks = chunk_document(extracted["text"], tokens, chunk_tokens, overlap_tokens)
     if not chunks:
         raise CorpusError("corpus_empty", "Hujjatdan indekslanadigan matn olinmadi.", 422)
-    document_id = uuid.uuid4()
+    document_id = document_id or uuid.uuid4()
     row = (document_id, str(metadata["title"]).strip(), str(metadata.get("author_display", "") or ""),
            metadata["doc_type"], metadata.get("year"), str(metadata.get("language_hint") or "uz"),
            str(metadata.get("source_note", "") or ""), str(metadata["permission_basis"]).strip(),
