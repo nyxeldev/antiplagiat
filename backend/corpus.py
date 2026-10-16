@@ -51,19 +51,25 @@ def digest_text(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def chunk_document(text, tokens):
-    """Fixed token windows mapped back to original character offsets."""
-    step = CHUNK_TOKENS - CHUNK_OVERLAP_TOKENS
+def chunk_document(text, tokens, chunk_tokens=CHUNK_TOKENS, overlap_tokens=CHUNK_OVERLAP_TOKENS):
+    """Fixed token windows mapped back to original character offsets.
+
+    chunk_tokens/overlap_tokens default to the runtime constants, so every
+    caller in the running application (HTTP ingest, CLI) is unaffected; the
+    retrieval evaluation harness (scripts/eval_retrieval.py) is the only
+    caller that passes other values, to A/B a different chunk window.
+    """
+    step = chunk_tokens - overlap_tokens
     chunks = []
-    for index, start in enumerate(range(0, max(len(tokens) - CHUNK_OVERLAP_TOKENS, 1), step)):
-        window = tokens[start:start + CHUNK_TOKENS]
+    for index, start in enumerate(range(0, max(len(tokens) - overlap_tokens, 1), step)):
+        window = tokens[start:start + chunk_tokens]
         if not window:
             break
         char_start, char_end = window[0]["start"], window[-1]["end"]
         chunks.append({"chunk_index": index, "char_start": char_start, "char_end": char_end,
                        "token_start": start, "token_end": start + len(window),
                        "chunk_text": text[char_start:char_end]})
-        if start + CHUNK_TOKENS >= len(tokens):
+        if start + chunk_tokens >= len(tokens):
             break
     return chunks
 
@@ -95,16 +101,24 @@ def metadata_errors(metadata):
     return problems
 
 
-def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None):
-    """Store one already extracted document together with its retrieval chunks."""
+def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
+                 chunk_tokens=CHUNK_TOKENS, overlap_tokens=CHUNK_OVERLAP_TOKENS, document_id=None):
+    """Store one already extracted document together with its retrieval chunks.
+
+    document_id defaults to a fresh random uuid4, as before. The retrieval
+    evaluation harness is the only caller that passes a fixed uuid5 (derived
+    from the benchmark manifest's own document id), so that the ranking tie
+    break on corpus_document_id in candidates() is reproducible across runs,
+    not dependent on a freshly randomised id each time.
+    """
     problems = metadata_errors(metadata)
     if problems:
         raise CorpusError("corpus_metadata", " ".join(problems), 400)
     tokens = tokenize(extracted["text"])
-    chunks = chunk_document(extracted["text"], tokens)
+    chunks = chunk_document(extracted["text"], tokens, chunk_tokens, overlap_tokens)
     if not chunks:
         raise CorpusError("corpus_empty", "Hujjatdan indekslanadigan matn olinmadi.", 422)
-    document_id = uuid.uuid4()
+    document_id = document_id or uuid.uuid4()
     row = (document_id, str(metadata["title"]).strip(), str(metadata.get("author_display", "") or ""),
            metadata["doc_type"], metadata.get("year"), str(metadata.get("language_hint") or "uz"),
            str(metadata.get("source_note", "") or ""), str(metadata["permission_basis"]).strip(),
@@ -173,8 +187,16 @@ def withdraw(document_id, config=None):
     return {"id": str(row["id"]), "title": row["title"], "status": "withdrawn"}
 
 
-def candidates(tokens, limit=DEFAULT_CANDIDATES):
-    """Ranked candidate corpus documents. The rank is a retrieval score only."""
+def candidates(tokens, limit=DEFAULT_CANDIDATES, operator="OR"):
+    """Ranked candidate corpus documents. The rank is a retrieval score only.
+
+    operator defaults to "OR" (the running application's only behaviour,
+    unchanged). The retrieval evaluation harness is the only caller that
+    passes "AND", to A/B plainto_tsquery's native all-terms-required ranking
+    against the OR rewrite used in production.
+    """
+    if operator not in ("OR", "AND"):
+        raise ValueError("operator must be 'OR' or 'AND'")
     limit = max(1, min(int(limit), MAX_CANDIDATES))
     phrases = [p for p in query_windows(tokens) if p.strip()]
     if not phrases:
@@ -186,9 +208,10 @@ def candidates(tokens, limit=DEFAULT_CANDIDATES):
         # quoted tsquery to OR keeps the escaping while ranking by overlap, which
         # is what candidate selection needs. The match itself is decided later by
         # the exact/shingle algorithm, never by this rank.
+        query_expr = ("plainto_tsquery('simple', phrase)" if operator == "AND" else
+                      "replace(plainto_tsquery('simple', phrase)::text, ' & ', ' | ')::tsquery")
         rows = conn.execute(
-            "WITH q AS (SELECT replace(plainto_tsquery('simple', phrase)::text, ' & ', ' | ')::tsquery AS query "
-            "           FROM unnest(%s::text[]) AS phrase) "
+            f"WITH q AS (SELECT {query_expr} AS query FROM unnest(%s::text[]) AS phrase) "
             "SELECT c.corpus_document_id AS id, "
             "       sum(ts_rank(c.fts, q.query)) AS total_rank, "
             "       count(DISTINCT c.id) AS matched_chunks "
