@@ -82,20 +82,32 @@ def chunk_document(text, tokens, chunk_tokens=CHUNK_TOKENS, overlap_tokens=CHUNK
     return chunks
 
 
-def query_windows(tokens, normalization="v2"):
+def query_windows(tokens, normalization="v2", text=None):
     """Evenly sampled windows of the checked document, as plain query phrases.
 
     normalization="v3" runs each phrase through the uz-latin-v3 stripper so
-    the query side matches what was indexed into fts_v3; it never changes
-    `tokens` itself, only the throwaway phrase string built here.
+    the query side matches what was indexed into fts_v3. It needs `text`
+    (the original string `tokens` was produced from) to build each window
+    from the ORIGINAL casing at those offsets, not `t["value"]" -- that
+    value is already casefolded by matching.tokenize(), and stemming a
+    casefolded word is not the same operation as stemming the original one:
+    uz_latin_v3's proper-noun guard reads the leading letter's case, so
+    stemming the casefolded value would silently skip that guard on every
+    query (see docs/benchmarks/uz-morph-v3.md, C2, for the bug this fixes
+    and the measured mismatch it caused between what got indexed and what a
+    verbatim query for the same text produced).
     """
     if len(tokens) <= QUERY_WINDOW_TOKENS:
-        phrases = [" ".join(t["value"] for t in tokens)]
+        windows = [tokens]
     else:
         starts = sorted({round(i * (len(tokens) - QUERY_WINDOW_TOKENS) / (MAX_QUERY_WINDOWS - 1))
                          for i in range(MAX_QUERY_WINDOWS)})
-        phrases = [" ".join(t["value"] for t in tokens[s:s + QUERY_WINDOW_TOKENS]) for s in starts]
-    return [stem_text(p) for p in phrases] if normalization == "v3" else phrases
+        windows = [tokens[s:s + QUERY_WINDOW_TOKENS] for s in starts]
+    if normalization == "v3":
+        if text is None:
+            raise ValueError("normalization='v3' requires the original text (for its casing)")
+        return [stem_text(" ".join(text[t["start"]:t["end"]] for t in w)) for w in windows]
+    return [" ".join(t["value"] for t in w) for w in windows]
 
 
 def metadata_errors(metadata):
@@ -204,7 +216,7 @@ def withdraw(document_id, config=None):
     return {"id": str(row["id"]), "title": row["title"], "status": "withdrawn"}
 
 
-def candidates(tokens, limit=DEFAULT_CANDIDATES, operator="OR", normalization="v2"):
+def candidates(tokens, limit=DEFAULT_CANDIDATES, operator="OR", normalization="v2", text=None):
     """Ranked candidate corpus documents. The rank is a retrieval score only.
 
     operator defaults to "OR" (the running application's only behaviour,
@@ -214,19 +226,22 @@ def candidates(tokens, limit=DEFAULT_CANDIDATES, operator="OR", normalization="v
 
     normalization defaults to "v2" (the running application's only
     behaviour, unchanged): candidate chunks are matched through the
-    uz-latin-v2 `fts` column. "v3" is opt-in -- today only
-    scripts/eval_retrieval.py passes it -- and matches through `fts_v3`
-    instead, built from the rule-based stripper in
-    backend/comparison/uz_latin_v3.py. Either way the match itself is
-    decided later by the exact/shingle algorithm on the untouched original
-    text, never by this rank.
+    uz-latin-v2 `fts` column, and `text` is not needed. "v3" is opt-in --
+    today only scripts/eval_retrieval.py passes it -- and matches through
+    `fts_v3` instead, built from the rule-based stripper in
+    backend/comparison/uz_latin_v3.py; it requires `text` (the original
+    string `tokens` came from) so query_windows() can recover each token's
+    real casing, the same casing the indexed side already sees (see
+    query_windows()'s docstring). Either way the match itself is decided
+    later by the exact/shingle algorithm on the untouched original text,
+    never by this rank.
     """
     if operator not in ("OR", "AND"):
         raise ValueError("operator must be 'OR' or 'AND'")
     if normalization not in NORMALIZATIONS:
         raise ValueError("normalization must be 'v2' or 'v3'")
     limit = max(1, min(int(limit), MAX_CANDIDATES))
-    phrases = [p for p in query_windows(tokens, normalization) if p.strip()]
+    phrases = [p for p in query_windows(tokens, normalization, text) if p.strip()]
     if not phrases:
         return [], limit
     fts_column = "fts" if normalization == "v2" else "fts_v3"

@@ -121,7 +121,7 @@ def run_config(manifest, admin_user_id, cfg, id_map):
 
         t0 = time.perf_counter()
         found, limit_used = corpus.candidates(qtokens, limit=cfg["limit"], operator=cfg["operator"],
-                                              normalization=cfg.get("normalization", "v2"))
+                                              normalization=cfg.get("normalization", "v2"), text=qtext)
         retrieval_seconds = time.perf_counter() - t0
         ranked_ids = [reverse_map[c["id"]] for c in found]
 

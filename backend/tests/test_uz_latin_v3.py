@@ -7,7 +7,9 @@ real corpus_chunks row to check against.
 """
 import unittest
 
+from backend import corpus
 from backend.comparison import uz_latin_v3 as v3
+from backend.comparison.matching import tokenize
 
 
 class StemPositiveTests(unittest.TestCase):
@@ -95,6 +97,31 @@ class StemSafetyTests(unittest.TestCase):
     def test_word_with_no_matching_suffix_is_unchanged(self):
         self.assertEqual(v3.stem("mamlakat"), "mamlakat")
 
+    def test_bare_c_not_in_a_ch_digraph_marks_a_word_as_foreign(self):
+        # "molecular" ends in "-lar" (plural) but a bare "c" (not "ch")
+        # means it is never even considered for stripping (D1.2 fix; see
+        # docs/benchmarks/uz-morph-v3-foreign-guard.md).
+        self.assertEqual(v3.stem("molecular"), "molecular")
+
+    def test_w_marks_a_word_as_foreign(self):
+        self.assertEqual(v3.stem("workshoplarni"), "workshoplarni")
+
+    def test_ch_digraph_is_not_mistaken_for_a_bare_c(self):
+        # A genuinely native word containing the "ch" digraph must still be
+        # stemmed normally -- the guard must not treat every "c" as foreign.
+        self.assertEqual(v3.stem("chaqiriqlarni"), "chaqiriq")
+
+    def test_native_word_with_ch_and_a_long_suffix_chain_still_strips(self):
+        self.assertEqual(v3.stem("kuchlarning"), "kuch")
+
+    def test_guard_is_language_agnostic_any_bare_c_or_w_is_caught(self):
+        # The rule is a fact about Uzbek's own alphabet, not a check against
+        # English specifically -- a Russian loanword spelled with a bare
+        # "c" (as some are, when transliterated informally) is caught the
+        # same way "molecular" is, with no per-language branching.
+        self.assertEqual(v3.stem("licenziyalarni"), "licenziyalarni")
+
+
     def test_bare_short_possessive_i_is_never_stripped(self):
         # Deliberately excluded suffix (see SUFFIXES comment): "kitobi" must
         # not become "kitob" by accident of some other rule either.
@@ -146,6 +173,48 @@ class StemTextTests(unittest.TestCase):
     def test_stem_text_never_changes_length_of_untouched_short_text(self):
         text = "A, B.  C!"
         self.assertEqual(v3.stem_text(text), text)  # too short to strip, punctuation untouched
+
+
+class IndexQuerySymmetryRegressionTests(unittest.TestCase):
+    """Regression for the bug documented in docs/benchmarks/uz-morph-v3.md,
+    C2: the index side stems the original, cased chunk_text; the query side
+    used to build its phrase from tokenize()'s already-casefolded token
+    values, so the capitalisation half of the proper-noun guard silently
+    never fired on the query side. corpus.query_windows(normalization="v3")
+    now takes `text` and recovers each token's original casing through its
+    offsets -- the same thing the index side was always doing -- so the two
+    sides must stem an identical sentence identically.
+    """
+
+    SENTENCE = "Alisher Navoiyning ijodi mustaqil adabiy tizim darajasiga kotarildi."
+
+    def test_query_side_requires_text_for_v3(self):
+        tokens = tokenize(self.SENTENCE)
+        with self.assertRaises(ValueError):
+            corpus.query_windows(tokens, normalization="v3")  # no text= given
+
+    def test_index_and_query_side_stem_a_capitalised_word_identically(self):
+        # Compared word-by-word, not as whole strings: the query side is
+        # built by joining already-tokenized values (no punctuation), while
+        # the index side stems the raw sentence (period included) -- a
+        # structural difference in how each phrase is assembled, not part
+        # of what this regression test is about (the per-WORD stemming
+        # decision for a capitalised, suffixed word).
+        tokens = tokenize(self.SENTENCE)
+        index_side_words = v3.stem_text(self.SENTENCE).split()
+        query_side_words = corpus.query_windows(tokens, normalization="v3", text=self.SENTENCE)[0].split()
+        self.assertEqual([w.rstrip(".") for w in index_side_words], query_side_words)
+        # Not vacuous: the proper-noun guard must have actually kept
+        # "Navoiyning" whole on both sides, not merely agreed on a bug.
+        self.assertIn("Navoiyning", index_side_words)
+        self.assertIn("Navoiyning", query_side_words)
+
+    def test_v2_query_windows_is_unaffected_by_the_new_text_parameter(self):
+        tokens = tokenize(self.SENTENCE)
+        with_default = corpus.query_windows(tokens)
+        with_explicit_v2_and_text = corpus.query_windows(tokens, normalization="v2", text=self.SENTENCE)
+        self.assertEqual(with_default, with_explicit_v2_and_text)
+        self.assertEqual(with_default, [" ".join(t["value"] for t in tokens)])
 
 
 if __name__ == "__main__":

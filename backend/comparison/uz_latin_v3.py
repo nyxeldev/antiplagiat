@@ -94,14 +94,35 @@ _WORD = re.compile(r"[^\W_]+(?:'[^\W_]+)*", re.UNICODE)
 def _looks_non_uzbek(word):
     """Heuristic proxy for "rus/ingliz so'zini kesmaslik" -- no dictionary.
 
-    Embedded untranslated foreign terms and acronyms in Uzbek Latin text
-    (COVID-19, CRISPR-Cas9, ATP, DNK, Coursera, edX, ...) are, in practice,
-    either all-uppercase, contain a digit, or are capitalised mid-sentence
-    (a proper noun). A plain lowercase Uzbek word matches none of these, so
-    this costs some recall on capitalised common nouns at a sentence start
-    but never strips a suffix-shaped ending off an acronym or a name.
+    Two independent signals, neither a lexicon lookup:
+
+    1. Embedded untranslated foreign terms and acronyms in Uzbek Latin text
+       (COVID-19, CRISPR-Cas9, ATP, DNK, Coursera, edX, ...) are, in
+       practice, either all-uppercase, contain a digit, or are capitalised
+       mid-sentence (a proper noun). A plain lowercase Uzbek word matches
+       none of these, so this costs some recall on capitalised common nouns
+       at a sentence start but never strips a suffix-shaped ending off an
+       acronym or a name.
+
+    2. A Latin-orthography fact about Uzbek itself, not about any other
+       language: Uzbek Latin spelling has no standalone "c" letter -- its
+       "c" sound is always spelled "ch" (kuch, chaqiriq); a loanword that in
+       English/Russian would use "c" is respelled with "s" or "k" in Uzbek
+       (molekula, stsenariy, kafe), never "c". Likewise Uzbek has no "w" --
+       its /v/ sound is always "v". So a bare "c" that is not part of a
+       "ch" digraph, or any "w", can only appear in a word carried over
+       verbatim from another Latin-script language, never in native Uzbek
+       spelling. This is what catches "molecular" (measured in
+       docs/benchmarks/uz-morph-v3.md, C1.4); it does NOT catch English
+       words shaped like "learning"/"planning" that contain neither letter
+       -- see docs/benchmarks/uz-morph-v3-foreign-guard.md for why a
+       suffix-shape check for those was deliberately left out (it collides
+       with Uzbek's own "-ing" polite imperative, e.g. "tushuning").
     """
-    return any(ch.isdigit() for ch in word) or word[:1].isupper()
+    if any(ch.isdigit() for ch in word) or word[:1].isupper():
+        return True
+    lowered = word.lower()
+    return "w" in lowered or "c" in lowered.replace("ch", "")
 
 
 def _strip_once(word):

@@ -143,7 +143,7 @@ class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
         qtokens = tokenize(query_text)
         spans_by_normalization = {}
         for normalization in ("v2", "v3"):
-            found, _ = corpus.candidates(qtokens, normalization=normalization)
+            found, _ = corpus.candidates(qtokens, normalization=normalization, text=query_text)
             self.assertIn(stored["id"], [c["id"] for c in found])
             loaded = corpus.load_for_comparison(stored["id"])
             result = compare(extracted(query_text, "q.txt"), [loaded])
@@ -185,7 +185,7 @@ class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
         self.assertIsNotNone(row["withdrawn_at"])
         self.assertEqual([t["chunk_text"] for t in texts], [""])
         self.assertEqual([t["chunk_text_uz_latin_v3"] for t in texts], [""])
-        found_v3_after, _ = corpus.candidates(tokens, normalization="v3")
+        found_v3_after, _ = corpus.candidates(tokens, normalization="v3", text=text)
         self.assertNotIn(stored["id"], [c["id"] for c in found_v3_after])
         with self.assertRaises(corpus.CorpusError):
             corpus.withdraw(stored["id"])
