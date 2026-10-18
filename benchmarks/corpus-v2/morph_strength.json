@@ -147,11 +147,11 @@
       "query_tokens": 258,
       "source_tokens": 258,
       "content_words_total": 223,
-      "content_words_changed_stem_preserved": 23,
+      "content_words_changed_stem_preserved": 29,
       "content_words_changed_non_suffix": 3,
-      "suffix_changed_ratio": 0.1031390134529148,
-      "longest_unchanged_run_tokens": 50,
-      "shingle_overlap_5token": 155,
+      "suffix_changed_ratio": 0.13004484304932734,
+      "longest_unchanged_run_tokens": 29,
+      "shingle_overlap_5token": 134,
       "inserted_words": 0,
       "deleted_words": 0,
       "pure_substitution": true
@@ -200,11 +200,11 @@
     "n_queries": 15,
     "n_pure_substitution": 15,
     "all_pure_substitution": true,
-    "mean_suffix_changed_ratio": 0.24670719430043672,
-    "min_suffix_changed_ratio": 0.1031390134529148,
-    "mean_longest_unchanged_run_tokens": 22.8,
-    "max_longest_unchanged_run_tokens": 50,
-    "mean_shingle_overlap_5token": 94.33333333333333,
+    "mean_suffix_changed_ratio": 0.24850091627353085,
+    "min_suffix_changed_ratio": 0.10756972111553785,
+    "mean_longest_unchanged_run_tokens": 21.4,
+    "max_longest_unchanged_run_tokens": 44,
+    "mean_shingle_overlap_5token": 92.93333333333334,
     "max_shingle_overlap_5token": 169
   }
 }
