@@ -1,0 +1,178 @@
+{
+  "per_query": {
+    "uz_morph_adabiyot": {
+      "query_tokens": 82,
+      "source_tokens": 82,
+      "changed_word_pairs": 42,
+      "suffix_changed_words": 42,
+      "non_suffix_changed_words": 0,
+      "suffix_changed_ratio": 1.0,
+      "longest_unchanged_run": 4,
+      "shingle_overlap_5token": 0,
+      "unmatched_query_words": 0
+    },
+    "uz_morph_adabiyot_2": {
+      "query_tokens": 286,
+      "source_tokens": 275,
+      "changed_word_pairs": 104,
+      "suffix_changed_words": 73,
+      "non_suffix_changed_words": 31,
+      "suffix_changed_ratio": 0.7019230769230769,
+      "longest_unchanged_run": 6,
+      "shingle_overlap_5token": 6,
+      "unmatched_query_words": 34
+    },
+    "uz_morph_biologiya_2": {
+      "query_tokens": 281,
+      "source_tokens": 271,
+      "changed_word_pairs": 146,
+      "suffix_changed_words": 86,
+      "non_suffix_changed_words": 60,
+      "suffix_changed_ratio": 0.589041095890411,
+      "longest_unchanged_run": 7,
+      "shingle_overlap_5token": 4,
+      "unmatched_query_words": 26
+    },
+    "uz_morph_biologiya_3": {
+      "query_tokens": 278,
+      "source_tokens": 261,
+      "changed_word_pairs": 60,
+      "suffix_changed_words": 39,
+      "non_suffix_changed_words": 21,
+      "suffix_changed_ratio": 0.65,
+      "longest_unchanged_run": 16,
+      "shingle_overlap_5token": 84,
+      "unmatched_query_words": 19
+    },
+    "uz_morph_ekologiya_2": {
+      "query_tokens": 283,
+      "source_tokens": 267,
+      "changed_word_pairs": 45,
+      "suffix_changed_words": 38,
+      "non_suffix_changed_words": 7,
+      "suffix_changed_ratio": 0.8444444444444444,
+      "longest_unchanged_run": 21,
+      "shingle_overlap_5token": 118,
+      "unmatched_query_words": 18
+    },
+    "uz_morph_ekologiya_3": {
+      "query_tokens": 300,
+      "source_tokens": 276,
+      "changed_word_pairs": 36,
+      "suffix_changed_words": 32,
+      "non_suffix_changed_words": 4,
+      "suffix_changed_ratio": 0.8888888888888888,
+      "longest_unchanged_run": 17,
+      "shingle_overlap_5token": 118,
+      "unmatched_query_words": 26
+    },
+    "uz_morph_falsafa": {
+      "query_tokens": 332,
+      "source_tokens": 301,
+      "changed_word_pairs": 52,
+      "suffix_changed_words": 44,
+      "non_suffix_changed_words": 8,
+      "suffix_changed_ratio": 0.8461538461538461,
+      "longest_unchanged_run": 14,
+      "shingle_overlap_5token": 99,
+      "unmatched_query_words": 35
+    },
+    "uz_morph_iqtisodiyot_2": {
+      "query_tokens": 299,
+      "source_tokens": 268,
+      "changed_word_pairs": 43,
+      "suffix_changed_words": 38,
+      "non_suffix_changed_words": 5,
+      "suffix_changed_ratio": 0.8837209302325582,
+      "longest_unchanged_run": 16,
+      "shingle_overlap_5token": 94,
+      "unmatched_query_words": 33
+    },
+    "uz_morph_kimyo": {
+      "query_tokens": 304,
+      "source_tokens": 273,
+      "changed_word_pairs": 33,
+      "suffix_changed_words": 27,
+      "non_suffix_changed_words": 6,
+      "suffix_changed_ratio": 0.8181818181818182,
+      "longest_unchanged_run": 14,
+      "shingle_overlap_5token": 112,
+      "unmatched_query_words": 33
+    },
+    "uz_morph_pedagogika": {
+      "query_tokens": 77,
+      "source_tokens": 78,
+      "changed_word_pairs": 36,
+      "suffix_changed_words": 36,
+      "non_suffix_changed_words": 0,
+      "suffix_changed_ratio": 1.0,
+      "longest_unchanged_run": 4,
+      "shingle_overlap_5token": 0,
+      "unmatched_query_words": 1
+    },
+    "uz_morph_pedagogika_2": {
+      "query_tokens": 269,
+      "source_tokens": 250,
+      "changed_word_pairs": 44,
+      "suffix_changed_words": 39,
+      "non_suffix_changed_words": 5,
+      "suffix_changed_ratio": 0.8863636363636364,
+      "longest_unchanged_run": 17,
+      "shingle_overlap_5token": 85,
+      "unmatched_query_words": 23
+    },
+    "uz_morph_pedagogika_3": {
+      "query_tokens": 277,
+      "source_tokens": 258,
+      "changed_word_pairs": 33,
+      "suffix_changed_words": 27,
+      "non_suffix_changed_words": 6,
+      "suffix_changed_ratio": 0.8181818181818182,
+      "longest_unchanged_run": 21,
+      "shingle_overlap_5token": 129,
+      "unmatched_query_words": 19
+    },
+    "uz_morph_tarix": {
+      "query_tokens": 88,
+      "source_tokens": 91,
+      "changed_word_pairs": 36,
+      "suffix_changed_words": 33,
+      "non_suffix_changed_words": 3,
+      "suffix_changed_ratio": 0.9166666666666666,
+      "longest_unchanged_run": 4,
+      "shingle_overlap_5token": 0,
+      "unmatched_query_words": 5
+    },
+    "uz_morph_tarix_2": {
+      "query_tokens": 336,
+      "source_tokens": 310,
+      "changed_word_pairs": 46,
+      "suffix_changed_words": 43,
+      "non_suffix_changed_words": 3,
+      "suffix_changed_ratio": 0.9347826086956522,
+      "longest_unchanged_run": 15,
+      "shingle_overlap_5token": 128,
+      "unmatched_query_words": 32
+    },
+    "uz_morph_tarix_3": {
+      "query_tokens": 317,
+      "source_tokens": 295,
+      "changed_word_pairs": 35,
+      "suffix_changed_words": 31,
+      "non_suffix_changed_words": 4,
+      "suffix_changed_ratio": 0.8857142857142857,
+      "longest_unchanged_run": 18,
+      "shingle_overlap_5token": 145,
+      "unmatched_query_words": 28
+    }
+  },
+  "summary": {
+    "n_queries": 15,
+    "mean_suffix_changed_ratio": 0.8442708744224735,
+    "min_suffix_changed_ratio": 0.589041095890411,
+    "mean_longest_unchanged_run": 12.933333333333334,
+    "max_longest_unchanged_run": 21,
+    "mean_shingle_overlap": 74.8,
+    "max_shingle_overlap": 145
+  }
+}

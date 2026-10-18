@@ -14,16 +14,16 @@
       "mrr_n": 53
     },
     "matching": {
-      "precision": 0.9742498514557338,
+      "precision": 1.0,
       "precision_n": 48,
-      "recall": 0.6213328138049481,
+      "recall": 0.5921149197144856,
       "recall_n": 67,
-      "f1": 0.6333861694746773,
+      "f1": 0.6167309208758092,
       "f1_n": 67,
-      "false_positive_queries": 4
+      "false_positive_queries": 0
     },
-    "mean_retrieval_seconds": 0.39643,
-    "mean_matching_seconds": 0.015,
+    "mean_retrieval_seconds": 0.3991,
+    "mean_matching_seconds": 0.0166,
     "by_category": {
       "hard_negative": {
         "n_queries": 8,
@@ -66,9 +66,9 @@
         "matching": {
           "precision": 1.0,
           "precision_n": 12,
-          "recall": 0.5647322525662953,
+          "recall": 0.4342256589622297,
           "recall_n": 15,
-          "f1": 0.6582540267512875,
+          "f1": 0.5347172870686566,
           "f1_n": 15,
           "false_positive_queries": 0
         }
@@ -136,13 +136,13 @@
           "mrr_n": 6
         },
         "matching": {
-          "precision": 0.9,
+          "precision": 1.0,
           "precision_n": 4,
           "recall": 0.6666666666666666,
           "recall_n": 6,
-          "f1": 0.625,
+          "f1": 0.6666666666666666,
           "f1_n": 6,
-          "false_positive_queries": 1
+          "false_positive_queries": 0
         }
       },
       "unrelated": {
@@ -184,13 +184,13 @@
           "mrr_n": 9
         },
         "matching": {
-          "precision": 0.9071103188750248,
+          "precision": 1.0,
           "precision_n": 9,
           "recall": 1.0,
           "recall_n": 9,
-          "f1": 0.9458722845427443,
+          "f1": 1.0,
           "f1_n": 9,
-          "false_positive_queries": 3
+          "false_positive_queries": 0
         }
       }
     }
@@ -210,16 +210,16 @@
       "mrr_n": 53
     },
     "matching": {
-      "precision": 0.9665597147950089,
+      "precision": 1.0,
       "precision_n": 25,
       "recall": 0.373134328358209,
       "recall_n": 67,
-      "f1": 0.3658634412072343,
+      "f1": 0.373134328358209,
       "f1_n": 67,
-      "false_positive_queries": 3
+      "false_positive_queries": 0
     },
-    "mean_retrieval_seconds": 0.18316,
-    "mean_matching_seconds": 0.00064,
+    "mean_retrieval_seconds": 0.17858,
+    "mean_matching_seconds": 0.00068,
     "by_category": {
       "hard_negative": {
         "n_queries": 8,
@@ -380,13 +380,13 @@
           "mrr_n": 9
         },
         "matching": {
-          "precision": 0.8606654783125371,
+          "precision": 1.0,
           "precision_n": 6,
           "recall": 0.6666666666666666,
           "recall_n": 9,
-          "f1": 0.6125389512094109,
+          "f1": 0.6666666666666666,
           "f1_n": 9,
-          "false_positive_queries": 3
+          "false_positive_queries": 0
         }
       }
     }
@@ -406,16 +406,16 @@
       "mrr_n": 53
     },
     "matching": {
-      "precision": 0.973701975954792,
+      "precision": 1.0,
       "precision_n": 47,
-      "recall": 0.6064074406706197,
+      "recall": 0.5771895465801572,
       "recall_n": 67,
-      "f1": 0.618460796340349,
+      "f1": 0.6018055477414809,
       "f1_n": 67,
-      "false_positive_queries": 4
+      "false_positive_queries": 0
     },
-    "mean_retrieval_seconds": 0.21371,
-    "mean_matching_seconds": 0.01619,
+    "mean_retrieval_seconds": 0.22635,
+    "mean_matching_seconds": 0.01739,
     "by_category": {
       "hard_negative": {
         "n_queries": 8,
@@ -458,9 +458,9 @@
         "matching": {
           "precision": 1.0,
           "precision_n": 12,
-          "recall": 0.5647322525662953,
+          "recall": 0.4342256589622297,
           "recall_n": 15,
-          "f1": 0.6582540267512875,
+          "f1": 0.5347172870686566,
           "f1_n": 15,
           "false_positive_queries": 0
         }
@@ -528,13 +528,13 @@
           "mrr_n": 6
         },
         "matching": {
-          "precision": 0.9,
+          "precision": 1.0,
           "precision_n": 4,
           "recall": 0.6666666666666666,
           "recall_n": 6,
-          "f1": 0.625,
+          "f1": 0.6666666666666666,
           "f1_n": 6,
-          "false_positive_queries": 1
+          "false_positive_queries": 0
         }
       },
       "unrelated": {
@@ -576,13 +576,13 @@
           "mrr_n": 9
         },
         "matching": {
-          "precision": 0.9071103188750248,
+          "precision": 1.0,
           "precision_n": 9,
           "recall": 1.0,
           "recall_n": 9,
-          "f1": 0.9458722845427443,
+          "f1": 1.0,
           "f1_n": 9,
-          "false_positive_queries": 3
+          "false_positive_queries": 0
         }
       }
     }
@@ -602,16 +602,16 @@
       "mrr_n": 53
     },
     "matching": {
-      "precision": 0.9752798573975044,
+      "precision": 1.0,
       "precision_n": 50,
-      "recall": 0.6511835600736048,
+      "recall": 0.6219656659831423,
       "recall_n": 67,
-      "f1": 0.6632369157433341,
+      "f1": 0.6465816671444659,
       "f1_n": 67,
-      "false_positive_queries": 4
+      "false_positive_queries": 0
     },
-    "mean_retrieval_seconds": 0.39284,
-    "mean_matching_seconds": 0.02799,
+    "mean_retrieval_seconds": 0.38182,
+    "mean_matching_seconds": 0.03048,
     "by_category": {
       "hard_negative": {
         "n_queries": 8,
@@ -654,9 +654,9 @@
         "matching": {
           "precision": 1.0,
           "precision_n": 12,
-          "recall": 0.5647322525662953,
+          "recall": 0.4342256589622297,
           "recall_n": 15,
-          "f1": 0.6582540267512875,
+          "f1": 0.5347172870686566,
           "f1_n": 15,
           "false_positive_queries": 0
         }
@@ -724,13 +724,13 @@
           "mrr_n": 6
         },
         "matching": {
-          "precision": 0.9199999999999999,
+          "precision": 1.0,
           "precision_n": 5,
           "recall": 0.8333333333333334,
           "recall_n": 6,
-          "f1": 0.7916666666666666,
+          "f1": 0.8333333333333334,
           "f1_n": 6,
-          "false_positive_queries": 1
+          "false_positive_queries": 0
         }
       },
       "unrelated": {
@@ -772,13 +772,13 @@
           "mrr_n": 9
         },
         "matching": {
-          "precision": 0.9071103188750248,
+          "precision": 1.0,
           "precision_n": 9,
           "recall": 1.0,
           "recall_n": 9,
-          "f1": 0.9458722845427443,
+          "f1": 1.0,
           "f1_n": 9,
-          "false_positive_queries": 3
+          "false_positive_queries": 0
         }
       }
     }
