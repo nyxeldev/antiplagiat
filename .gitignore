@@ -26,5 +26,8 @@ out/
 /storage/
 /private-data/
 
+# Graphify output (generated, not committed)
+graphify-out/
+
 # Logs
 *.log
