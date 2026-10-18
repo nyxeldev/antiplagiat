@@ -13,10 +13,18 @@ from psycopg.errors import UniqueViolation
 from psycopg.types.json import Jsonb
 
 from backend.comparison.matching import NORMALIZATION_VERSION, tokenize
+from backend.comparison.uz_latin_v3 import stem_text
 from backend.persistence import ServiceError, database
 
 RETRIEVAL_POLICY = "pg-fts-candidate-v1"
 FTS_CONFIGURATION = "simple"
+# "v2" (default, the running application's only behaviour) reads the
+# uz-latin-v2 `fts` column built straight from chunk_text. "v3" is opt-in --
+# today only scripts/eval_retrieval.py passes it -- and reads `fts_v3`,
+# built from chunk_text run through the rule-based stripper in
+# backend/comparison/uz_latin_v3.py. Neither touches extracted_text,
+# segments or offsets; both are retrieval-only.
+NORMALIZATIONS = ("v2", "v3")
 
 # A ~40 token window with ~20 token overlap keeps every five-token shingle whole
 # inside at least one chunk, so a borrowed sentence cannot fall between chunks.
@@ -74,13 +82,20 @@ def chunk_document(text, tokens, chunk_tokens=CHUNK_TOKENS, overlap_tokens=CHUNK
     return chunks
 
 
-def query_windows(tokens):
-    """Evenly sampled windows of the checked document, as plain query phrases."""
+def query_windows(tokens, normalization="v2"):
+    """Evenly sampled windows of the checked document, as plain query phrases.
+
+    normalization="v3" runs each phrase through the uz-latin-v3 stripper so
+    the query side matches what was indexed into fts_v3; it never changes
+    `tokens` itself, only the throwaway phrase string built here.
+    """
     if len(tokens) <= QUERY_WINDOW_TOKENS:
-        return [" ".join(t["value"] for t in tokens)]
-    starts = sorted({round(i * (len(tokens) - QUERY_WINDOW_TOKENS) / (MAX_QUERY_WINDOWS - 1))
-                     for i in range(MAX_QUERY_WINDOWS)})
-    return [" ".join(t["value"] for t in tokens[s:s + QUERY_WINDOW_TOKENS]) for s in starts]
+        phrases = [" ".join(t["value"] for t in tokens)]
+    else:
+        starts = sorted({round(i * (len(tokens) - QUERY_WINDOW_TOKENS) / (MAX_QUERY_WINDOWS - 1))
+                         for i in range(MAX_QUERY_WINDOWS)})
+        phrases = [" ".join(t["value"] for t in tokens[s:s + QUERY_WINDOW_TOKENS]) for s in starts]
+    return [stem_text(p) for p in phrases] if normalization == "v3" else phrases
 
 
 def metadata_errors(metadata):
@@ -136,9 +151,11 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
                 " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", row)
             conn.cursor().executemany(
                 "INSERT INTO antiplagiat.corpus_chunks(id,corpus_document_id,chunk_index,char_start,"
-                "char_end,token_start,token_end,chunk_text) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                "char_end,token_start,token_end,chunk_text,chunk_text_uz_latin_v3)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 [(uuid.uuid4(), document_id, c["chunk_index"], c["char_start"], c["char_end"],
-                  c["token_start"], c["token_end"], c["chunk_text"]) for c in chunks])
+                  c["token_start"], c["token_end"], c["chunk_text"], stem_text(c["chunk_text"]))
+                 for c in chunks])
         except UniqueViolation as error:
             if error.diag.constraint_name == "corpus_documents_active_digest":
                 raise CorpusError("corpus_duplicate", "Bu fayl korpusda allaqachon mavjud.", 409) from None
@@ -182,25 +199,37 @@ def withdraw(document_id, config=None):
             (document_id,)).fetchone()
         if not row:
             raise CorpusError("corpus_not_found", "Korpus hujjati topilmadi yoki allaqachon chiqarilgan.", 404)
-        conn.execute("UPDATE antiplagiat.corpus_chunks SET chunk_text='' WHERE corpus_document_id=%s",
-                     (document_id,))
+        conn.execute("UPDATE antiplagiat.corpus_chunks SET chunk_text='',chunk_text_uz_latin_v3=''"
+                     " WHERE corpus_document_id=%s", (document_id,))
     return {"id": str(row["id"]), "title": row["title"], "status": "withdrawn"}
 
 
-def candidates(tokens, limit=DEFAULT_CANDIDATES, operator="OR"):
+def candidates(tokens, limit=DEFAULT_CANDIDATES, operator="OR", normalization="v2"):
     """Ranked candidate corpus documents. The rank is a retrieval score only.
 
     operator defaults to "OR" (the running application's only behaviour,
     unchanged). The retrieval evaluation harness is the only caller that
     passes "AND", to A/B plainto_tsquery's native all-terms-required ranking
     against the OR rewrite used in production.
+
+    normalization defaults to "v2" (the running application's only
+    behaviour, unchanged): candidate chunks are matched through the
+    uz-latin-v2 `fts` column. "v3" is opt-in -- today only
+    scripts/eval_retrieval.py passes it -- and matches through `fts_v3`
+    instead, built from the rule-based stripper in
+    backend/comparison/uz_latin_v3.py. Either way the match itself is
+    decided later by the exact/shingle algorithm on the untouched original
+    text, never by this rank.
     """
     if operator not in ("OR", "AND"):
         raise ValueError("operator must be 'OR' or 'AND'")
+    if normalization not in NORMALIZATIONS:
+        raise ValueError("normalization must be 'v2' or 'v3'")
     limit = max(1, min(int(limit), MAX_CANDIDATES))
-    phrases = [p for p in query_windows(tokens) if p.strip()]
+    phrases = [p for p in query_windows(tokens, normalization) if p.strip()]
     if not phrases:
         return [], limit
+    fts_column = "fts" if normalization == "v2" else "fts_v3"
     with database() as conn:
         conn.execute(f"SET LOCAL statement_timeout = {RETRIEVAL_TIMEOUT_MS}")
         # plainto_tsquery joins terms with AND, which would only match a chunk
@@ -213,9 +242,9 @@ def candidates(tokens, limit=DEFAULT_CANDIDATES, operator="OR"):
         rows = conn.execute(
             f"WITH q AS (SELECT {query_expr} AS query FROM unnest(%s::text[]) AS phrase) "
             "SELECT c.corpus_document_id AS id, "
-            "       sum(ts_rank(c.fts, q.query)) AS total_rank, "
+            f"       sum(ts_rank(c.{fts_column}, q.query)) AS total_rank, "
             "       count(DISTINCT c.id) AS matched_chunks "
-            "FROM q JOIN antiplagiat.corpus_chunks c ON c.fts @@ q.query "
+            f"FROM q JOIN antiplagiat.corpus_chunks c ON c.{fts_column} @@ q.query "
             "JOIN antiplagiat.corpus_documents d ON d.id = c.corpus_document_id AND d.status='active' "
             "GROUP BY c.corpus_document_id "
             "ORDER BY total_rank DESC, matched_chunks DESC, c.corpus_document_id "

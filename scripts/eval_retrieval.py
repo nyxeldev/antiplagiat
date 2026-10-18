@@ -53,6 +53,12 @@ CONFIGS = [
     {"name": "ablation_tsquery_AND", "operator": "AND", "chunk_tokens": 40, "overlap_tokens": 20, "limit": 5},
     {"name": "ablation_chunk_80-40", "operator": "OR", "chunk_tokens": 80, "overlap_tokens": 40, "limit": 5},
     {"name": "ablation_candidates_N20", "operator": "OR", "chunk_tokens": 40, "overlap_tokens": 20, "limit": 20},
+    # Opt-in uz-latin-v3 (rule-based suffix stripping, retrieval-only): same
+    # chunking/operator/limit as the baseline, only the normalization axis
+    # differs, so this isolates v3's effect on recall/precision from the
+    # other three already-measured axes.
+    {"name": "ablation_uz_latin_v3", "operator": "OR", "chunk_tokens": 40, "overlap_tokens": 20, "limit": 5,
+     "normalization": "v3"},
 ]
 
 
@@ -114,7 +120,8 @@ def run_config(manifest, admin_user_id, cfg, id_map):
         qtokens = tokenize(qtext)
 
         t0 = time.perf_counter()
-        found, limit_used = corpus.candidates(qtokens, limit=cfg["limit"], operator=cfg["operator"])
+        found, limit_used = corpus.candidates(qtokens, limit=cfg["limit"], operator=cfg["operator"],
+                                              normalization=cfg.get("normalization", "v2"))
         retrieval_seconds = time.perf_counter() - t0
         ranked_ids = [reverse_map[c["id"]] for c in found]
 
