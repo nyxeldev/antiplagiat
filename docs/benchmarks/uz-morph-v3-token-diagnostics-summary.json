@@ -1,0 +1,99 @@
+{
+  "corpus_by_language": {
+    "en": {
+      "foreign_guard": 426,
+      "no_matching_suffix": 918,
+      "too_short": 2098,
+      "stemmed": 12
+    },
+    "ru": {
+      "foreign_guard": 449,
+      "no_matching_suffix": 1331,
+      "too_short": 1500
+    },
+    "uz_latin": {
+      "foreign_guard": 797,
+      "too_short": 3154,
+      "stemmed": 1760,
+      "no_matching_suffix": 782,
+      "stem_too_short": 19
+    }
+  },
+  "query_by_category": {
+    "hard_negative": {
+      "foreign_guard": 54,
+      "too_short": 361,
+      "no_matching_suffix": 189,
+      "stemmed": 67,
+      "stem_too_short": 1
+    },
+    "paraphrase": {
+      "foreign_guard": 121,
+      "no_matching_suffix": 371,
+      "too_short": 805,
+      "stemmed": 181,
+      "stem_too_short": 2
+    },
+    "partial": {
+      "foreign_guard": 44,
+      "no_matching_suffix": 137,
+      "too_short": 263,
+      "stemmed": 51
+    },
+    "quoted": {
+      "foreign_guard": 31,
+      "too_short": 178,
+      "no_matching_suffix": 77,
+      "stemmed": 37,
+      "stem_too_short": 1
+    },
+    "unrelated": {
+      "foreign_guard": 31,
+      "too_short": 285,
+      "no_matching_suffix": 93,
+      "stemmed": 35,
+      "stem_too_short": 1
+    },
+    "verbatim": {
+      "foreign_guard": 130,
+      "too_short": 505,
+      "no_matching_suffix": 199,
+      "stemmed": 98
+    },
+    "morphological": {
+      "foreign_guard": 440,
+      "too_short": 1540,
+      "stemmed": 1133,
+      "no_matching_suffix": 397,
+      "stem_too_short": 46
+    }
+  },
+  "query_by_language": {
+    "en": {
+      "foreign_guard": 148,
+      "too_short": 1052,
+      "no_matching_suffix": 396,
+      "stemmed": 3
+    },
+    "ru": {
+      "foreign_guard": 114,
+      "too_short": 553,
+      "no_matching_suffix": 455
+    },
+    "uz_latin": {
+      "foreign_guard": 589,
+      "no_matching_suffix": 612,
+      "stemmed": 1599,
+      "too_short": 2332,
+      "stem_too_short": 51
+    }
+  },
+  "overall": {
+    "foreign_guard": 2523,
+    "no_matching_suffix": 4494,
+    "too_short": 10689,
+    "stemmed": 3374,
+    "stem_too_short": 70
+  },
+  "overall_total_tokens": 21150
+}
