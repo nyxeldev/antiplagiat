@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "../lib/client-api";
+import { Pop, Rise, tap } from "./motion";
+import { motion } from "framer-motion";
 import styles from "./page.module.css";
 const SessionContext = createContext<() => void>(() => {});
 export const useSessionExpired = () => useContext(SessionContext);
@@ -36,10 +38,11 @@ export default function AccountShell({ children }: { children: ReactNode }) {
     catch (e) { if (e instanceof ApiError && e.status === 401) setUser(null); else setError(e instanceof Error ? e.message : "Chiqish bajarilmadi."); }
     finally { mutation.current = false; setBusy(false); }
   }
-  if (loading) return <p role="status" className={styles.panel}>Session tekshirilmoqda…</p>;
-  if (!user) return <form onSubmit={login} className={`${styles.panel} ${styles.login}`}><h2>Hisobga kirish</h2><p className={styles.muted}>Akkaunt lokal boshqaruv vositasi orqali yaratiladi.</p>
+  if (loading) return <Rise className={styles.panel}><p role="status">Session tekshirilmoqda…</p></Rise>;
+  if (!user) return <Rise><form onSubmit={login} className={`${styles.panel} ${styles.login}`}><h2>Hisobga kirish</h2><p className={styles.muted}>Akkaunt lokal boshqaruv vositasi orqali yaratiladi.</p>
     <label htmlFor="username">Login</label><input id="username" autoComplete="username" required minLength={3} maxLength={64} value={loginName} disabled={busy} onChange={e => setLoginName(e.target.value)} />
     <label htmlFor="password">Parol</label><input id="password" type="password" autoComplete="current-password" required maxLength={256} value={password} disabled={busy} onChange={e => setPassword(e.target.value)} />
-    <button className={styles.primary} disabled={busy}>{busy ? "Kirilmoqda…" : "Kirish"}</button>{error && <p role="alert" className={styles.error}>{error}</p>}</form>;
-  return <SessionContext.Provider value={expired}><nav className={`${styles.panel} ${styles.account}`} aria-label="Hisob"><span>{user.username}</span><Link href="/">Yangi tekshiruv</Link><Link href="/history">Tekshiruvlar tarixi</Link><button onClick={logout} disabled={busy}>Chiqish</button></nav>{error && <p role="alert" className={styles.error}>{error}</p>}<div key={user.id}>{children}</div></SessionContext.Provider>;
+    <motion.button whileTap={tap} className={styles.primary} disabled={busy}>{busy && <span className={styles.spinner} aria-hidden="true" />}{busy ? "Kirilmoqda…" : "Kirish"}</motion.button>
+    <Pop show={!!error}>{error && <p role="alert" className={styles.error}>{error}</p>}</Pop></form></Rise>;
+  return <SessionContext.Provider value={expired}><Rise><nav className={`${styles.panel} ${styles.account}`} aria-label="Hisob"><span>{user.username}</span><Link href="/">Yangi tekshiruv</Link><Link href="/history">Tekshiruvlar tarixi</Link><motion.button whileTap={tap} onClick={logout} disabled={busy}>Chiqish</motion.button></nav></Rise><Pop show={!!error}>{error && <p role="alert" className={styles.error}>{error}</p>}</Pop><div key={user.id}>{children}</div></SessionContext.Provider>;
 }

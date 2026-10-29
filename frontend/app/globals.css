@@ -1,10 +1,43 @@
-﻿:root {
+﻿@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&display=swap");
+
+:root {
   color-scheme: light;
-  background: #f5f7f4;
-  color: #183d34;
-  font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+
+  /* --- color tokens ------------------------------------------------- */
+  --paper: #f6f1e6;
+  --surface: #ffffff;
+  --surface-sunken: #faf7ef;
+  --ink: #1b2a24;
+  --ink-soft: #35463d;
+  --ink-muted: #5f6e63;
+  --accent: #1f5c4f;
+  --accent-strong: #143b32;
+  --accent-soft: #e7f1ec;
+  --gold: #a9780f;
+  --gold-soft: #f6e4ac;
+  --border: #e1d7c2;
+  --border-strong: #cdbf9f;
+  --danger: #a1361f;
+  --danger-soft: #fbeae4;
+
+  /* --- scale ---------------------------------------------------------- */
+  --radius-sm: 0.55rem;
+  --radius-md: 0.9rem;
+  --radius-lg: 1.4rem;
+  --shadow-sm: 0 1px 2px rgba(27, 36, 30, 0.07);
+  --shadow-md: 0 1.25rem 2.5rem -1rem rgba(20, 33, 27, 0.18);
+  --shadow-lg: 0 2.5rem 5rem -1.5rem rgba(20, 33, 27, 0.24);
+
+  /* --- type ------------------------------------------------------------ */
+  --font-display: "Fraunces", Georgia, "Noto Serif", serif;
+  --font-body: "Work Sans", "Segoe UI", system-ui, sans-serif;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 * {
@@ -13,14 +46,43 @@
 
 body {
   margin: 0;
+  min-height: 100svh;
+  background:
+    radial-gradient(ellipse 60rem 32rem at 10% -10%, #ffffff 0%, transparent 60%),
+    var(--paper);
 }
 
-h1,
+h1, h2, h3, h4 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-wrap: balance;
+}
+
 p {
   margin: 0;
 }
 
+a {
+  color: var(--accent);
+  text-underline-offset: 0.2em;
+}
+
 ::selection {
-  background: #c9e5d7;
-  color: #183d34;
+  background: var(--gold-soft);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2.5px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

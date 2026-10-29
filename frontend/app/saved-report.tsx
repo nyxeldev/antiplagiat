@@ -1,9 +1,11 @@
 "use client";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "../lib/client-api";
 import { useSessionExpired } from "./account-shell";
+import { Rise, tap } from "./motion";
 import ReportView, { type Report } from "./report-view";
 import styles from "./page.module.css";
 export default function SavedReport({ id }: { id: string }) {
@@ -20,5 +22,5 @@ export default function SavedReport({ id }: { id: string }) {
     try { await api(`/reports/${id}`, { method: "DELETE" }); setReport(null); router.replace("/history"); }
     catch (e) { if (e instanceof ApiError && e.status === 401) expired(); else setError(e instanceof Error ? e.message : "O‘chirish bajarilmadi."); } finally { setBusy(false); }
   }
-  return <><div className={`${styles.panel} ${styles.account}`}><Link href="/history">Tarixga qaytish</Link>{report && <button disabled={busy} onClick={remove}>Hisobotni o‘chirish</button>}</div>{error && <p role="alert" className={styles.error}>{error} <button onClick={() => { setReport(null); setVersion(version + 1); }}>Qayta urinish</button></p>}{!report && !error && <p role="status">Hisobot yuklanmoqda…</p>}{report && <ReportView key={report.report_id} report={report} />}</>;
+  return <><Rise><div className={`${styles.panel} ${styles.account}`}><Link href="/history">Tarixga qaytish</Link>{report && <motion.button whileTap={tap} disabled={busy} onClick={remove}>Hisobotni o‘chirish</motion.button>}</div></Rise>{error && <p role="alert" className={styles.error}>{error} <button onClick={() => { setReport(null); setVersion(version + 1); }}>Qayta urinish</button></p>}{!report && !error && <p role="status">Hisobot yuklanmoqda…</p>}{report && <Rise delay={0.08}><ReportView key={report.report_id} report={report} /></Rise>}</>;
 }
