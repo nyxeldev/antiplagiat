@@ -18,6 +18,7 @@ export default function Comparison() {
   const expired = useSessionExpired(); const key = useRef<string | null>(null); const inFlight = useRef(false);
   const [document, setDocument] = useState<File | null>(null); const [sources, setSources] = useState<File[]>([]);
   const [includeCorpus, setIncludeCorpus] = useState(false);
+  const [morphAware, setMorphAware] = useState(false);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const [report, setReport] = useState<Report | null>(null);
   function resetResult() { key.current = null; setReport(null); setError(null); }
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -26,7 +27,9 @@ export default function Comparison() {
     inFlight.current = true; setBusy(true); setError(null); setReport(null); key.current ??= crypto.randomUUID();
     const data = new FormData(); data.append("document", document); sources.forEach(source => data.append("sources", source));
     try {
-      const path = includeCorpus ? "/compare?include_corpus=true" : "/compare";
+      const params = includeCorpus
+        ? `?include_corpus=true${morphAware ? "&normalization=v3" : ""}` : "";
+      const path = `/compare${params}`;
       const result = await api(path, { method: "POST", body: data, headers: { "Idempotency-Key": key.current }, signal: AbortSignal.timeout(100_000) });
       if (!result.saved || !result.report_id) throw new Error("Hisobot saqlanganligi tasdiqlanmadi.");
       setReport(result);
@@ -56,6 +59,12 @@ export default function Comparison() {
         <span>Ichki korpus bo‘yicha ham tekshirish</span>
       </label>
       <p className={styles.muted}>Qo‘shimcha ravishda akademiyaning ruxsat asosida saqlangan ichki korpusidan nomzod manbalar tanlanadi. Korpus manbasidan faqat mos parcha va qisqa kontekst ko‘rsatiladi; to‘liq matn berilmaydi. Limit tufayli korpusdagi barcha hujjatlar solishtirilmaydi.</p>
+      {includeCorpus && <label className={styles.corpusOption} htmlFor="morph-aware">
+        <input id="morph-aware" type="checkbox" checked={morphAware} disabled={busy}
+          onChange={event => { setMorphAware(event.target.checked); resetResult(); }} />
+        <span>O‘zbekcha qo‘shimchalarni hisobga olish (tajriba)</span>
+      </label>}
+      {includeCorpus && <p className={styles.muted}>Qoidaga asoslangan, lug‘atsiz usul bilan o‘zbekcha so‘z qo‘shimchalarini (masalan “-lar”, “-ning”, “-dan”) tanib, nomzod manbalarni shu holatni hisobga olib qidiradi. Faqat qaysi hujjatlar nomzod sifatida tanlanishiga ta’sir qiladi; mos parchani belgilash hamon o‘zgarmagan algoritmda.</p>}
     </div>
     <p className={styles.notice}>Muvaffaqiyatli hisobot, shu jumladan ajratilgan hujjat va manba matnlari shaxsiy tarixingizda saqlanadi. Binar fayllar saqlanmaydi; umumiy korpusga qo‘shilmaydi va internetga yuborilmaydi.</p>
     <button className={styles.primary} disabled={busy || !document || !sources.length} type="submit">{busy ? "Solishtirilmoqda…" : "Solishtirish"}</button>

@@ -243,7 +243,8 @@ class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
 class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
     """The compare endpoint with the corpus flag off and on."""
 
-    def request(self, body, content_type, include_corpus=False, role="user"):
+    def request(self, body, content_type, include_corpus=False, role="user", normalization="v2",
+                idempotency_key=None):
         sent = False
         async def receive():
             nonlocal sent
@@ -251,14 +252,20 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
                 return {"type": "http.disconnect"}
             sent = True
             return {"type": "http.request", "body": body, "more_body": False}
+        query = []
+        if include_corpus:
+            query.append("include_corpus=true")
+        if normalization != "v2":
+            query.append(f"normalization={normalization}")
         scope = {"type": "http", "method": "POST", "scheme": "http", "path": "/compare",
-                 "query_string": b"include_corpus=true" if include_corpus else b"",
+                 "query_string": "&".join(query).encode(),
                  "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
                  "headers": [(b"content-type", content_type.encode()), (b"x-antiplagiat-local", b"1"),
-                             (b"idempotency-key", str(uuid.uuid4()).encode())]}
+                             (b"idempotency-key", (idempotency_key or str(uuid.uuid4())).encode())]}
         owner = str(self.admin_id if role == "admin" else self.user_id)
         with patch.object(api.auth, "require_user", return_value={"id": owner, "role": role}):
-            return asyncio.run(api.compare_uploads(Request(scope, receive), include_corpus=include_corpus))
+            return asyncio.run(api.compare_uploads(Request(scope, receive), include_corpus=include_corpus,
+                                                    normalization=normalization))
 
     def payload(self, response):
         return json.loads(bytes(response.body))
@@ -293,6 +300,39 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
         self.assertIn(match["source"]["text"], UZ)
         self.assertGreater(source["coverage_percent"], 0)
         self.assertLessEqual(result["coverage_percent"], 100.0)
+
+    def test_normalization_defaults_to_v2_and_v3_is_recorded_when_requested(self):
+        self.add(self.unique(UZ), "norm-" + uuid.uuid4().hex[:8])
+        body, kind = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
+        default_result = self.payload(self.request(body, kind, include_corpus=True))
+        self.assertEqual(default_result["corpus"]["normalization"], "v2")
+        self.assertFalse(any("uz-latin-v3" in line for line in default_result["limitations"]))
+        body2, kind2 = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
+        v3_result = self.payload(self.request(body2, kind2, include_corpus=True, normalization="v3"))
+        self.assertEqual(v3_result["corpus"]["normalization"], "v3")
+        self.assertTrue(any("uz-latin-v3" in line for line in v3_result["limitations"]))
+
+    def test_normalization_rejects_unknown_value(self):
+        body, kind = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
+        response = self.request(body, kind, include_corpus=True, normalization="v4")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.payload(response)["error"]["code"], "normalization_invalid")
+
+    def test_normalization_v3_without_corpus_is_ignored_not_an_error(self):
+        body, kind = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UZ.encode())])
+        result = self.payload(self.request(body, kind, include_corpus=False, normalization="v3"))
+        self.assertNotIn("corpus", result)  # corpus retrieval never ran; nothing to normalize
+
+    def test_same_idempotency_key_with_different_normalization_conflicts_rather_than_silently_reusing(self):
+        self.add(self.unique(UZ), "norm-conflict-" + uuid.uuid4().hex[:8])
+        key = str(uuid.uuid4())
+        body, kind = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
+        first = self.request(body, kind, include_corpus=True, normalization="v2", idempotency_key=key)
+        self.assertEqual(first.status_code, 200)
+        body2, kind2 = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
+        with self.assertRaises(persistence.ServiceError) as raised:
+            self.request(body2, kind2, include_corpus=True, normalization="v3", idempotency_key=key)
+        self.assertEqual((raised.exception.status, raised.exception.code), (409, "request_conflict"))
 
     def test_non_admin_response_never_carries_full_corpus_text(self):
         filler = " ".join(f"toldiruvchi{i} jumla matni" for i in range(120))

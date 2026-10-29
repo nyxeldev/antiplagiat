@@ -1,0 +1,51 @@
+{
+  "query_id": "uz_morph_tarix",
+  "query_text": "O'rta Osiyo tarixi Ipak yo'lining savdo va madaniy aloqalardagi muhim vositalaridan bo'lgan. Bu yo'llar orqali Xitoydan Yevropaga ipakni, ziravorlarni va metall buyumlarni tashishgan, shuningdek diniy ta'limotlarni va ilmiy bilimlarni ham tarqatishgan. Samarqand va Buxoro kabi shaharlar savdogarlar uchun muhim to'xtash nuqtalariga aylanmoqda. Mintaqadagi hukmdorlar savdo yo'llarini himoya qilmoq uchun maxsus qo'shinlarni tashkil etishgan va karvonsaroylarni qurdirishgan. Ipak yo'llarining gullab-yashnashi natijalarida mahalliy hunarmandchiliklar va me'morchiliklar ham rivojlanishgan. Olimlar bu davrlarni O'rta Osiyo tarixlarining eng jadal savdo-iqtisodiy bosqichlaridan biriga aylantirib hisoblashgan. Tarixchilar arxeologik topilmalarga asoslanib savdo yo'nalishlarini aniqroq xaritalashga harakat qilishmoqda.\n",
+  "source_text": "O'rta Osiyo tarixida Ipak yo'li savdo va madaniy aloqalarning muhim vositasi bo'lgan. Bu yo'l orqali Xitoydan Yevropagacha ipak, ziravorlar va metall buyumlar tashilgan, shuningdek diniy ta'limotlar va ilmiy bilimlar ham tarqalgan. Samarqand va Buxoro kabi shaharlar savdogarlar uchun muhim to'xtash nuqtalariga aylangan. Mintaqadagi hukmdorlar savdo yo'llarini himoya qilish uchun maxsus qo'shinlar tashkil etgan va karvonsaroylar qurdirgan. Ipak yo'lining gullab-yashnashi natijasida mahalliy hunarmandchilik va me'morchilik ham rivojlangan. Olimlar bu davrni O'rta Osiyo tarixining eng faol savdo-iqtisodiy bosqichlaridan biri deb hisoblaydilar. Tarixchilar arxeologik topilmalar asosida savdo yo'nalishlarini aniq xaritalashga harakat qilmoqdalar.\n",
+  "results": {
+    "v2": [
+      {
+        "name": "uz_tarix_2",
+        "rank": 1.2996418
+      },
+      {
+        "name": "uz_arxitektura",
+        "rank": 1.2212113
+      },
+      {
+        "name": "uz_tarix",
+        "rank": 1.2007586
+      },
+      {
+        "name": "uz_sport",
+        "rank": 1.0739638
+      },
+      {
+        "name": "uz_tarix_3",
+        "rank": 1.007351
+      }
+    ],
+    "v3": [
+      {
+        "name": "uz_tarix",
+        "rank": 1.4455296
+      },
+      {
+        "name": "uz_tarix_2",
+        "rank": 1.3896511
+      },
+      {
+        "name": "uz_arxitektura",
+        "rank": 1.2993492
+      },
+      {
+        "name": "uz_tarix_3",
+        "rank": 1.1690949
+      },
+      {
+        "name": "uz_sport",
+        "rank": 1.1136082
+      }
+    ]
+  }
+}

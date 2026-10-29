@@ -47,9 +47,10 @@ export async function proxy(request: NextRequest, path: string) {
     };
     const url = new URL(path, api);
     if (path === "/reports") url.search = request.nextUrl.search;
-    // The only compare option forwarded; everything else stays server decided.
+    // The only compare options forwarded; everything else stays server decided.
     if (path === "/compare" && request.nextUrl.searchParams.get("include_corpus") === "true") {
-      url.search = "include_corpus=true";
+      const morphAware = request.nextUrl.searchParams.get("normalization") === "v3";
+      url.search = `include_corpus=true${morphAware ? "&normalization=v3" : ""}`;
     }
     const response = await fetch(url, options);
     const outgoing = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
