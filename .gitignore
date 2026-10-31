@@ -29,5 +29,11 @@ out/
 # Graphify output (generated, not committed)
 graphify-out/
 
+# AI agent tooling (local workflow instructions, not part of the shipped project)
+CLAUDE.md
+AGENTS.md
+.claude/
+skills-lock.json
+
 # Logs
 *.log
