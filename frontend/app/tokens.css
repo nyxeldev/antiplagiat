@@ -1,0 +1,145 @@
+/* ============================================================================
+   Design tokens — single source of truth for every color, scale and motion
+   value used across the app. Components read these; they never hardcode.
+   ========================================================================== */
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap");
+
+:root {
+  color-scheme: dark;
+
+  /* --- surfaces: dark, graphite/navy base (shell, nav, login) ------------ */
+  --bg-0: #0c1117;      /* deepest background */
+  --bg-1: #121926;      /* app shell / sidebar */
+  --bg-2: #18212f;      /* cards on dark */
+  --bg-3: #212c3d;      /* raised / hovered on dark */
+  --line-dark: #2a3547; /* borders on dark surfaces */
+  --line-dark-strong: #3a4a62;
+
+  /* --- surfaces: light, high-contrast reading surface (report panel) ---- */
+  --paper-0: #f7f8fa;
+  --paper-1: #ffffff;
+  --paper-2: #eef1f5;
+  --line-light: #dde3ec;
+  --line-light-strong: #c7d0dd;
+
+  /* --- ink (text) on each surface ----------------------------------------- */
+  --ink-on-dark: #eef2f7;
+  --ink-on-dark-muted: #94a3b8;
+  --ink-on-dark-faint: #64748b;
+  --ink-on-light: #101827;
+  --ink-on-light-muted: #4b5668;
+  --ink-on-light-faint: #6b7686;
+
+  /* --- accent: emerald/teal primary, cyan secondary ---------------------- */
+  --accent: #14b391;
+  --accent-strong: #0d8e72;
+  --accent-soft-on-dark: #113228;
+  --accent-soft-on-light: #e3f7f1;
+  --accent-ink-on-soft: #0a6b54;
+  --cyan: #38bdf8;
+  --cyan-soft-on-dark: #0f2a38;
+  --cyan-soft-on-light: #e3f4fc;
+
+  /* --- semantic -------------------------------------------------------- */
+  --danger: #e5604d;
+  --danger-strong: #c6432f;
+  --danger-soft-on-dark: #3a1d19;
+  --danger-soft-on-light: #fdeae6;
+  --warning: #d9a441;
+  --warning-soft-on-light: #faf1de;
+  --success: var(--accent);
+
+  /* --- highlight (text match marks) --------------------------------------- */
+  --mark-bg: #ffe28a;
+  --mark-ink: #1a1304;
+  --mark-bg-cyan: #bfeaff;
+
+  /* --- gold removed; kept as alias so nothing silently breaks ------------- */
+  --gold: var(--warning);
+
+  /* --- spacing scale (4px base) ------------------------------------------ */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-10: 2.5rem;
+  --sp-12: 3rem;
+  --sp-16: 4rem;
+
+  /* --- radius -------------------------------------------------------------- */
+  --r-sm: 0.4rem;
+  --r-md: 0.65rem;
+  --r-lg: 1rem;
+  --r-xl: 1.4rem;
+  --r-pill: 999px;
+
+  /* --- shadow (dark-surface elevation) ------------------------------------ */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 0.75rem 2rem -0.5rem rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 2rem 4rem -1rem rgba(0, 0, 0, 0.55);
+  --glow-accent: 0 0 0 1px rgba(20, 179, 145, 0.35), 0 0 1.5rem -0.25rem rgba(20, 179, 145, 0.35);
+
+  /* --- typography ------------------------------------------------------- */
+  --font-display: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Consolas", monospace;
+
+  --fs-xs: 0.78rem;
+  --fs-sm: 0.875rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1.05rem;
+  --fs-lg: 1.3rem;
+  --fs-xl: 1.7rem;
+  --fs-2xl: clamp(2.1rem, 4vw, 2.75rem);
+  --fs-metric: clamp(2.6rem, 6vw, 3.6rem);
+
+  /* --- motion: 120-220ms micro, 250-400ms larger ------------------------- */
+  --dur-micro: 160ms;
+  --dur-base: 220ms;
+  --dur-macro: 320ms;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+
+  /* --- breakpoints (documented, used literally in media queries) --------
+     mobile: <640px, tablet: 640-1023px, desktop: 1024-1279px, wide: >=1280px */
+
+  background: var(--bg-0);
+  color: var(--ink-on-dark);
+  font-family: var(--font-body);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; min-width: 0; }
+html, body { height: 100%; }
+body { margin: 0; }
+h1, h2, h3, h4 { margin: 0; font-family: var(--font-display); font-weight: 700; text-wrap: balance; }
+p { margin: 0; }
+ul, ol { margin: 0; }
+button { font: inherit; color: inherit; }
+::selection { background: var(--accent-soft-on-dark); color: var(--ink-on-dark); }
+
+:focus-visible {
+  outline: 2.5px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.ink-on-light :focus-visible, [data-surface="light"] :focus-visible {
+  outline-color: var(--accent-strong);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

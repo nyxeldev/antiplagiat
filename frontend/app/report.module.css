@@ -1,0 +1,53 @@
+/* Report workspace: the one screen with long scientific text to read, so it
+   switches to a light, high-contrast reading surface even though the rest
+   of the app shell is dark. */
+.sheet { background: var(--paper-0); border: 1px solid var(--line-light); border-radius: var(--r-xl); overflow: hidden; }
+.sheetHead { padding: clamp(1.25rem, 3vw, 2rem); border-bottom: 1px solid var(--line-light); background: var(--paper-1); }
+.sheetBody { padding: clamp(1.25rem, 3vw, 2rem); }
+.meta { color: var(--ink-on-light-faint); font-size: var(--fs-xs); margin-top: var(--sp-1); }
+
+.workspace { display: grid; grid-template-columns: 17rem 1fr; gap: var(--sp-6); margin-top: var(--sp-6); align-items: start; }
+
+.sourceList { display: flex; flex-direction: column; gap: var(--sp-2); position: sticky; top: calc(var(--sp-4) + 4.5rem); }
+.sourceList h3 { font-size: var(--fs-sm); color: var(--ink-on-light-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--sp-1); }
+.sourceButton {
+  display: flex; flex-direction: column; gap: 0.2rem; text-align: left; width: 100%; padding: var(--sp-3) var(--sp-4);
+  border: 1.5px solid var(--line-light); border-radius: var(--r-md); background: var(--paper-1); cursor: pointer; font: inherit;
+  transition: border-color var(--dur-base) var(--ease), background var(--dur-base) var(--ease);
+}
+.sourceButton:hover { border-color: var(--line-light-strong); }
+.sourceButton[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft-on-light); }
+.sourceButton .name { font-weight: 650; font-size: var(--fs-sm); color: var(--ink-on-light); overflow-wrap: anywhere; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.sourceButton .pct { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-md); color: var(--accent-ink-on-soft); }
+.sourceButton .count { font-size: var(--fs-xs); color: var(--ink-on-light-faint); }
+
+.matchControls { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+.matchControls label { font-weight: 650; font-size: var(--fs-sm); color: var(--ink-on-light); }
+
+.excerptGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); }
+.excerpt { border: 1px solid var(--line-light); border-radius: var(--r-lg); background: var(--paper-1); overflow: hidden; }
+.excerptHead { position: sticky; top: calc(var(--sp-4) + 4.5rem); padding: var(--sp-3) var(--sp-4); background: var(--paper-2); border-bottom: 1px solid var(--line-light); z-index: 1; }
+.excerptHead h4 { font-size: var(--fs-sm); overflow-wrap: anywhere; color: var(--ink-on-light); }
+.excerptBody { padding: var(--sp-4); }
+.text {
+  white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.85; max-height: 26rem; overflow-y: auto;
+  font-size: 0.95rem; color: var(--ink-on-light); font-family: var(--font-body);
+}
+.text mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 0.2rem; padding: 0 0.12rem; font-weight: 600; }
+
+.disclosureSummary { display: flex; align-items: center; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-weight: 650; line-height: 1.6; color: var(--ink-on-light); }
+.disclosureSummary:hover { color: var(--accent-ink-on-soft); }
+.limitations { margin-top: var(--sp-8); padding-top: var(--sp-5); border-top: 1px solid var(--line-light); }
+.limitations p { color: var(--ink-on-light-muted); line-height: 1.7; margin-top: var(--sp-3); font-size: var(--fs-sm); }
+.limitations ul { padding-left: 1.25rem; color: var(--ink-on-light-muted); line-height: 1.7; font-size: var(--fs-sm); }
+.limitations li { margin-top: var(--sp-2); }
+
+@media (max-width: 1023px) {
+  .workspace { grid-template-columns: 1fr; }
+  .sourceList { position: static; flex-direction: row; overflow-x: auto; padding-bottom: var(--sp-1); }
+  .sourceButton { min-width: 13rem; flex: none; }
+}
+@media (max-width: 767px) {
+  .excerptGrid { grid-template-columns: 1fr; }
+  .excerptHead { position: static; }
+}

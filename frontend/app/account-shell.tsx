@@ -1,10 +1,9 @@
 "use client";
-import Link from "next/link";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, ApiError } from "../lib/client-api";
-import { Pop, Rise, tap } from "./motion";
-import { motion } from "framer-motion";
-import styles from "./page.module.css";
+import { IconLoader } from "./icons";
+import Login from "./login/Login";
+import AppShell from "./shell/AppShell";
 const SessionContext = createContext<() => void>(() => {});
 export const useSessionExpired = () => useContext(SessionContext);
 type User = { id: string; username: string; role: string };
@@ -35,14 +34,17 @@ export default function AccountShell({ children }: { children: ReactNode }) {
   async function logout() {
     if (mutation.current) return; mutation.current = true; epoch.current++; setBusy(true); setError(null);
     try { await api("/auth/logout", { method: "POST" }); setUser(null); }
-    catch (e) { if (e instanceof ApiError && e.status === 401) setUser(null); else setError(e instanceof Error ? e.message : "Chiqish bajarilmadi."); }
-    finally { mutation.current = false; setBusy(false); }
+    catch (e) { if (e instanceof ApiError && e.status === 401) setUser(null); else setError(e instanceof Error ? e.message : "Chiqish bajarilmadi."); } finally { mutation.current = false; setBusy(false); }
   }
-  if (loading) return <Rise className={styles.panel}><p role="status">Session tekshirilmoqda…</p></Rise>;
-  if (!user) return <Rise><form onSubmit={login} className={`${styles.panel} ${styles.login}`}><h2>Hisobga kirish</h2><p className={styles.muted}>Akkaunt lokal boshqaruv vositasi orqali yaratiladi.</p>
-    <label htmlFor="username">Login</label><input id="username" autoComplete="username" required minLength={3} maxLength={64} value={loginName} disabled={busy} onChange={e => setLoginName(e.target.value)} />
-    <label htmlFor="password">Parol</label><input id="password" type="password" autoComplete="current-password" required maxLength={256} value={password} disabled={busy} onChange={e => setPassword(e.target.value)} />
-    <motion.button whileTap={tap} className={styles.primary} disabled={busy}>{busy && <span className={styles.spinner} aria-hidden="true" />}{busy ? "Kirilmoqda…" : "Kirish"}</motion.button>
-    <Pop show={!!error}>{error && <p role="alert" className={styles.error}>{error}</p>}</Pop></form></Rise>;
-  return <SessionContext.Provider value={expired}><Rise><nav className={`${styles.panel} ${styles.account}`} aria-label="Hisob"><span>{user.username}</span><Link href="/">Yangi tekshiruv</Link><Link href="/history">Tekshiruvlar tarixi</Link><motion.button whileTap={tap} onClick={logout} disabled={busy}>Chiqish</motion.button></nav></Rise><Pop show={!!error}>{error && <p role="alert" className={styles.error}>{error}</p>}</Pop><div key={user.id}>{children}</div></SessionContext.Provider>;
+  if (loading) return (
+    <div role="status" style={{ display: "grid", placeItems: "center", minHeight: "100svh", color: "var(--ink-on-dark-faint)", gap: "0.75rem" }}>
+      <IconLoader style={{ width: "1.75rem", height: "1.75rem", animation: "spin 0.9s linear infinite" }} />
+      <span style={{ fontSize: "var(--fs-sm)" }}>Session tekshirilmoqda…</span>
+    </div>
+  );
+  if (!user) return <Login loginName={loginName} password={password} busy={busy} error={error}
+    onLoginName={setLoginName} onPassword={setPassword} onSubmit={login} />;
+  return <SessionContext.Provider value={expired}>
+    <AppShell user={user} onLogout={logout} busy={busy} error={error}><div key={user.id}>{children}</div></AppShell>
+  </SessionContext.Provider>;
 }
