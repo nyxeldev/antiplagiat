@@ -42,8 +42,11 @@ jobs:
       - name: Make PostgreSQL server binaries (initdb/pg_ctl) available on PATH
         run: |
           sudo apt-get update && sudo apt-get install -y postgresql
-          pg_bin="$(dirname "$(find /usr/lib/postgresql -maxdepth 2 -name initdb | head -n1)")"
-          test -n "$pg_bin"
-          echo "$pg_bin" >> "$GITHUB_PATH"
+          initdb_path="$(find /usr/lib/postgresql -maxdepth 4 -name initdb -print -quit)"
+          if [ -z "$initdb_path" ]; then
+            echo "::error::initdb not found under /usr/lib/postgresql after installing the postgresql package" >&2
+            exit 1
+          fi
+          echo "$(dirname "$initdb_path")" >> "$GITHUB_PATH"
 
       - run: python -m unittest discover -s backend/tests -v
