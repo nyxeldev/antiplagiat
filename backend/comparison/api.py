@@ -92,6 +92,8 @@ async def compare_uploads(request: Request, include_corpus: bool = False, normal
                 raise ComparisonError("upload_format", "Yuklash formati buzilgan.", 400) from None
             finally:
                 upload.close()
+            if len(items) < 2 and not include_corpus:
+                raise ComparisonError("no_sources", "Kamida bitta manba fayl yuklang yoki ichki korpusni yoqing.", 400)
             digest = await run_in_threadpool(reports.fingerprint, folder, items)
             if include_corpus:
                 # A corpus run is a different request even with identical files;
