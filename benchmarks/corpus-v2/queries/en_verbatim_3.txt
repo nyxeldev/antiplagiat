@@ -1,0 +1,3 @@
+Genetics is the branch of biology concerned with heredity and genetic variation in living organisms. The modern science of genetics traces its origins to the work of Gregor Mendel, who formulated the laws of inheritance through experiments with garden peas in the 1860s. Mendel's law of segregation states that alleles separate during gamete formation, while his law of independent assortment describes how genes for different traits are inherited independently when located on different chromosomes.
+
+DNA (deoxyribonucleic acid) serves as the molecular carrier of genetic information in most living organisms. The double helix structure of DNA, elucidated by Watson and Crick in 1953, explained how genetic information is stored and replicated.

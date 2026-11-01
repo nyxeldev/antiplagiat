@@ -1,0 +1,982 @@
+{
+  "baseline_OR_chunk40-20_N5": {
+    "n_queries": 67,
+    "retrieval": {
+      "recall_at_1": 0.660377358490566,
+      "recall_at_1_n": 53,
+      "recall_at_5": 0.8301886792452831,
+      "recall_at_5_n": 53,
+      "recall_at_10": 0.8301886792452831,
+      "recall_at_10_n": 53,
+      "precision_at_5": 0.13134328358208958,
+      "precision_at_5_n": 67,
+      "mrr": 0.7204402515723269,
+      "mrr_n": 53
+    },
+    "matching": {
+      "precision": 1.0,
+      "precision_n": 49,
+      "recall": 0.6163211741619905,
+      "recall_n": 67,
+      "f1": 0.6423727878391764,
+      "f1_n": 67,
+      "false_positive_queries": 0
+    },
+    "mean_retrieval_seconds": 0.28486,
+    "mean_matching_seconds": 0.01075,
+    "by_category": {
+      "hard_negative": {
+        "n_queries": 8,
+        "retrieval": {
+          "recall_at_1": null,
+          "recall_at_1_n": 0,
+          "recall_at_5": null,
+          "recall_at_5_n": 0,
+          "recall_at_10": null,
+          "recall_at_10_n": 0,
+          "precision_at_5": 0.0,
+          "precision_at_5_n": 8,
+          "mrr": null,
+          "mrr_n": 0
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 8,
+          "recall": 1.0,
+          "recall_n": 8,
+          "f1": 1.0,
+          "f1_n": 8,
+          "false_positive_queries": 0
+        }
+      },
+      "morphological": {
+        "n_queries": 15,
+        "retrieval": {
+          "recall_at_1": 0.8,
+          "recall_at_1_n": 15,
+          "recall_at_5": 0.9333333333333333,
+          "recall_at_5_n": 15,
+          "recall_at_10": 0.9333333333333333,
+          "recall_at_10_n": 15,
+          "precision_at_5": 0.18666666666666668,
+          "precision_at_5_n": 15,
+          "mrr": 0.8355555555555555,
+          "mrr_n": 15
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 13,
+          "recall": 0.5423469288277515,
+          "recall_n": 15,
+          "f1": 0.6492509595050302,
+          "f1_n": 15,
+          "false_positive_queries": 0
+        }
+      },
+      "paraphrase": {
+        "n_queries": 15,
+        "retrieval": {
+          "recall_at_1": 0.4666666666666667,
+          "recall_at_1_n": 15,
+          "recall_at_5": 0.7333333333333333,
+          "recall_at_5_n": 15,
+          "recall_at_10": 0.7333333333333333,
+          "recall_at_10_n": 15,
+          "precision_at_5": 0.14666666666666667,
+          "precision_at_5_n": 15,
+          "mrr": 0.58,
+          "mrr_n": 15
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 3,
+          "recall": 0.010554315762472745,
+          "recall_n": 15,
+          "f1": 0.020014159509957826,
+          "f1_n": 15,
+          "false_positive_queries": 0
+        }
+      },
+      "partial": {
+        "n_queries": 8,
+        "retrieval": {
+          "recall_at_1": 0.625,
+          "recall_at_1_n": 8,
+          "recall_at_5": 0.75,
+          "recall_at_5_n": 8,
+          "recall_at_10": 0.75,
+          "recall_at_10_n": 8,
+          "precision_at_5": 0.15000000000000002,
+          "precision_at_5_n": 8,
+          "mrr": 0.6875,
+          "mrr_n": 8
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 6,
+          "recall": 0.75,
+          "recall_n": 8,
+          "f1": 0.75,
+          "f1_n": 8,
+          "false_positive_queries": 0
+        }
+      },
+      "quoted": {
+        "n_queries": 6,
+        "retrieval": {
+          "recall_at_1": 0.5,
+          "recall_at_1_n": 6,
+          "recall_at_5": 0.6666666666666666,
+          "recall_at_5_n": 6,
+          "recall_at_10": 0.6666666666666666,
+          "recall_at_10_n": 6,
+          "precision_at_5": 0.13333333333333333,
+          "precision_at_5_n": 6,
+          "mrr": 0.5416666666666666,
+          "mrr_n": 6
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 4,
+          "recall": 0.6666666666666666,
+          "recall_n": 6,
+          "f1": 0.6666666666666666,
+          "f1_n": 6,
+          "false_positive_queries": 0
+        }
+      },
+      "unrelated": {
+        "n_queries": 6,
+        "retrieval": {
+          "recall_at_1": null,
+          "recall_at_1_n": 0,
+          "recall_at_5": null,
+          "recall_at_5_n": 0,
+          "recall_at_10": null,
+          "recall_at_10_n": 0,
+          "precision_at_5": 0.0,
+          "precision_at_5_n": 6,
+          "mrr": null,
+          "mrr_n": 0
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 6,
+          "recall": 1.0,
+          "recall_n": 6,
+          "f1": 1.0,
+          "f1_n": 6,
+          "false_positive_queries": 0
+        }
+      },
+      "verbatim": {
+        "n_queries": 9,
+        "retrieval": {
+          "recall_at_1": 0.8888888888888888,
+          "recall_at_1_n": 9,
+          "recall_at_5": 1.0,
+          "recall_at_5_n": 9,
+          "recall_at_10": 1.0,
+          "recall_at_10_n": 9,
+          "precision_at_5": 0.2,
+          "precision_at_5_n": 9,
+          "mrr": 0.911111111111111,
+          "mrr_n": 9
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 9,
+          "recall": 1.0,
+          "recall_n": 9,
+          "f1": 1.0,
+          "f1_n": 9,
+          "false_positive_queries": 0
+        }
+      }
+    }
+  },
+  "ablation_tsquery_AND": {
+    "n_queries": 67,
+    "retrieval": {
+      "recall_at_1": 0.20754716981132076,
+      "recall_at_1_n": 53,
+      "recall_at_5": 0.20754716981132076,
+      "recall_at_5_n": 53,
+      "recall_at_10": 0.20754716981132076,
+      "recall_at_10_n": 53,
+      "precision_at_5": 1.0,
+      "precision_at_5_n": 11,
+      "mrr": 0.20754716981132076,
+      "mrr_n": 53
+    },
+    "matching": {
+      "precision": 1.0,
+      "precision_n": 25,
+      "recall": 0.373134328358209,
+      "recall_n": 67,
+      "f1": 0.373134328358209,
+      "f1_n": 67,
+      "false_positive_queries": 0
+    },
+    "mean_retrieval_seconds": 0.13748,
+    "mean_matching_seconds": 0.00058,
+    "by_category": {
+      "hard_negative": {
+        "n_queries": 8,
+        "retrieval": {
+          "recall_at_1": null,
+          "recall_at_1_n": 0,
+          "recall_at_5": null,
+          "recall_at_5_n": 0,
+          "recall_at_10": null,
+          "recall_at_10_n": 0,
+          "precision_at_5": null,
+          "precision_at_5_n": 0,
+          "mrr": null,
+          "mrr_n": 0
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 8,
+          "recall": 1.0,
+          "recall_n": 8,
+          "f1": 1.0,
+          "f1_n": 8,
+          "false_positive_queries": 0
+        }
+      },
+      "morphological": {
+        "n_queries": 15,
+        "retrieval": {
+          "recall_at_1": 0.0,
+          "recall_at_1_n": 15,
+          "recall_at_5": 0.0,
+          "recall_at_5_n": 15,
+          "recall_at_10": 0.0,
+          "recall_at_10_n": 15,
+          "precision_at_5": null,
+          "precision_at_5_n": 0,
+          "mrr": 0.0,
+          "mrr_n": 15
+        },
+        "matching": {
+          "precision": null,
+          "precision_n": 0,
+          "recall": 0.0,
+          "recall_n": 15,
+          "f1": 0.0,
+          "f1_n": 15,
+          "false_positive_queries": 0
+        }
+      },
+      "paraphrase": {
+        "n_queries": 15,
+        "retrieval": {
+          "recall_at_1": 0.0,
+          "recall_at_1_n": 15,
+          "recall_at_5": 0.0,
+          "recall_at_5_n": 15,
+          "recall_at_10": 0.0,
+          "recall_at_10_n": 15,
+          "precision_at_5": null,
+          "precision_at_5_n": 0,
+          "mrr": 0.0,
+          "mrr_n": 15
+        },
+        "matching": {
+          "precision": null,
+          "precision_n": 0,
+          "recall": 0.0,
+          "recall_n": 15,
+          "f1": 0.0,
+          "f1_n": 15,
+          "false_positive_queries": 0
+        }
+      },
+      "partial": {
+        "n_queries": 8,
+        "retrieval": {
+          "recall_at_1": 0.625,
+          "recall_at_1_n": 8,
+          "recall_at_5": 0.625,
+          "recall_at_5_n": 8,
+          "recall_at_10": 0.625,
+          "recall_at_10_n": 8,
+          "precision_at_5": 1.0,
+          "precision_at_5_n": 5,
+          "mrr": 0.625,
+          "mrr_n": 8
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 5,
+          "recall": 0.625,
+          "recall_n": 8,
+          "f1": 0.625,
+          "f1_n": 8,
+          "false_positive_queries": 0
+        }
+      },
+      "quoted": {
+        "n_queries": 6,
+        "retrieval": {
+          "recall_at_1": 0.0,
+          "recall_at_1_n": 6,
+          "recall_at_5": 0.0,
+          "recall_at_5_n": 6,
+          "recall_at_10": 0.0,
+          "recall_at_10_n": 6,
+          "precision_at_5": null,
+          "precision_at_5_n": 0,
+          "mrr": 0.0,
+          "mrr_n": 6
+        },
+        "matching": {
+          "precision": null,
+          "precision_n": 0,
+          "recall": 0.0,
+          "recall_n": 6,
+          "f1": 0.0,
+          "f1_n": 6,
+          "false_positive_queries": 0
+        }
+      },
+      "unrelated": {
+        "n_queries": 6,
+        "retrieval": {
+          "recall_at_1": null,
+          "recall_at_1_n": 0,
+          "recall_at_5": null,
+          "recall_at_5_n": 0,
+          "recall_at_10": null,
+          "recall_at_10_n": 0,
+          "precision_at_5": null,
+          "precision_at_5_n": 0,
+          "mrr": null,
+          "mrr_n": 0
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 6,
+          "recall": 1.0,
+          "recall_n": 6,
+          "f1": 1.0,
+          "f1_n": 6,
+          "false_positive_queries": 0
+        }
+      },
+      "verbatim": {
+        "n_queries": 9,
+        "retrieval": {
+          "recall_at_1": 0.6666666666666666,
+          "recall_at_1_n": 9,
+          "recall_at_5": 0.6666666666666666,
+          "recall_at_5_n": 9,
+          "recall_at_10": 0.6666666666666666,
+          "recall_at_10_n": 9,
+          "precision_at_5": 1.0,
+          "precision_at_5_n": 6,
+          "mrr": 0.6666666666666666,
+          "mrr_n": 9
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 6,
+          "recall": 0.6666666666666666,
+          "recall_n": 9,
+          "f1": 0.6666666666666666,
+          "f1_n": 9,
+          "false_positive_queries": 0
+        }
+      }
+    }
+  },
+  "ablation_chunk_80-40": {
+    "n_queries": 67,
+    "retrieval": {
+      "recall_at_1": 0.6981132075471698,
+      "recall_at_1_n": 53,
+      "recall_at_5": 0.7924528301886793,
+      "recall_at_5_n": 53,
+      "recall_at_10": 0.7924528301886793,
+      "recall_at_10_n": 53,
+      "precision_at_5": 0.12537313432835823,
+      "precision_at_5_n": 67,
+      "mrr": 0.7295597484276729,
+      "mrr_n": 53
+    },
+    "matching": {
+      "precision": 1.0,
+      "precision_n": 48,
+      "recall": 0.6013958010276622,
+      "recall_n": 67,
+      "f1": 0.627447414704848,
+      "f1_n": 67,
+      "false_positive_queries": 0
+    },
+    "mean_retrieval_seconds": 0.16897,
+    "mean_matching_seconds": 0.01225,
+    "by_category": {
+      "hard_negative": {
+        "n_queries": 8,
+        "retrieval": {
+          "recall_at_1": null,
+          "recall_at_1_n": 0,
+          "recall_at_5": null,
+          "recall_at_5_n": 0,
+          "recall_at_10": null,
+          "recall_at_10_n": 0,
+          "precision_at_5": 0.0,
+          "precision_at_5_n": 8,
+          "mrr": null,
+          "mrr_n": 0
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 8,
+          "recall": 1.0,
+          "recall_n": 8,
+          "f1": 1.0,
+          "f1_n": 8,
+          "false_positive_queries": 0
+        }
+      },
+      "morphological": {
+        "n_queries": 15,
+        "retrieval": {
+          "recall_at_1": 0.8,
+          "recall_at_1_n": 15,
+          "recall_at_5": 0.9333333333333333,
+          "recall_at_5_n": 15,
+          "recall_at_10": 0.9333333333333333,
+          "recall_at_10_n": 15,
+          "precision_at_5": 0.18666666666666668,
+          "precision_at_5_n": 15,
+          "mrr": 0.8388888888888889,
+          "mrr_n": 15
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 13,
+          "recall": 0.5423469288277515,
+          "recall_n": 15,
+          "f1": 0.6492509595050302,
+          "f1_n": 15,
+          "false_positive_queries": 0
+        }
+      },
+      "paraphrase": {
+        "n_queries": 15,
+        "retrieval": {
+          "recall_at_1": 0.6,
+          "recall_at_1_n": 15,
+          "recall_at_5": 0.6666666666666666,
+          "recall_at_5_n": 15,
+          "recall_at_10": 0.6666666666666666,
+          "recall_at_10_n": 15,
+          "precision_at_5": 0.13333333333333333,
+          "precision_at_5_n": 15,
+          "mrr": 0.6333333333333333,
+          "mrr_n": 15
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 3,
+          "recall": 0.010554315762472745,
+          "recall_n": 15,
+          "f1": 0.020014159509957826,
+          "f1_n": 15,
+          "false_positive_queries": 0
+        }
+      },
+      "partial": {
+        "n_queries": 8,
+        "retrieval": {
+          "recall_at_1": 0.625,
+          "recall_at_1_n": 8,
+          "recall_at_5": 0.625,
+          "recall_at_5_n": 8,
+          "recall_at_10": 0.625,
+          "recall_at_10_n": 8,
+          "precision_at_5": 0.125,
+          "precision_at_5_n": 8,
+          "mrr": 0.625,
+          "mrr_n": 8
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 5,
+          "recall": 0.625,
+          "recall_n": 8,
+          "f1": 0.625,
+          "f1_n": 8,
+          "false_positive_queries": 0
+        }
+      },
+      "quoted": {
+        "n_queries": 6,
+        "retrieval": {
+          "recall_at_1": 0.5,
+          "recall_at_1_n": 6,
+          "recall_at_5": 0.6666666666666666,
+          "recall_at_5_n": 6,
+          "recall_at_10": 0.6666666666666666,
+          "recall_at_10_n": 6,
+          "precision_at_5": 0.13333333333333333,
+          "precision_at_5_n": 6,
+          "mrr": 0.5416666666666666,
+          "mrr_n": 6
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 4,
+          "recall": 0.6666666666666666,
+          "recall_n": 6,
+          "f1": 0.6666666666666666,
+          "f1_n": 6,
+          "false_positive_queries": 0
+        }
+      },
+      "unrelated": {
+        "n_queries": 6,
+        "retrieval": {
+          "recall_at_1": null,
+          "recall_at_1_n": 0,
+          "recall_at_5": null,
+          "recall_at_5_n": 0,
+          "recall_at_10": null,
+          "recall_at_10_n": 0,
+          "precision_at_5": 0.0,
+          "precision_at_5_n": 6,
+          "mrr": null,
+          "mrr_n": 0
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 6,
+          "recall": 1.0,
+          "recall_n": 6,
+          "f1": 1.0,
+          "f1_n": 6,
+          "false_positive_queries": 0
+        }
+      },
+      "verbatim": {
+        "n_queries": 9,
+        "retrieval": {
+          "recall_at_1": 0.8888888888888888,
+          "recall_at_1_n": 9,
+          "recall_at_5": 1.0,
+          "recall_at_5_n": 9,
+          "recall_at_10": 1.0,
+          "recall_at_10_n": 9,
+          "precision_at_5": 0.2,
+          "precision_at_5_n": 9,
+          "mrr": 0.925925925925926,
+          "mrr_n": 9
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 9,
+          "recall": 1.0,
+          "recall_n": 9,
+          "f1": 1.0,
+          "f1_n": 9,
+          "false_positive_queries": 0
+        }
+      }
+    }
+  },
+  "ablation_candidates_N20": {
+    "n_queries": 67,
+    "retrieval": {
+      "recall_at_1": 0.660377358490566,
+      "recall_at_1_n": 53,
+      "recall_at_5": 0.8301886792452831,
+      "recall_at_5_n": 53,
+      "recall_at_10": 0.9245283018867925,
+      "recall_at_10_n": 53,
+      "precision_at_5": 0.13134328358208958,
+      "precision_at_5_n": 67,
+      "mrr": 0.7322327044025156,
+      "mrr_n": 53
+    },
+    "matching": {
+      "precision": 1.0,
+      "precision_n": 52,
+      "recall": 0.6475113769939843,
+      "recall_n": 67,
+      "f1": 0.6746818308593695,
+      "f1_n": 67,
+      "false_positive_queries": 0
+    },
+    "mean_retrieval_seconds": 0.29636,
+    "mean_matching_seconds": 0.01979,
+    "by_category": {
+      "hard_negative": {
+        "n_queries": 8,
+        "retrieval": {
+          "recall_at_1": null,
+          "recall_at_1_n": 0,
+          "recall_at_5": null,
+          "recall_at_5_n": 0,
+          "recall_at_10": null,
+          "recall_at_10_n": 0,
+          "precision_at_5": 0.0,
+          "precision_at_5_n": 8,
+          "mrr": null,
+          "mrr_n": 0
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 8,
+          "recall": 1.0,
+          "recall_n": 8,
+          "f1": 1.0,
+          "f1_n": 8,
+          "false_positive_queries": 0
+        }
+      },
+      "morphological": {
+        "n_queries": 15,
+        "retrieval": {
+          "recall_at_1": 0.8,
+          "recall_at_1_n": 15,
+          "recall_at_5": 0.9333333333333333,
+          "recall_at_5_n": 15,
+          "recall_at_10": 1.0,
+          "recall_at_10_n": 15,
+          "precision_at_5": 0.18666666666666668,
+          "precision_at_5_n": 15,
+          "mrr": 0.8466666666666666,
+          "mrr_n": 15
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 14,
+          "recall": 0.5483298348106574,
+          "recall_n": 15,
+          "f1": 0.6602313516618931,
+          "f1_n": 15,
+          "false_positive_queries": 0
+        }
+      },
+      "paraphrase": {
+        "n_queries": 15,
+        "retrieval": {
+          "recall_at_1": 0.4666666666666667,
+          "recall_at_1_n": 15,
+          "recall_at_5": 0.7333333333333333,
+          "recall_at_5_n": 15,
+          "recall_at_10": 0.8666666666666667,
+          "recall_at_10_n": 15,
+          "precision_at_5": 0.14666666666666667,
+          "precision_at_5_n": 15,
+          "mrr": 0.5948148148148148,
+          "mrr_n": 15
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 3,
+          "recall": 0.010554315762472745,
+          "recall_n": 15,
+          "f1": 0.020014159509957826,
+          "f1_n": 15,
+          "false_positive_queries": 0
+        }
+      },
+      "partial": {
+        "n_queries": 8,
+        "retrieval": {
+          "recall_at_1": 0.625,
+          "recall_at_1_n": 8,
+          "recall_at_5": 0.75,
+          "recall_at_5_n": 8,
+          "recall_at_10": 0.875,
+          "recall_at_10_n": 8,
+          "precision_at_5": 0.15000000000000002,
+          "precision_at_5_n": 8,
+          "mrr": 0.703125,
+          "mrr_n": 8
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 7,
+          "recall": 0.875,
+          "recall_n": 8,
+          "f1": 0.875,
+          "f1_n": 8,
+          "false_positive_queries": 0
+        }
+      },
+      "quoted": {
+        "n_queries": 6,
+        "retrieval": {
+          "recall_at_1": 0.5,
+          "recall_at_1_n": 6,
+          "recall_at_5": 0.6666666666666666,
+          "recall_at_5_n": 6,
+          "recall_at_10": 0.8333333333333334,
+          "recall_at_10_n": 6,
+          "precision_at_5": 0.13333333333333333,
+          "precision_at_5_n": 6,
+          "mrr": 0.5601851851851852,
+          "mrr_n": 6
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 5,
+          "recall": 0.8333333333333334,
+          "recall_n": 6,
+          "f1": 0.8333333333333334,
+          "f1_n": 6,
+          "false_positive_queries": 0
+        }
+      },
+      "unrelated": {
+        "n_queries": 6,
+        "retrieval": {
+          "recall_at_1": null,
+          "recall_at_1_n": 0,
+          "recall_at_5": null,
+          "recall_at_5_n": 0,
+          "recall_at_10": null,
+          "recall_at_10_n": 0,
+          "precision_at_5": 0.0,
+          "precision_at_5_n": 6,
+          "mrr": null,
+          "mrr_n": 0
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 6,
+          "recall": 1.0,
+          "recall_n": 6,
+          "f1": 1.0,
+          "f1_n": 6,
+          "false_positive_queries": 0
+        }
+      },
+      "verbatim": {
+        "n_queries": 9,
+        "retrieval": {
+          "recall_at_1": 0.8888888888888888,
+          "recall_at_1_n": 9,
+          "recall_at_5": 1.0,
+          "recall_at_5_n": 9,
+          "recall_at_10": 1.0,
+          "recall_at_10_n": 9,
+          "precision_at_5": 0.2,
+          "precision_at_5_n": 9,
+          "mrr": 0.911111111111111,
+          "mrr_n": 9
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 9,
+          "recall": 1.0,
+          "recall_n": 9,
+          "f1": 1.0,
+          "f1_n": 9,
+          "false_positive_queries": 0
+        }
+      }
+    }
+  },
+  "ablation_uz_latin_v3": {
+    "n_queries": 67,
+    "retrieval": {
+      "recall_at_1": 0.7169811320754716,
+      "recall_at_1_n": 53,
+      "recall_at_5": 0.8490566037735849,
+      "recall_at_5_n": 53,
+      "recall_at_10": 0.8490566037735849,
+      "recall_at_10_n": 53,
+      "precision_at_5": 0.13432835820895522,
+      "precision_at_5_n": 67,
+      "mrr": 0.7575471698113208,
+      "mrr_n": 53
+    },
+    "matching": {
+      "precision": 1.0,
+      "precision_n": 50,
+      "recall": 0.6176606307253276,
+      "recall_n": 67,
+      "f1": 0.6448310845907128,
+      "f1_n": 67,
+      "false_positive_queries": 0
+    },
+    "mean_retrieval_seconds": 0.27188,
+    "mean_matching_seconds": 0.01105,
+    "by_category": {
+      "hard_negative": {
+        "n_queries": 8,
+        "retrieval": {
+          "recall_at_1": null,
+          "recall_at_1_n": 0,
+          "recall_at_5": null,
+          "recall_at_5_n": 0,
+          "recall_at_10": null,
+          "recall_at_10_n": 0,
+          "precision_at_5": 0.0,
+          "precision_at_5_n": 8,
+          "mrr": null,
+          "mrr_n": 0
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 8,
+          "recall": 1.0,
+          "recall_n": 8,
+          "f1": 1.0,
+          "f1_n": 8,
+          "false_positive_queries": 0
+        }
+      },
+      "morphological": {
+        "n_queries": 15,
+        "retrieval": {
+          "recall_at_1": 0.8666666666666667,
+          "recall_at_1_n": 15,
+          "recall_at_5": 1.0,
+          "recall_at_5_n": 15,
+          "recall_at_10": 1.0,
+          "recall_at_10_n": 15,
+          "precision_at_5": 0.2,
+          "precision_at_5_n": 15,
+          "mrr": 0.9022222222222223,
+          "mrr_n": 15
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 14,
+          "recall": 0.5483298348106574,
+          "recall_n": 15,
+          "f1": 0.6602313516618931,
+          "f1_n": 15,
+          "false_positive_queries": 0
+        }
+      },
+      "paraphrase": {
+        "n_queries": 15,
+        "retrieval": {
+          "recall_at_1": 0.6,
+          "recall_at_1_n": 15,
+          "recall_at_5": 0.7333333333333333,
+          "recall_at_5_n": 15,
+          "recall_at_10": 0.7333333333333333,
+          "recall_at_10_n": 15,
+          "precision_at_5": 0.14666666666666667,
+          "precision_at_5_n": 15,
+          "mrr": 0.638888888888889,
+          "mrr_n": 15
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 3,
+          "recall": 0.010554315762472745,
+          "recall_n": 15,
+          "f1": 0.020014159509957826,
+          "f1_n": 15,
+          "false_positive_queries": 0
+        }
+      },
+      "partial": {
+        "n_queries": 8,
+        "retrieval": {
+          "recall_at_1": 0.625,
+          "recall_at_1_n": 8,
+          "recall_at_5": 0.75,
+          "recall_at_5_n": 8,
+          "recall_at_10": 0.75,
+          "recall_at_10_n": 8,
+          "precision_at_5": 0.15000000000000002,
+          "precision_at_5_n": 8,
+          "mrr": 0.6875,
+          "mrr_n": 8
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 6,
+          "recall": 0.75,
+          "recall_n": 8,
+          "f1": 0.75,
+          "f1_n": 8,
+          "false_positive_queries": 0
+        }
+      },
+      "quoted": {
+        "n_queries": 6,
+        "retrieval": {
+          "recall_at_1": 0.5,
+          "recall_at_1_n": 6,
+          "recall_at_5": 0.6666666666666666,
+          "recall_at_5_n": 6,
+          "recall_at_10": 0.6666666666666666,
+          "recall_at_10_n": 6,
+          "precision_at_5": 0.13333333333333333,
+          "precision_at_5_n": 6,
+          "mrr": 0.5555555555555556,
+          "mrr_n": 6
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 4,
+          "recall": 0.6666666666666666,
+          "recall_n": 6,
+          "f1": 0.6666666666666666,
+          "f1_n": 6,
+          "false_positive_queries": 0
+        }
+      },
+      "unrelated": {
+        "n_queries": 6,
+        "retrieval": {
+          "recall_at_1": null,
+          "recall_at_1_n": 0,
+          "recall_at_5": null,
+          "recall_at_5_n": 0,
+          "recall_at_10": null,
+          "recall_at_10_n": 0,
+          "precision_at_5": 0.0,
+          "precision_at_5_n": 6,
+          "mrr": null,
+          "mrr_n": 0
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 6,
+          "recall": 1.0,
+          "recall_n": 6,
+          "f1": 1.0,
+          "f1_n": 6,
+          "false_positive_queries": 0
+        }
+      },
+      "verbatim": {
+        "n_queries": 9,
+        "retrieval": {
+          "recall_at_1": 0.8888888888888888,
+          "recall_at_1_n": 9,
+          "recall_at_5": 1.0,
+          "recall_at_5_n": 9,
+          "recall_at_10": 1.0,
+          "recall_at_10_n": 9,
+          "precision_at_5": 0.2,
+          "precision_at_5_n": 9,
+          "mrr": 0.911111111111111,
+          "mrr_n": 9
+        },
+        "matching": {
+          "precision": 1.0,
+          "precision_n": 9,
+          "recall": 1.0,
+          "recall_n": 9,
+          "f1": 1.0,
+          "f1_n": 9,
+          "false_positive_queries": 0
+        }
+      }
+    }
+  }
+}

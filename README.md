@@ -19,6 +19,7 @@ Butun internet, barcha ilmiy bazalar yoki yopiq nashrlar qamrab olinishi va’da
 | [docs/requirements.md](docs/requirements.md) | Funksiyalar, rollar, maxfiylik va qabul mezonlari |
 | [docs/architecture.md](docs/architecture.md) | Komponentlar, ma’lumotlar oqimi, algoritmlar va tashqi manbalar |
 | [docs/roadmap.md](docs/roadmap.md) | Bosqichlar, tekshirish shartlari va BMI tajribalari |
+| [docs/decisions.md](docs/decisions.md) | Koddan ko'rinmaydigan mahsulot qarorlari (rol matritsasi, korpus excerpt chegarasi, benchmark metodologiyasi) |
 
 ## Dastlabki texnologiyalar
 

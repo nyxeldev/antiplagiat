@@ -117,6 +117,12 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
             ("corpus_chunks", "SELECT to_regclass('antiplagiat.corpus_chunks') IS NOT NULL AS present"),
             ("corpus_guard", "SELECT to_regprocedure('antiplagiat.guard_corpus_document()') IS NOT NULL AS present"),
         ],
+        "003_uz_latin_v3_index": [
+            ("corpus_chunks_v3_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='corpus_chunks' AND column_name='chunk_text_uz_latin_v3') AS present"),
+            ("corpus_chunks_fts_v3_index", "SELECT to_regclass('antiplagiat.corpus_chunks_fts_v3') IS NOT NULL AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:
@@ -179,7 +185,7 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                 ("corpus_documents_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_documents TO {}"),
                 ("corpus_documents_withdraw", "GRANT UPDATE(status, withdrawn_at, updated_at, extracted_text) ON antiplagiat.corpus_documents TO {}"),
                 ("corpus_chunks_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_chunks TO {}"),
-                ("corpus_chunks_purge", "GRANT UPDATE(chunk_text) ON antiplagiat.corpus_chunks TO {}"),
+                ("corpus_chunks_purge", "GRANT UPDATE(chunk_text, chunk_text_uz_latin_v3) ON antiplagiat.corpus_chunks TO {}"),
             ]:
                 migration_step(conn, diagnostic, "migration", step, sql.SQL(statement).format(ident))
             for step, statement in [

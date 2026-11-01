@@ -1,0 +1,21 @@
+scope,config,n_rows,recall_at_1,recall_at_1_n,recall_at_5,recall_at_10,mrr
+category=hard_negative,baseline_OR_chunk40-20_N5,40,,0,,,
+category=hard_negative,ablation_uz_latin_v3,40,,0,,,
+category=morphological,baseline_OR_chunk40-20_N5,75,0.8,15,0.9333333333333333,0.9333333333333333,0.8355555555555555
+category=morphological,ablation_uz_latin_v3,75,0.8666666666666667,15,1.0,1.0,0.9022222222222223
+category=paraphrase,baseline_OR_chunk40-20_N5,75,0.4666666666666667,15,0.7333333333333333,0.7333333333333333,0.58
+category=paraphrase,ablation_uz_latin_v3,75,0.6,15,0.7333333333333333,0.7333333333333333,0.638888888888889
+category=partial,baseline_OR_chunk40-20_N5,40,0.625,8,0.75,0.75,0.6875
+category=partial,ablation_uz_latin_v3,40,0.625,8,0.75,0.75,0.6875
+category=quoted,baseline_OR_chunk40-20_N5,30,0.5,6,0.6666666666666666,0.6666666666666666,0.5416666666666666
+category=quoted,ablation_uz_latin_v3,30,0.5,6,0.6666666666666666,0.6666666666666666,0.5555555555555556
+category=unrelated,baseline_OR_chunk40-20_N5,30,,0,,,
+category=unrelated,ablation_uz_latin_v3,30,,0,,,
+category=verbatim,baseline_OR_chunk40-20_N5,45,0.8888888888888888,9,1.0,1.0,0.911111111111111
+category=verbatim,ablation_uz_latin_v3,45,0.8888888888888888,9,1.0,1.0,0.911111111111111
+"morphological HIGH (suffix% >= 35%): ['uz_morph_adabiyot', 'uz_morph_adabiyot_2', 'uz_morph_biologiya_2', 'uz_morph_pedagogika', 'uz_morph_tarix']",baseline_OR_chunk40-20_N5,25,0.4,5,0.8,0.8,0.5066666666666666
+"morphological HIGH (suffix% >= 35%): ['uz_morph_adabiyot', 'uz_morph_adabiyot_2', 'uz_morph_biologiya_2', 'uz_morph_pedagogika', 'uz_morph_tarix']",ablation_uz_latin_v3,25,0.6,5,1.0,1.0,0.7066666666666667
+"morphological LOW (suffix% < 20%): ['uz_morph_biologiya_3', 'uz_morph_ekologiya_2', 'uz_morph_ekologiya_3', 'uz_morph_falsafa', 'uz_morph_iqtisodiyot_2', 'uz_morph_kimyo', 'uz_morph_pedagogika_2', 'uz_morph_pedagogika_3', 'uz_morph_tarix_2', 'uz_morph_tarix_3']",baseline_OR_chunk40-20_N5,50,1.0,10,1.0,1.0,1.0
+"morphological LOW (suffix% < 20%): ['uz_morph_biologiya_3', 'uz_morph_ekologiya_2', 'uz_morph_ekologiya_3', 'uz_morph_falsafa', 'uz_morph_iqtisodiyot_2', 'uz_morph_kimyo', 'uz_morph_pedagogika_2', 'uz_morph_pedagogika_3', 'uz_morph_tarix_2', 'uz_morph_tarix_3']",ablation_uz_latin_v3,50,1.0,10,1.0,1.0,1.0
+all,baseline_OR_chunk40-20_N5,335,0.660377358490566,53,0.8301886792452831,0.8301886792452831,0.7204402515723269
+all,ablation_uz_latin_v3,335,0.7169811320754716,53,0.8490566037735849,0.8490566037735849,0.7575471698113208

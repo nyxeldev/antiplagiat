@@ -45,8 +45,7 @@ from backend.comparison.matching import compare, tokenize  # noqa: E402
 from backend.persistence import database  # noqa: E402
 from backend.tests.postgres_fixture import isolated_postgres, runtime_environment  # noqa: E402
 
-BENCHMARK_DIR = ROOT / "benchmarks" / "corpus-v1"
-RESULTS_DIR = BENCHMARK_DIR / "results"
+DEFAULT_BENCHMARK_DIR = ROOT / "benchmarks" / "corpus-v1"
 NAMESPACE = uuid.UUID("a6e9b6a0-6c9a-4b7e-9c1a-9b6f3e9c1a6e")  # fixed, arbitrary; only for uuid5 determinism
 
 CONFIGS = [
@@ -54,14 +53,20 @@ CONFIGS = [
     {"name": "ablation_tsquery_AND", "operator": "AND", "chunk_tokens": 40, "overlap_tokens": 20, "limit": 5},
     {"name": "ablation_chunk_80-40", "operator": "OR", "chunk_tokens": 80, "overlap_tokens": 40, "limit": 5},
     {"name": "ablation_candidates_N20", "operator": "OR", "chunk_tokens": 40, "overlap_tokens": 20, "limit": 20},
+    # Opt-in uz-latin-v3 (rule-based suffix stripping, retrieval-only): same
+    # chunking/operator/limit as the baseline, only the normalization axis
+    # differs, so this isolates v3's effect on recall/precision from the
+    # other three already-measured axes.
+    {"name": "ablation_uz_latin_v3", "operator": "OR", "chunk_tokens": 40, "overlap_tokens": 20, "limit": 5,
+     "normalization": "v3"},
 ]
 
 
-def load_manifest():
-    manifest = json.loads((BENCHMARK_DIR / "manifest.json").read_text(encoding="utf-8"))
+def load_manifest(benchmark_dir=DEFAULT_BENCHMARK_DIR):
+    manifest = json.loads((benchmark_dir / "manifest.json").read_text(encoding="utf-8"))
     for group in ("corpus", "queries"):
         for item in manifest[group]:
-            item["_text"] = (BENCHMARK_DIR / item["file"]).read_text(encoding="utf-8")
+            item["_text"] = (benchmark_dir / item["file"]).read_text(encoding="utf-8")
     return manifest
 
 
@@ -115,7 +120,8 @@ def run_config(manifest, admin_user_id, cfg, id_map):
         qtokens = tokenize(qtext)
 
         t0 = time.perf_counter()
-        found, limit_used = corpus.candidates(qtokens, limit=cfg["limit"], operator=cfg["operator"])
+        found, limit_used = corpus.candidates(qtokens, limit=cfg["limit"], operator=cfg["operator"],
+                                              normalization=cfg.get("normalization", "v2"), text=qtext)
         retrieval_seconds = time.perf_counter() - t0
         ranked_ids = [reverse_map[c["id"]] for c in found]
 
@@ -170,13 +176,17 @@ def summarise(rows):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--corpus", default="corpus-v1",
+                        help="Benchmark corpus folder under benchmarks/ (default: corpus-v1).")
     parser.add_argument("--repeat", type=int, default=1,
                         help="Run the whole harness this many times (fresh disposable cluster each "
                              "time) and diff the CSVs to verify determinism. Default 1 (no check).")
     args = parser.parse_args()
 
-    manifest = load_manifest()
-    RESULTS_DIR.mkdir(exist_ok=True)
+    benchmark_dir = ROOT / "benchmarks" / args.corpus
+    results_dir = benchmark_dir / "results"
+    manifest = load_manifest(benchmark_dir)
+    results_dir.mkdir(exist_ok=True)
     csv_paths = []
 
     for attempt in range(1, args.repeat + 1):
@@ -197,7 +207,7 @@ def main():
                     all_rows.extend(rows)
             # Cluster is dropped here, at the end of the `with` block, every pass.
 
-        csv_path = RESULTS_DIR / (f"raw.csv" if args.repeat == 1 else f"raw-pass{attempt}.csv")
+        csv_path = results_dir / (f"raw.csv" if args.repeat == 1 else f"raw-pass{attempt}.csv")
         fieldnames = [k for k in all_rows[0].keys() if k not in ("ranked_ids_list", "expected_ids_set")]
         with csv_path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -212,7 +222,7 @@ def main():
             for cfg in CONFIGS:
                 cfg_rows = [r for r in all_rows if r["config"] == cfg["name"]]
                 summary[cfg["name"]] = summarise(cfg_rows)
-            summary_path = RESULTS_DIR / "summary.json"
+            summary_path = results_dir / "summary.json"
             summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
             print(f"  wrote {summary_path}")
 

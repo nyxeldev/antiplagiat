@@ -103,6 +103,56 @@ class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
             self.assertTrue(chunk["indexed"])
             self.assertEqual(text[chunk["char_start"]:chunk["char_end"]], chunk["chunk_text"])
 
+    def test_v3_column_is_populated_without_changing_original_text_or_offsets(self):
+        """uz-latin-v3 stays retrieval-only: proven, not claimed.
+
+        extracted_text, segments and every chunk's (char_start, char_end,
+        chunk_text) slice of the original text must come out byte-identical
+        to the v2-only behaviour already covered by
+        test_add_builds_chunks_and_a_searchable_index. The new
+        chunk_text_uz_latin_v3 column is additional, and for a text with
+        real Uzbek suffixes it must actually differ from chunk_text in at
+        least one chunk -- otherwise this test would pass even if v3 were
+        never wired up.
+        """
+        text = self.unique(UZ)
+        stored = self.add(text, "v3col-" + uuid.uuid4().hex[:8])
+        with persistence.database(self.admin) as conn:
+            doc = conn.execute("SELECT extracted_text, segments FROM antiplagiat.corpus_documents"
+                               " WHERE id=%s", (stored["id"],)).fetchone()
+            chunks = conn.execute(
+                "SELECT chunk_text, chunk_text_uz_latin_v3, char_start, char_end, "
+                "fts_v3 IS NOT NULL AS v3_indexed FROM antiplagiat.corpus_chunks"
+                " WHERE corpus_document_id=%s ORDER BY chunk_index", (stored["id"],)).fetchall()
+        self.assertEqual(doc["extracted_text"], text)
+        for chunk in chunks:
+            self.assertEqual(text[chunk["char_start"]:chunk["char_end"]], chunk["chunk_text"])
+            self.assertTrue(chunk["v3_indexed"])
+            self.assertIsNotNone(chunk["chunk_text_uz_latin_v3"])
+        self.assertTrue(any(c["chunk_text_uz_latin_v3"] != c["chunk_text"] for c in chunks),
+                        "v3 stemming never fired on a text with ordinary Uzbek suffixes")
+
+    def test_v3_retrieval_never_changes_what_the_comparison_highlights(self):
+        """Whichever normalization retrieval used, the highlighted span is
+        decided only by matching.compare() on the untouched original text.
+        """
+        from backend.comparison.matching import compare, tokenize
+        source_text = self.unique(UZ)
+        stored = self.add(source_text, "v3cmp-" + uuid.uuid4().hex[:8])
+        query_text = source_text  # verbatim query: both normalizations must find it
+        qtokens = tokenize(query_text)
+        spans_by_normalization = {}
+        for normalization in ("v2", "v3"):
+            found, _ = corpus.candidates(qtokens, normalization=normalization, text=query_text)
+            self.assertIn(stored["id"], [c["id"] for c in found])
+            loaded = corpus.load_for_comparison(stored["id"])
+            result = compare(extracted(query_text, "q.txt"), [loaded])
+            spans_by_normalization[normalization] = [
+                (m["document"]["start"], m["document"]["end"], m["document"]["text"])
+                for m in result["sources"][0]["matches"]]
+        self.assertEqual(spans_by_normalization["v2"], spans_by_normalization["v3"])
+        self.assertTrue(spans_by_normalization["v2"])  # the test is vacuous if nothing matched
+
     def test_duplicate_content_is_refused_until_the_first_copy_is_withdrawn(self):
         raw = (UZ + " takroriy").encode()
         first = self.add(UZ + " takroriy", "dup-a", raw)
@@ -127,12 +177,16 @@ class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
         with persistence.database(self.admin) as conn:
             row = conn.execute("SELECT extracted_text, status, withdrawn_at FROM antiplagiat.corpus_documents"
                                " WHERE id=%s", (stored["id"],)).fetchone()
-            texts = conn.execute("SELECT DISTINCT chunk_text FROM antiplagiat.corpus_chunks"
-                                 " WHERE corpus_document_id=%s", (stored["id"],)).fetchall()
+            texts = conn.execute("SELECT DISTINCT chunk_text, chunk_text_uz_latin_v3"
+                                 " FROM antiplagiat.corpus_chunks WHERE corpus_document_id=%s",
+                                 (stored["id"],)).fetchall()
         self.assertIsNone(row["extracted_text"])
         self.assertEqual(row["status"], "withdrawn")
         self.assertIsNotNone(row["withdrawn_at"])
         self.assertEqual([t["chunk_text"] for t in texts], [""])
+        self.assertEqual([t["chunk_text_uz_latin_v3"] for t in texts], [""])
+        found_v3_after, _ = corpus.candidates(tokens, normalization="v3", text=text)
+        self.assertNotIn(stored["id"], [c["id"] for c in found_v3_after])
         with self.assertRaises(corpus.CorpusError):
             corpus.withdraw(stored["id"])
 
@@ -189,7 +243,8 @@ class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
 class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
     """The compare endpoint with the corpus flag off and on."""
 
-    def request(self, body, content_type, include_corpus=False, role="user"):
+    def request(self, body, content_type, include_corpus=False, role="user", normalization="v2",
+                idempotency_key=None):
         sent = False
         async def receive():
             nonlocal sent
@@ -197,14 +252,20 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
                 return {"type": "http.disconnect"}
             sent = True
             return {"type": "http.request", "body": body, "more_body": False}
+        query = []
+        if include_corpus:
+            query.append("include_corpus=true")
+        if normalization != "v2":
+            query.append(f"normalization={normalization}")
         scope = {"type": "http", "method": "POST", "scheme": "http", "path": "/compare",
-                 "query_string": b"include_corpus=true" if include_corpus else b"",
+                 "query_string": "&".join(query).encode(),
                  "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
                  "headers": [(b"content-type", content_type.encode()), (b"x-antiplagiat-local", b"1"),
-                             (b"idempotency-key", str(uuid.uuid4()).encode())]}
+                             (b"idempotency-key", (idempotency_key or str(uuid.uuid4())).encode())]}
         owner = str(self.admin_id if role == "admin" else self.user_id)
         with patch.object(api.auth, "require_user", return_value={"id": owner, "role": role}):
-            return asyncio.run(api.compare_uploads(Request(scope, receive), include_corpus=include_corpus))
+            return asyncio.run(api.compare_uploads(Request(scope, receive), include_corpus=include_corpus,
+                                                    normalization=normalization))
 
     def payload(self, response):
         return json.loads(bytes(response.body))
@@ -239,6 +300,39 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
         self.assertIn(match["source"]["text"], UZ)
         self.assertGreater(source["coverage_percent"], 0)
         self.assertLessEqual(result["coverage_percent"], 100.0)
+
+    def test_normalization_defaults_to_v2_and_v3_is_recorded_when_requested(self):
+        self.add(self.unique(UZ), "norm-" + uuid.uuid4().hex[:8])
+        body, kind = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
+        default_result = self.payload(self.request(body, kind, include_corpus=True))
+        self.assertEqual(default_result["corpus"]["normalization"], "v2")
+        self.assertFalse(any("uz-latin-v3" in line for line in default_result["limitations"]))
+        body2, kind2 = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
+        v3_result = self.payload(self.request(body2, kind2, include_corpus=True, normalization="v3"))
+        self.assertEqual(v3_result["corpus"]["normalization"], "v3")
+        self.assertTrue(any("uz-latin-v3" in line for line in v3_result["limitations"]))
+
+    def test_normalization_rejects_unknown_value(self):
+        body, kind = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
+        response = self.request(body, kind, include_corpus=True, normalization="v4")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.payload(response)["error"]["code"], "normalization_invalid")
+
+    def test_normalization_v3_without_corpus_is_ignored_not_an_error(self):
+        body, kind = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UZ.encode())])
+        result = self.payload(self.request(body, kind, include_corpus=False, normalization="v3"))
+        self.assertNotIn("corpus", result)  # corpus retrieval never ran; nothing to normalize
+
+    def test_same_idempotency_key_with_different_normalization_conflicts_rather_than_silently_reusing(self):
+        self.add(self.unique(UZ), "norm-conflict-" + uuid.uuid4().hex[:8])
+        key = str(uuid.uuid4())
+        body, kind = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
+        first = self.request(body, kind, include_corpus=True, normalization="v2", idempotency_key=key)
+        self.assertEqual(first.status_code, 200)
+        body2, kind2 = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
+        with self.assertRaises(persistence.ServiceError) as raised:
+            self.request(body2, kind2, include_corpus=True, normalization="v3", idempotency_key=key)
+        self.assertEqual((raised.exception.status, raised.exception.code), (409, "request_conflict"))
 
     def test_non_admin_response_never_carries_full_corpus_text(self):
         filler = " ".join(f"toldiruvchi{i} jumla matni" for i in range(120))
