@@ -194,6 +194,8 @@ Kichik algoritmik prototip nazorat namunalarida sinxron ishlashi mumkin. Real ko
 
 Modulli monolit, ichki korpusdan boshlash va tashqi tarmoqni standart holatda o‘chirish — ushbu versiyadagi takliflar. Katta o‘zgarish oldidan sabab, muqobillar, foyda, migratsiya va tekshiruv rejasi yoziladi.
 
+Koddan to‘g‘ridan-to‘g‘ri ko‘rinmaydigan, tor doiradagi mahsulot qarorlari (rol matritsasi, korpus excerpt byudjeti, benchmark metodologiyasi, test fixture naqshi, uz-latin-v3 doirasi) uchun qarang: [docs/decisions.md](decisions.md).
+
 ## Manbalar
 
 - [S1: OpenAlex API](https://help.openalex.org/api/)

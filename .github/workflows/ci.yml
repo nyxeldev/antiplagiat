@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install -r backend/requirements.txt
+
+      # backend/tests/postgres_fixture.py (used by test_corpus_integration.py,
+      # test_migration_diagnostics.py, test_review_regressions.py) spins up its
+      # own short-lived, disposable PostgreSQL cluster via initdb/pg_ctl for
+      # each test run -- it never connects to a shared or external database.
+      # Ubuntu GitHub-hosted runners ship PostgreSQL server packages, but their
+      # bin/ directory is not on PATH by default, so locate and export it here
+      # instead of hardcoding a version number that will drift.
+      - name: Make PostgreSQL server binaries (initdb/pg_ctl) available on PATH
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql
+          pg_bin="$(dirname "$(find /usr/lib/postgresql -maxdepth 2 -name initdb | head -n1)")"
+          test -n "$pg_bin"
+          echo "$pg_bin" >> "$GITHUB_PATH"
+
+      - run: python -m unittest discover -s backend/tests -v
