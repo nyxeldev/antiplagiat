@@ -26,7 +26,7 @@ class Uploads:
 
     def part_begin(self):
         if len(self.items) >= 6:
-            raise ComparisonError("file_count", "Bitta hujjat va 1–5 ta manba kerak.", 400)
+            raise ComparisonError("file_count", "Bitta hujjat va ko‘pi bilan 5 ta manba kerak.", 400)
         self.headers, self.field, self.value = {}, bytearray(), bytearray()
         self.header_size, self.file_size = 0, 0
 
@@ -96,8 +96,11 @@ class Uploads:
             raise ComparisonError("incomplete_upload", "Fayl yuklash to‘liq tugamadi.", 400)
         documents = [item for item in self.items if item["role"] == "document"]
         sources = [item for item in self.items if item["role"] == "sources"]
-        if len(documents) != 1 or not 1 <= len(sources) <= 5:
-            raise ComparisonError("file_count", "Bitta tekshiriladigan hujjat va 1–5 ta manba kerak.", 400)
+        # Whether at least one source is required (manual or corpus) is a
+        # request-level policy, not a parsing concern -- the caller (which
+        # knows include_corpus) checks that. Here we only bound the count.
+        if len(documents) != 1 or len(sources) > 5:
+            raise ComparisonError("file_count", "Bitta tekshiriladigan hujjat va ko‘pi bilan 5 ta manba kerak.", 400)
         return documents + sources
 
     def close(self):

@@ -301,6 +301,24 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
         self.assertGreater(source["coverage_percent"], 0)
         self.assertLessEqual(result["coverage_percent"], 100.0)
 
+    def test_corpus_only_without_manual_sources_succeeds(self):
+        unique_uz = self.unique(UZ)
+        stored = self.add(unique_uz, "corpus-only-" + uuid.uuid4().hex[:8])
+        document = unique_uz + " Qoshimcha mustaqil xulosa qismi bu yerda yozilgan."
+        body, kind = multipart([("document", "t.txt", document.encode())])
+        result = self.payload(self.request(body, kind, include_corpus=True))
+        self.assertGreaterEqual(result["corpus"]["candidates_compared"], 1)
+        corpus_sources = [s for s in result["sources"] if s.get("corpus")]
+        self.assertEqual(len(corpus_sources), result["corpus"]["candidates_compared"])
+        self.assertTrue(any(s["corpus"]["id"] == stored["id"] for s in corpus_sources))
+        self.assertGreater(result["coverage_percent"], 0)
+
+    def test_neither_manual_sources_nor_corpus_is_rejected(self):
+        body, kind = multipart([("document", "t.txt", UZ.encode())])
+        response = self.request(body, kind, include_corpus=False)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.payload(response)["error"]["code"], "no_sources")
+
     def test_normalization_defaults_to_v2_and_v3_is_recorded_when_requested(self):
         self.add(self.unique(UZ), "norm-" + uuid.uuid4().hex[:8])
         body, kind = multipart([("document", "t.txt", UZ.encode()), ("sources", "s.txt", UNRELATED.encode())])
