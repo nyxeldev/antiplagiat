@@ -61,7 +61,13 @@ def isolated_postgres():
             raise failure("Owned PostgreSQL cluster initialization failed", output)
         pwfile.unlink()
         started = True  # stop attempted even if pg_ctl startup reports an error
-        code, output = command([pg_ctl, "-D", str(data), "-l", str(log), "-o", f"-h 127.0.0.1 -p {port}", "-w", "start"])
+        # unix_socket_directories="" -- this fixture only ever connects over
+        # TCP (127.0.0.1); the compiled-in default directory (e.g. Debian's
+        # /var/run/postgresql) can be owned by a system "postgres" account
+        # that an unprivileged CI runner user cannot write a socket lock
+        # file into, which fails startup with nothing about TCP at fault.
+        code, output = command([pg_ctl, "-D", str(data), "-l", str(log),
+                                "-o", f"-h 127.0.0.1 -p {port} -c unix_socket_directories=", "-w", "start"])
         if code:
             raise failure("Owned PostgreSQL server failed to start", output)
         admin = dict(host="127.0.0.1", port=str(port), dbname="postgres", user="migration_account", password=password)
