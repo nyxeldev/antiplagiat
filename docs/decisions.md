@@ -37,6 +37,17 @@ Bu `backend/tests/test_corpus_integration.py`dagi ikkita testda aniq tasdiqlanga
 - `test_v3_column_is_populated_without_changing_original_text_or_offsets` — "uz-latin-v3 stays retrieval-only: proven, not claimed."
 - `test_v3_retrieval_never_changes_what_the_comparison_highlights`
 
+## 6. Dependency yangilanmaydi qoidasining istisnosi — critical xavfsizlik patchlari
+
+Loyihaning odatdagi siyosati: dependency versiyalari ataylab o'zgartirilmaguncha barqaror ushlab turiladi (`backend/requirements.txt`, `frontend/package.json`/`package-lock.json` — versiyalar bu fayllarda, `AGENTS.md`da emas). **Istisno:** paket ta'minotchisi tomonidan e'lon qilingan **critical** og'irlikdagi, aniq GHSA/CVE raqamiga ega va **non-major** (breaking o'zgarishsiz patch/minor) tuzatish mavjud bo'lsa, u alohida, tor qamrovli PR orqali — faqat shu bitta paket uchun — yangilanishi mumkin.
+
+**Sana:** 2026-11-02. **Sabab:** `next` paketi `16.4.0` versiyasida uchta e'lon qilingan zaiflik bor edi:
+- [GHSA-2464-fhr4-w9xw](https://github.com/advisories/GHSA-2464-fhr4-w9xw) — critical, Image Optimization API orqali autentifikatsiyasiz RCE (SVG fayllar orqali).
+- [GHSA-673q-mjm6-r5xr](https://github.com/advisories/GHSA-673q-mjm6-r5xr) — critical, `use cache` funksiyalari typed array qaytarganda autentifikatsiyasiz RCE.
+- [GHSA-p3m5-59mp-jv5r](https://github.com/advisories/GHSA-p3m5-59mp-jv5r) — high, Server Actions orqali DoS.
+
+Uchalasi ham `>=16.0.0 <=16.4.0` oralig'ida, `16.4.3`da (patch, major emas) tuzatilgan. `next` `16.4.3`ga yangilandi (faqat shu paket; boshqa hech bir dependency o'zgartirilmadi) va `next.config.ts`ga `images.unoptimized: true` qo'shildi (ilova `next/image`dan umuman foydalanmaydi — grep bilan tasdiqlangan — shuning uchun Image Optimization endpoint'ining o'zini o'chirish GHSA-2464 hujum yuzasini versiyadan qat'i nazar yopadi).
+
 ---
 
 *Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`).*
