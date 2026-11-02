@@ -50,21 +50,18 @@ jobs:
       # test_review_regressions.py each spin up their own short-lived,
       # disposable PostgreSQL cluster via initdb/pg_ctl
       # (backend/tests/postgres_fixture.py) -- never a shared or external
-      # database. Tried on this runner (ubuntu-latest) and it does not work
-      # out of the box: apt-get install -y postgresql makes `initdb` findable
-      # under /usr/lib/postgresql/<version>/bin, but `pg_ctl -D ... start`
-      # then fails for a reason the fixture does not surface (it runs
-      # initdb/pg_ctl with stdout/stderr sent to DEVNULL, so the actual
-      # server-log diagnosis never reaches CI output). Root-causing that is
-      # out of scope for this workflow file, so these three modules are run
-      # here as a best-effort, non-blocking step instead of silently
-      # skipping them: a future fix (e.g. surfacing the fixture's own
-      # scratch/server.log as a workflow artifact, or using a
-      # runner/container image with a pre-started PostgreSQL) can drop
-      # `continue-on-error`. Until then, run these locally before merging:
-      #   .\.venv\Scripts\python.exe -m unittest discover -s backend/tests -v
-      - name: Integration tests (own disposable PostgreSQL cluster -- best-effort in CI, run locally before merging)
-        continue-on-error: true
+      # database. apt-get install -y postgresql makes `initdb` findable
+      # under /usr/lib/postgresql/<version>/bin. The actual root cause of an
+      # earlier failure here (found once postgres_fixture.py stopped
+      # discarding initdb/pg_ctl's own output): Debian's postgresql package
+      # defaults unix_socket_directories to /var/run/postgresql, owned by a
+      # system "postgres" account the unprivileged runner user cannot write
+      # a socket lock file into ("could not create lock file
+      # .../.s.PGSQL.<port>.lock: Permission denied") -- nothing to do with
+      # TCP, which is all this fixture ever uses. Fixed in
+      # postgres_fixture.py by starting postgres with
+      # unix_socket_directories="".
+      - name: Integration tests (own disposable PostgreSQL cluster)
         run: |
           sudo apt-get update && sudo apt-get install -y postgresql
           initdb_path="$(find /usr/lib/postgresql -maxdepth 4 -name initdb -print -quit)"
