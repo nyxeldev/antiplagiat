@@ -37,7 +37,7 @@ export default function Comparison() {
     if (problem) setError(problem); else { resetResult(); setSources(next); }
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!document || !sources.length || inFlight.current) return;
+    event.preventDefault(); if (!document || (!sources.length && !includeCorpus) || inFlight.current) return;
     const validation = fileError([document, ...sources]); if (validation) { setError(validation); return; }
     inFlight.current = true; setBusy(true); setError(null); setReport(null); key.current ??= crypto.randomUUID();
     const data = new FormData(); data.append("document", document); sources.forEach(source => data.append("sources", source));
@@ -107,8 +107,13 @@ export default function Comparison() {
 
     <div style={{ marginTop: "var(--sp-8)" }}>
       <StepBadge step={3}>Tekshiruvni boshlash</StepBadge>
-      <Button type="submit" loading={busy} disabled={!document || !sources.length}>{busy ? "Solishtirilmoqda…" : "Solishtirish"}</Button>
-      <p role="status" className={styles.muted} style={{ marginTop: "var(--sp-3)" }}>{busy ? "Fayllar yuklanmoqda, solishtirilmoqda va hisobot saqlanmoqda…" : report ? "Hisobot shaxsiy tarixingizga saqlandi." : ""}</p>
+      <Button type="submit" loading={busy} disabled={!document || (!sources.length && !includeCorpus)}>{busy ? "Solishtirilmoqda…" : "Solishtirish"}</Button>
+      <p role="status" className={styles.muted} style={{ marginTop: "var(--sp-3)" }}>
+        {busy ? "Fayllar yuklanmoqda, solishtirilmoqda va hisobot saqlanmoqda…"
+          : report ? "Hisobot shaxsiy tarixingizga saqlandi."
+          : document && !sources.length && !includeCorpus ? "Solishtirish uchun kamida bitta manba fayl yuklang yoki ichki korpusni yoqing."
+          : ""}
+      </p>
       <Pop show={!!report}>
         {report && <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
           <Link href={`/reports/${report.report_id}`}>Saqlangan hisobotni ochish</Link>

@@ -247,13 +247,21 @@ class UploadTests(unittest.TestCase):
         result = self.parse([("sources", "source.txt", TEXT.encode()), ("document", "../../target.txt", TEXT.encode())])
         self.assertEqual(result[0]["name"], "target.txt")
         self.assertEqual(result[0]["path"], "upload-1")
-        for files in [[("document", "a.txt", b"x")], [("sources", "a.txt", b"x")] * 6,
+        for files in [[("sources", "a.txt", b"x")] * 6,
                       [("document", "a.txt", b"x")] * 2 + [("sources", "b.txt", b"x")],
                       [("document", "a.txt", b"x")] + [("sources", "b.txt", b"x")] * 6]:
             with self.assertRaises(ComparisonError):
                 self.parse(files)
         with self.assertRaises(ComparisonError):
             self.parse([("document", "a.txt", b"x"), ("sources", "b.txt", b"x")], truncate=True)
+
+    def test_document_without_manual_sources_is_allowed_by_the_parser(self):
+        # Whether a source is required at all (manual or corpus) is enforced by the
+        # caller (api.compare_uploads), which knows include_corpus; the raw upload
+        # parser only bounds the count (0-5), it does not require at least one.
+        result = self.parse([("document", "a.txt", b"x")])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["role"], "document")
 
     def test_actual_file_and_total_boundaries(self):
         for size, fail in [(MAX_FILE_BYTES, False), (MAX_FILE_BYTES + 1, True)]:
@@ -303,6 +311,14 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             response = await self.request(body[:-10], content_type)
             self.assertEqual(response.status_code, 400)
         self.assertTrue(all(not Path(path).exists() for path in seen))
+        self.assertFalse(api.gate.locked())
+
+    async def test_neither_manual_sources_nor_corpus_is_rejected_before_any_work(self):
+        body, content_type = multipart([("document", "a.txt", TEXT.encode())])
+        with patch.object(api, "run_worker") as worker:
+            response = await self.request(body, content_type)
+            self.assertEqual(response.status_code, 400)
+            self.assertFalse(worker.called)
         self.assertFalse(api.gate.locked())
 
     def setUp(self):
