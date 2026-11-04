@@ -9,7 +9,7 @@ Versiya 2 · 2026-11-04 · Kod: [backend/comparison/matching.py](../../backend/c
 | Savol | Javob |
 | --- | --- |
 | Matching recall ko'tarildimi? | **Ha, sezilarli.** Morfologik so'rovlarning ENG QIYIN qatlamida (suffix% >= 35%, **n=5, indikativ**) matching recall 0.1802 -> **0.5238** (+0.3436). Past qatlamda (suffix% < 20%, n=10) 0.7234 -> **0.8545** (+0.1311). |
-| Recall o'sishi precision hisobiga bo'ldimi? | **Yo'q, hech qanday darajada.** Precision **1.0da qoldi** — uch rejimning HAR BIRIDA, HAR BIR qatlamda VA har bir ijobiy kategoriyada (`verbatim`/`partial`/`paraphrase`/`morphological`/`quoted`, §2), shu jumladan `hard_negative`+`unrelated`'da (n=14, yolg'on musbat 0). |
+| Recall o'sishi precision hisobiga bo'ldimi? | **Yo'q — lekin ehtiyot bo'lib o'qing.** `morphological`/`paraphrase` kategoriyalarida ground truth `__FULL_TEXT__` (butun hujjat) bo'lgani uchun, bu ikkisida precision **TA'RIFGA KO'RA har doim 1.0** (har qanday topilgan moslik, albatta, "butun hujjat" ichida yotadi — bu o'lchangan natija emas, §3). Yolg'on musbat riskini haqiqatan cheklaydigan ikkita DALIL: (1) `hard_negative`+`unrelated`da (aniq snippet ground truth bilan) 0 ta yolg'on musbat, n=14, uch rejimning hech birida; (2) `verbatim`/`partial`/`quoted`da (aniq oraliqli ground truth bilan) uch rejim natijasi precision HAM, recall HAM aynan bir xil. |
 | Offset/highlight kafolati buzildimi? | **Yo'q.** Har bir topilgan moslik hamon to'liq original so'zni (qo'shimchasi bilan) qamraydi — `backend/comparison/matching.py`dagi `span()` o'zgarmagan, faqat shingle tenglik tekshiruvi (`morph_key()`) yangi. Isbotlangan testlar: §4. |
 | Foiz (coverage_percent) rejimlar orasida solishtiriladimi? | **YO'Q — qarang §4.** `retrieval+matching`da bir xil hujjat juftligi uchun foiz boshqa (odatda yuqoriroq) siyosat (`lexical-shingle-v2`) bilan hisoblanadi; bu "yaxshiroq natija" emas, BOSHQA METRIKA. |
 | Eski so'rovlar (off/retrieval) o'zgardimi? | **Yo'q, bit-ma-bit bir xil.** `normalization="v2"`/`"v3"` default `matching_normalization="uz-latin-v2"` bilan chaqiriladi — `compare()`ning parametrsiz chaqiruvi bilan aynan bir xil natija. |
@@ -26,11 +26,13 @@ Versiya 2 · 2026-11-04 · Kod: [backend/comparison/matching.py](../../backend/c
 
 Retrieval ustunlari `retrieval`/`retrieval+matching` orasida bir xil — kutilganidek, chunki ikkisi ham xuddi bir xil `fts_v3` nomzod tanlashdan foydalanadi (§ decisions.md §5 jadvali); farq faqat matching ustunlarida.
 
+**Eslatma — "matching precision 1.0000" bu yerda aralash dalil:** 67 so'rovning 30 tasi (`morphological`+`paraphrase`) `__FULL_TEXT__` ground truth bilan, qolgani aniq snippet/`hard_negative`/`unrelated` bilan. `__FULL_TEXT__` so'rovlarda precision ta'rifga ko'ra 1.0 (yuqoridagi §0'ga qarang), shuning uchun bu qatordagi "1.0000" ning qaysi qismi haqiqiy o'lchov, qaysi qismi ta'rif ekanini bu jadvaldan ajratib bo'lmaydi — haqiqiy dalil uchun §3'ga (kategoriya kesimi) qarang.
+
 ## 2. Morfologik so'rovlar, suffix% qatlami bo'yicha (n=15, ikki qatlamga bo'lingan)
 
 Qatlamlash manbasi: `benchmarks/corpus-v2/morph_strength.json`dagi `suffix_changed_ratio` (har bir morfologik so'rov uchun `scripts/measure_morph_strength.py` bilan oldindan hisoblangan). Yuqori qatlam (>= 35%) n=5, past qatlam (< 20%) n=10; oraliqda (20–35%) hech bir so'rov yo'q (toza ikkiga bo'linish).
 
-| Qatlam | Rejim | matching precision | matching recall | matching F1 | FP tokenlar |
+| Qatlam | Rejim | matching precision (†) | matching recall | matching F1 | FP tokenlar |
 | --- | --- | --- | --- | --- | --- |
 | suffix% >= 35% (n=5) | off | 1.0000 | 0.1802 | 0.2719 | 0 |
 | | retrieval | 1.0000 | 0.1982 | 0.3048 | 0 |
@@ -39,23 +41,27 @@ Qatlamlash manbasi: `benchmarks/corpus-v2/morph_strength.json`dagi `suffix_chang
 | | retrieval | 1.0000 | 0.7234 | 0.8379 | 0 |
 | | **retrieval+matching** | **1.0000** | **0.8545** | **0.9205** | **0** |
 
-**O'qilishi (eslatma: yuqori qatlam n=5, indikativ):** foyda aniq bir qatlamga tegishli, xuddi retrieval darajasidagi avvalgi o'lchov (uz-morph-v3.md §3) kabi — ENG QIYIN qatlamda (ko'p qo'shimcha o'zgargan so'rovlar) matching recall deyarli 3x ko'tariladi (0.18 -> 0.52), past qatlamda ham haqiqiy, lekin kichikroq foyda (0.72 -> 0.85). Ikkala qatlamda ham precision 1.0da qoladi — bu nazorat to'plamida stemming kolliziyasi (turli so'zlarning bitta o'zakka tushib, yolg'on moslik yaratishi) kuzatilmadi.
+**(†) Bu jadvaldagi "matching precision" o'lchangan natija EMAS.** `morphological` kategoriyaning barcha so'rovlari `__FULL_TEXT__` ground truth bilan (§0, §3) — demak har bir qatorda 1.0000 ta'rifga ko'ra shunday chiqadi, stemming kolliziyasi yo'qligining DALILI emas (bunday kolliziya haqiqiy ground truth bo'lmasa, hech qanday predicted token uni aniqlay olmaydi). "FP tokenlar" ustuni ham shu sababdan har doim 0 — bu ustun faqat haqiqiy (snippet) ground truth bo'lgan kategoriyalarda (§3'dagi `hard_negative`/`unrelated`) ma'noli. **O'qilishi (eslatma: yuqori qatlam n=5, indikativ):** foyda aniq bir qatlamga tegishli, xuddi retrieval darajasidagi avvalgi o'lchov (uz-morph-v3.md §3) kabi — ENG QIYIN qatlamda (ko'p qo'shimcha o'zgargan so'rovlar) matching recall deyarli 3x ko'tariladi (0.18 -> 0.52), past qatlamda ham haqiqiy, lekin kichikroq foyda (0.72 -> 0.85). Bu recall o'sishi haqiqatan to'g'ri tokenlarni topganimi, yoki ortiqcha belgilashmi — bu savol hali TOKEN DARAJASIDA o'lchanmagan (qarang: §8 — Tekshirilmagan qolgan narsalar).
 
 ## 3. Ijobiy kategoriyalar bo'yicha precision/recall/F1 (recall o'sishi precision hisobigami?)
 
 Har bir ijobiy kategoriya uchun (`expected_sources` bo'sh bo'lmagan so'rovlar), uch rejim yonma-yon:
 
-| Kategoriya (n) | Rejim | precision | recall | F1 |
-| --- | --- | --- | --- | --- |
-| `verbatim` (9) | off / retrieval / retrieval+matching | 1.0000 | 1.0000 | 1.0000 |
-| `partial` (8) | off / retrieval / retrieval+matching | 1.0000 | 0.7500 | 0.7500 |
-| `paraphrase` (15) | off / retrieval / retrieval+matching | 1.0000 | 0.0106 | 0.0200 |
-| `quoted` (6) | off / retrieval / retrieval+matching | 1.0000 | 0.6667 | 0.6667 |
-| `morphological` (15) | off | 1.0000 | 0.5423 | 0.6493 |
-| | retrieval | 1.0000 | 0.5483 | 0.6602 |
-| | **retrieval+matching** | **1.0000** | **0.7442** | **0.8386** |
+| Kategoriya (n) | Ground truth turi | Rejim | precision | recall | F1 |
+| --- | --- | --- | --- | --- | --- |
+| `verbatim` (9) | 6 aniq snippet + 3 `__FULL_TEXT__` (to'liq nusxa so'rovlar) | off / retrieval / retrieval+matching | 1.0000 | 1.0000 | 1.0000 |
+| `partial` (8) | aniq snippet (hammasi) | off / retrieval / retrieval+matching | 1.0000 | 0.7500 | 0.7500 |
+| `paraphrase` (15) | **`__FULL_TEXT__` (hammasi)** | off / retrieval / retrieval+matching | 1.0000 | 0.0106 | 0.0200 |
+| `quoted` (6) | aniq snippet (hammasi) | off / retrieval / retrieval+matching | 1.0000 | 0.6667 | 0.6667 |
+| `morphological` (15) | **`__FULL_TEXT__` (hammasi)** | off | 1.0000 | 0.5423 | 0.6493 |
+| | | retrieval | 1.0000 | 0.5483 | 0.6602 |
+| | | **retrieval+matching** | **1.0000** | **0.7442** | **0.8386** |
 
-**Javob:** `verbatim`/`partial`/`paraphrase`/`quoted` to'rtta kategoriyada uch rejim ORASIDA AYNAN BIR XIL (precision HAM, recall HAM) — v3-matching bu kategoriyalarga HECH QANDAY ta'sir qilmaydi, chunki ularning so'zlari suffiksda farq qilmaydi (`uz_latin_v3.stem()` ularni o'zgartirmaydi). Faqat `morphological` o'zgaradi, va u yerda ham precision 1.0da qoladi — recall +0.2019 o'sadi (0.5423->0.7442), precision 0 tushadi. **Xulosa: bu nazorat to'plamida recall o'sishi precision hisobiga BO'LMAGAN.**
+**Muhim tuzatish:** yuqoridagi `paraphrase` va `morphological` qatorlaridagi precision=1.0000 **O'LCHANGAN NATIJA EMAS — TA'RIFGA KO'RA SHUNDAY**. Ikkala kategoriyaning ground truth'i `__FULL_TEXT__` (butun hujjat); `backend/benchmark/metrics.py`dagi `token_prf1()`da predicted_tokens har doim truth_tokens (= butun hujjat)ning qism to'plami bo'lgani uchun, bu ikki kategoriyada precision matematik jihatdan HAR DOIM 1.0 chiqadi — algoritm nima qilsa ham, hatto butunlay boshqa (noto'g'ri) tokenlarni belgilagan taqdirda ham emas (chunki "noto'g'ri" tushunchasining o'zi bu ground truth bilan aniqlanmagan). Shuning uchun bu ikki qator "stemming kolliziyasi yo'q" yoki "yolg'on musbat yo'q" degan xulosa uchun DALIL bo'la olmaydi.
+
+**Yolg'on musbat riskini haqiqatan cheklaydigan dalillar** (aniq ground truth bilan o'lchangan): (1) `partial`(8) va `quoted`(6) — aniq snippet ground truth, uch rejim ORASIDA precision HAM, recall HAM AYNAN BIR XIL, demak v3-matching bu ikki kategoriyaga hech qanday (ijobiy ham, salbiy ham) ta'sir qilmagan; (2) `verbatim`(9)ning 6 ta aniq-snippet so'rovi ham xuddi shunday o'zgarmagan; (3) `hard_negative`+`unrelated` (n=14, aniq snippet/bo'sh ground truth, §0) — uch rejimning hech birida yolg'on musbat yo'q. `morphological`/`paraphrase`dagi precision=1.0 bu ro'yxatga QO'SHILMAYDI (sabab yuqorida).
+
+**Xulosa (qayta ifodalangan):** `morphological` kategoriyada recall sezilarli o'sadi (+0.2019, 0.5423->0.7442), va bu nazorat to'plamida BU KATEGORIYANING O'ZIDA precision pasaymadi (chunki pasaya olmaydi — ta'rifga ko'ra). Recall o'sishi haqiqiy yolg'on musbatlar hisobiga bo'lganmi yoki yo'qmi — buni aytish uchun TOKEN DARAJASIDAGI haqiqiy ground truth kerak (bu hujjatning hozirgi versiyasida yo'q; keyingi bosqich sifatida rejalashtirilgan). Hozircha ishonchli aytish mumkin bo'lgani: (a) boshqa to'rtta kategoriyaga (aniq ground truth bilan o'lchanganlari) va `hard_negative`+`unrelated`ga v3-matching hech qanday yangi yolg'on musbat qo'shmagan.
 
 ## 4. Offset/highlight kafolati — testlar, da'vo emas
 
@@ -76,9 +82,11 @@ Mavjud v2 offset testlari (`test_unicode_apostrophes_whitespace_and_original_coo
 | `verbatim`/`partial`/`paraphrase`/`quoted` (jami) | 38 | **0.00** | 0.00 | 0 / 38 |
 | `morphological` | 15 | **+19.59** | **+41.03** | 15 / 15 |
 
-**Xulosa:** inflyatsiya FAQAT `morphological` kategoriyada bor, va u yerda HAR DOIM musbat (foiz hech qachon kamaymaydi) — bu kutilgan, chunki v3-matching faqat qo'shimcha farq qiluvchi so'zlarni QO'SHIMCHA ravishda mos deb belgilaydi, hech qachon oldin topilgan moslikni olib tashlamaydi. Boshqa to'rt kategoriyada foiz bir TIYINGA ham o'zgarmaydi.
+**Xulosa:** foiz o'zgarishi FAQAT `morphological` kategoriyada bor, va u yerda HAR DOIM musbat (foiz hech qachon kamaymaydi) — bu kutilgan, chunki v3-matching faqat qo'shimcha farq qiluvchi so'zlarni QO'SHIMCHA ravishda mos deb belgilaydi, hech qachon oldin topilgan moslikni olib tashlamaydi. Boshqa to'rt kategoriyada foiz bir TIYINGA ham o'zgarmaydi.
 
 **Aniq misol** (`uz_morph_pedagogika`, eng katta farq): kutilgan manbaga nisbatan `off`/`retrieval` bilan qoplash **8.97%** (7/78 token, bitta qisqa moslik: *"An'anaviy ma'ruza shaklidagi darslardan farqli o'laroq, faol"*). `retrieval+matching` bilan **50.00%** (39/78 token) — qo'shimcha to'rt parcha mos deb belgilanadi, masalan *"faol ta'lim usullarining o'quvchilarda mustaqil fikrlash"* va *"Guruhli muhokamalarda, loyihaviy ishlarda va muammoli vaziyatlarni tahlil qilishlar bunday yondashuvlarning asosiy"* — bular hujjat va manbada FAQAT qo'shimchalari bilan farq qiladigan so'zlar zanjiri (masalan "fikrlashga"/"fikrlash").
+
+**Talqin — "inflyatsiya" so'ziga ehtiyot bo'ling (hali O'LCHANMAGAN talqin, qarang: §8 — Tekshirilmagan qolgan narsalar):** `morphological` so'rovlar deyarli sof so'z-ma-so'z almashtirish (`morph_strength.json`dagi `pure_substitution=True`, §2) bo'lgani uchun, haqiqiy (semantik) qoplash manbaga nisbatan ~100%ga yaqin bo'lishi KUTILADI — demak 8.97% -> 50.00% ko'tarilishi ehtimol oldin umuman topilmagan haqiqiy qoplashning TIKLANISHI, "inflyatsiya" (ya'ni yolg'on/haqiqatga mos kelmaydigan o'sish) emas. **Bu talqin hali o'lchanmagan** — yuqoridagi jadvaldagi raqamlarning o'zi (farq bor/yo'qligi, qancha) to'g'ri va o'zgarishsiz qoladi; faqat ularning "yaxshi/yomon" degan BAHOSI token darajasidagi haqiqiy ground truth bilan tasdiqlanishi kerak (§8).
 
 **QOIDA (docs/decisions.md §5'ga ham yozilgan):** `retrieval+matching` (`v3-matching`) bilan hisoblangan `coverage_percent` `off`/`retrieval` (`v2`/`v3`) bilan hisoblangan foiz BILAN SOLISHTIRILMAYDI — bu ikkisi boshqa siyosat (`parameters.algorithm_version`: `lexical-shingle-v1` vs `lexical-shingle-v2`) bilan hisoblangan, boshqa METRIKA. Bir xil hujjat ikki marta (bir marta har bir rejimda) tekshirilib, foizlar "oldin/keyin" sifatida taqqoslanmasligi kerak — har bir rejimning o'z foizi faqat O'ZI ICHIDA (masalan vaqt o'tishi bilan, bir xil rejimda qayta tekshirish) ma'noli.
 
@@ -100,3 +108,4 @@ Mavjud v2 offset testlari (`test_unicode_apostrophes_whitespace_and_original_coo
 - **`MIN_WORD_LEN_TO_STRIP`/`MIN_STEM_LEN` qayta sozlanmadi.** `backend/comparison/uz_latin_v3.py`dagi xavfsizlik chegaralari (7/4 belgi) o'zgarishsiz qoldi; bu o'lchov ularning matching darajasidagi tarqalishini (shunday chegaralar bilan) tasdiqladi, lekin ularni qattiqlashtirish/yumshatishni tekshirmadi.
 - **`paraphrase`/`partial`/`quoted`/`verbatim` kategoriyalari suffix% bilan qatlamlanmagan** — ular `suffix_changed_ratio` bilan hisoblanmaydi (faqat `morphological` toifasi uchun hisoblangan, `scripts/measure_morph_strength.py`ning o'z qamrovi bo'yicha); umumiy (barcha toifalar) raqam §1da, kategoriya-kesimli raqam §3da bor.
 - **§5dagi foiz-inflyatsiya tahlili commit qilinmagan skript bilan hisoblangan** (bir martalik tahlil, `matching.compare()`ning o'zidan, retrieval'ni chetlab) — natijalar shu hujjatda qayd etilgan, lekin skriptning o'zi repo'da saqlanmagan (qayta hisoblash kerak bo'lsa, usul §5'da yozilgan: har bir ijobiy so'rov + uning `expected_sources[0]`'i uchun `compare(..., matching_normalization=...)`ni ikki marta chaqirish).
+- **KEYINGI BOSQICH — `morphological` kategoriya uchun TOKEN DARAJASIDAGI haqiqiy ground truth hali yo'q.** §2/§3'dagi `morphological`ning precision=1.0 raqami ground truth `__FULL_TEXT__` bo'lgani uchun ta'rifga ko'ra shunday — bu v3-matching'ning haqiqatan to'g'ri tokenlarni topayotganini yoki ortiqcha (noto'g'ri) belgilayotganini ISBOTLAMAYDI. `scripts/measure_morph_strength.py`dagi `difflib.SequenceMatcher` alignment'i (har bir so'rov sof almashtirish, `pure_substitution=True`, bo'lgani uchun to'liq aniq) dan foydalanib, qaysi so'rov tokenlari manbadagi tokeniga HAQIQATAN mos kelishi (va qaysilari sinonim bilan almashtirilgan, demak lug'atsiz stemmer hech qachon topa olmaydigan) kerakligini chiqarib, shu asosda `morphological` uchun haqiqiy precision/recall/F1'ni qayta hisoblash va v3-matching'ning ortiqcha belgilagan tokenlarini (bo'lsa) sanash kerak. Rejalashtirilgan, hali bajarilmagan.
