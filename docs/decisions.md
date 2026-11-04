@@ -29,13 +29,25 @@ Bu `backend/auth.py`dagi `require_corpus_manager()` funksiyasida majburlanadi (`
 
 `backend/tests/test_corpus_integration.py`dagi `CorpusFixture` sinfi bir nechta test sinfi (`CorpusDatabaseTests`, `CorpusComparisonTests` va h.k.) orasida umumiy `setUp`/yordamchi metodlarni ulashadi, lekin **o'zi `unittest.TestCase`dan meros olmaydi** — faqat mixin sifatida ishlatiladi (`class CorpusDatabaseTests(CorpusFixture, unittest.TestCase)`). Agar `CorpusFixture` o'zi `TestCase` bo'lganida, `unittest discover` uni alohida (bo'sh) test sinfi sifatida ham topgan bo'lardi va umumiy metodlar boshqa sinflarda qayta-qayta "test" sifatida hisoblanish xavfi tug'ilardi. Bu naqsh test sonini sun'iy oshirmaslik uchun ataylab tanlangan.
 
-## 5. uz-latin-v3 — faqat retrieval, matching hamon v2
+## 5. uz-latin-v3 — uch rejim: off / retrieval / retrieval+matching
 
-`uz-latin-v3` (qoidaga asoslangan o'zbekcha suffix-stripping) faqat **nomzod manba tanlash** (retrieval) bosqichida ishlaydi. Yakuniy mos parchani belgilash, offsetlarni hisoblash va foiz chiqarish — bularning barchasi hamon `backend/comparison/matching.py`dagi o'zgarmagan `uz-latin-v2` normalizatsiyasida bajariladi (`NORMALIZATION_VERSION = "uz-latin-v2"`, kodda qattiq yozilgan, v3'ga bog'liq emas).
+**2026-10-18 holati (tarixiy):** `uz-latin-v3` faqat **nomzod manba tanlash** (retrieval) bosqichida ishlardi; matching hamon `uz-latin-v2`da edi. Bu `backend/tests/test_corpus_integration.py`dagi ikkita testda tasdiqlangan edi: `test_v3_column_is_populated_without_changing_original_text_or_offsets` ("uz-latin-v3 stays retrieval-only: proven, not claimed.") va `test_v3_retrieval_never_changes_what_the_comparison_highlights`. **Bu ikki test hamon mavjud va o'tadi** — ular hali ham `matching.compare()`ning DEFAULT chaqiruvi (parametrsiz, ya'ni "off"/"retrieval" rejimlari) uchun to'g'ri bo'lib qoladi.
 
-Bu `backend/tests/test_corpus_integration.py`dagi ikkita testda aniq tasdiqlangan:
-- `test_v3_column_is_populated_without_changing_original_text_or_offsets` — "uz-latin-v3 stays retrieval-only: proven, not claimed."
-- `test_v3_retrieval_never_changes_what_the_comparison_highlights`
+**2026-11-03:** matching bosqichi endi ham (opt-in) v3'dan foydalanishi mumkin. Uchta rejim, API'ning `normalization` so'rov parametri orqali tanlanadi (`POST /compare?include_corpus=true&normalization=...`):
+
+| Rejim | `normalization` qiymati | Retrieval (nomzod tanlash) | Matching (mos parcha belgilash) | Eski xulq? |
+| --- | --- | --- | --- | --- |
+| **off** | `"v2"` (default) | `fts` ustuni, uz-latin-v2 | `uz-latin-v2` tokenlari, aniq moslik | O'ZGARMAGAN |
+| **retrieval** | `"v3"` | `fts_v3` ustuni, uz-latin-v3 stemmer | `uz-latin-v2` tokenlari (o'zgarmagan) | O'ZGARMAGAN (bu eski "v3" bayrog'ining o'zi) |
+| **retrieval+matching** | `"v3-matching"` | `fts_v3` ustuni, uz-latin-v3 stemmer (xuddi "retrieval" kabi) | `uz-latin-v3`ga stem qilingan kalitlar (`backend/comparison/matching.py`, `match_keys()`/`morph_key()`) | **YANGI** |
+
+Muhim: `"v2"` va `"v3"` qiymatlari **aynan eski ma'nosida** qoldi — eski so'rovlar bit-ma-bit bir xil natija beradi (`backend/tests/test_comparison.py`dagi `test_matching_normalization_defaults_to_v2_unchanged` va butun mavjud 178 test shuni tasdiqlaydi). Faqat yangi `"v3-matching"` qiymati qo'shildi.
+
+**Offset kafolati (o'zgarmas):** `morph_key()` faqat shingle algoritmining TENGLIK tekshiruvi uchun ishlatiladigan kalit — u hech qachon `span()`ga uzatilmaydi. Highlight va offset hamon tokenning ORIGINAL `start`/`end` oralig'idan olinadi (`matching.tokenize()`), demak foydalanuvchiga har doim TO'LIQ original so'z (qo'shimchasi bilan) ko'rsatiladi, hech qachon qisqartirilgan o'zak emas. Buni isbotlovchi testlar: `test_v3_matching_finds_morphological_variants_v2_misses` (`backend/tests/test_comparison.py`) va `test_v3_matching_finds_what_v3_retrieval_only_misses` (`backend/tests/test_corpus_integration.py`, to'liq API orqali, korpus bilan).
+
+**Foiz semantikasi:** `retrieval+matching` rejimida hisoblangan `coverage_percent` boshqa siyosat ostida: `parameters.algorithm_version = "lexical-shingle-v2"` va `parameters.normalization_version = "uz-latin-v3"` (mavjud `"lexical-shingle-v1"`/`"uz-latin-v2"` yorliqlari qatorida, `backend/reports.py`ning `algorithm_version`/`normalization_version` ustunlarida saqlanadi — CHECK constraint yo'q, migratsiya kerak emas). Saqlangan ESKI hisobot snapshotlari o'zgarmaydi va qayta hisoblanmaydi (faqat yangi so'rovlar yangi qiymat oladi). Foydalanuvchiga ko'rinadigan matnda (`result["limitations"]`) bu rejim aniq "tajriba" deb belgilangan.
+
+**O'lchov natijasi** (`benchmarks/corpus-v2/`, `scripts/eval_retrieval.py --repeat 2` bilan determinizm tasdiqlangan; to'liq hisobot: [docs/benchmarks/uz-morph-v3-matching.md](benchmarks/uz-morph-v3-matching.md)): morfologik so'rovlarning ENG QIYIN qatlamida (suffix% >= 35%, n=5) matching recall **0.1802 (off) -> 0.5238 (retrieval+matching)**, past qatlamda (suffix% < 20%, n=10) **0.7234 -> 0.8545**. Precision **1.0da qoldi HAR BIR rejim, HAR BIR qatlamda** (shu jumladan `hard_negative`+`unrelated`, n=14: yolg'on musbat soni 0, uchta rejimning hech birida oshmadi) — demak qabul mezoni (§ ushbu hujjat, "yolg'on musbat 0dan oshmasin") qondirilgan, stemming kolliziyasi natijasida hech qanday yangi yolg'on moslik kuzatilmadi bu nazorat to'plamida.
 
 ## 6. Dependency yangilanmaydi qoidasining istisnosi — critical xavfsizlik patchlari
 

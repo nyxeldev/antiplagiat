@@ -341,6 +341,49 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
         result = self.payload(self.request(body, kind, include_corpus=False, normalization="v3"))
         self.assertNotIn("corpus", result)  # corpus retrieval never ran; nothing to normalize
 
+    def test_v3_matching_finds_what_v3_retrieval_only_misses(self):
+        # Stored and checked text share every content word's STEM but use
+        # different suffixes throughout (docs/decisions.md §5): "v3" finds
+        # the candidate via retrieval (fts_v3) but still matches with the
+        # unchanged v2 exact/shingle algorithm, so the morphological run is
+        # never flagged. "v3-matching" additionally matches through
+        # uz-latin-v3-stemmed keys, so the same run IS flagged -- and still
+        # highlights the full, original, checked-side word (with its own
+        # suffix), never the stored side's different suffix or the stem.
+        stored_words = ["kitoblarni", "talabalarga", "maktablarda",
+                        "universitetlarning", "mashqlarini", "darslarimizda"]
+        checked_words = ["kitoblardan", "talabalardan", "maktablardan",
+                         "universitetlardan", "mashqlaridan", "darslarimizdan"]
+        stored_text = " ".join(stored_words)
+        checked_text = " ".join(checked_words) + " Qoshimcha mustaqil xulosa qismi bu yerda yozilgan."
+        stored = self.add(stored_text, "morph-" + uuid.uuid4().hex[:8])
+        body, kind = multipart([("document", "t.txt", checked_text.encode())])
+
+        v3_result = self.payload(self.request(body, kind, include_corpus=True, normalization="v3"))
+        v3_source = next((s for s in v3_result["sources"] if s.get("corpus", {}).get("id") == stored["id"]), None)
+        self.assertIsNotNone(v3_source)  # retrieval found it
+        self.assertEqual(v3_source["matches"], [])  # but v2 matching never flags a suffix-only variant
+        self.assertEqual(v3_result["coverage_percent"], 0.0)
+
+        body2, kind2 = multipart([("document", "t.txt", checked_text.encode())])
+        matching_result = self.payload(self.request(body2, kind2, include_corpus=True,
+                                                     normalization="v3-matching"))
+        self.assertEqual(matching_result["parameters"]["algorithm_version"], "lexical-shingle-v2")
+        self.assertEqual(matching_result["parameters"]["normalization_version"], "uz-latin-v3")
+        self.assertEqual(matching_result["corpus"]["normalization"], "v3-matching")
+        matching_source = next(s for s in matching_result["sources"] if s.get("corpus", {}).get("id") == stored["id"])
+        self.assertTrue(matching_source["matches"])
+        match = matching_source["matches"][0]
+        # Highlighted text is the full original CHECKED-side word (with its
+        # own suffix), read back from the document's own original text.
+        self.assertEqual(checked_text[match["document"]["start"]:match["document"]["end"]],
+                         match["document"]["text"])
+        for word in checked_words:
+            self.assertIn(word, match["document"]["text"])
+        self.assertGreater(matching_result["coverage_percent"], 0.0)
+        self.assertTrue(any("v3 + matching" in line or "uz-latin-v3 + matching" in line
+                            for line in matching_result["limitations"]))
+
     def test_same_idempotency_key_with_different_normalization_conflicts_rather_than_silently_reusing(self):
         self.add(self.unique(UZ), "norm-conflict-" + uuid.uuid4().hex[:8])
         key = str(uuid.uuid4())
