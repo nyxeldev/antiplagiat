@@ -1,0 +1,226 @@
+{
+  "mode_labels": [
+    "off/retrieval (matching_normalization=uz-latin-v2)",
+    "retrieval+matching (matching_normalization=uz-latin-v3)"
+  ],
+  "per_query": {
+    "off/retrieval (matching_normalization=uz-latin-v2)": [
+      {
+        "precision": null,
+        "recall": 0.0,
+        "f1": 0.0,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 0
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.3722627737226277,
+        "f1": 0.5425531914893617,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 102
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.3680297397769517,
+        "f1": 0.5380434782608696,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 99
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.6345381526104418,
+        "f1": 0.7764127764127765,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 158
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.75,
+        "f1": 0.8571428571428571,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 195
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.7169117647058824,
+        "f1": 0.835117773019272,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 195
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.6868686868686869,
+        "f1": 0.8143712574850299,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 204
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.7396226415094339,
+        "f1": 0.8503253796095445,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 196
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.8222222222222222,
+        "f1": 0.9024390243902439,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 222
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.08974358974358974,
+        "f1": 0.1647058823529412,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 7
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.6775510204081633,
+        "f1": 0.8077858880778589,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 166
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.7480314960629921,
+        "f1": 0.8558558558558559,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 190
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.17045454545454544,
+        "f1": 0.2912621359223301,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 15
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.745928338762215,
+        "f1": 0.8544776119402986,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 229
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.8419243986254296,
+        "f1": 0.9141791044776119,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 245
+      }
+    ],
+    "retrieval+matching (matching_normalization=uz-latin-v3)": [
+      {
+        "precision": 1.0,
+        "recall": 0.3048780487804878,
+        "f1": 0.4672897196261682,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 25
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.635036496350365,
+        "f1": 0.7767857142857143,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 174
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.7360594795539034,
+        "f1": 0.84796573875803,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 198
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.8072289156626506,
+        "f1": 0.8933333333333333,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 201
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.9076923076923077,
+        "f1": 0.9516129032258065,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 236
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.8713235294117647,
+        "f1": 0.9312377210216111,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 237
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.8316498316498316,
+        "f1": 0.9080882352941176,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 247
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.8566037735849057,
+        "f1": 0.9227642276422764,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 227
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.9407407407407408,
+        "f1": 0.9694656488549619,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 254
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6666666666666666,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 39
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.7673469387755102,
+        "f1": 0.8683602771362587,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 188
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.905511811023622,
+        "f1": 0.9504132231404958,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 230
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.4659090909090909,
+        "f1": 0.6356589147286822,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 41
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.8631921824104235,
+        "f1": 0.9265734265734267,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 265
+      },
+      {
+        "precision": 1.0,
+        "recall": 0.9484536082474226,
+        "f1": 0.9735449735449735,
+        "false_positive_tokens": 0,
+        "true_positive_tokens": 276
+      }
+    ]
+  },
+  "overmatch_examples": {
+    "off/retrieval (matching_normalization=uz-latin-v2)": [],
+    "retrieval+matching (matching_normalization=uz-latin-v3)": []
+  }
+}

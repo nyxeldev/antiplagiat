@@ -176,5 +176,97 @@ class MeasureTests(unittest.TestCase):
         self.assertEqual(row_diff["shingle_overlap_5token"], 0)
 
 
+class TokenLevelGroundTruthTests(unittest.TestCase):
+    """Each case is hand-computed in the comment, same convention as
+    MeasureTests above -- these are the inputs feature/morph-token-ground-truth
+    adds (uz-morph-v3-matching.md §8/§3): real, token-level ground truth for
+    the morphological category, in place of manifest.json's "__FULL_TEXT__"
+    convention (which stays unchanged for retrieval-level metrics)."""
+
+    def test_identical_text_every_token_is_equal(self):
+        text = "katta oq uy juda yaxshi"
+        row = mms.token_level_ground_truth(text, text)
+        self.assertEqual(row["query_token_count"], 5)
+        self.assertEqual(row["expected_match_token_indices"], [0, 1, 2, 3, 4])
+        self.assertEqual(row["non_matchable_token_indices"], [])
+        self.assertEqual(row["counts"], {"equal": 5, "replace_stem": 0, "replace_synonym": 0, "inserted": 0})
+
+    def test_suffix_only_change_is_expected_to_match(self):
+        source = "u katta falsafasi haqida yozdi"
+        query = "u katta falsafalari haqida yozdi"
+        row = mms.token_level_ground_truth(query, source)
+        # Query tokens: u(0) katta(1) falsafalari(2) haqida(3) yozdi(4).
+        # Only index 2 is a "replace" (falsafasi -> falsafalari), and it
+        # shares a stem -- so ALL 5 query tokens are expected-match, none
+        # excluded, even though one of them came from a "replace" opcode.
+        self.assertEqual(row["expected_match_token_indices"], [0, 1, 2, 3, 4])
+        self.assertEqual(row["non_matchable_token_indices"], [])
+        self.assertEqual(row["counts"]["equal"], 4)
+        self.assertEqual(row["counts"]["replace_stem"], 1)
+
+    def test_synonym_substitution_is_excluded_from_ground_truth(self):
+        source = "u katta falsafasi haqida yozdi"
+        query = "u katta donishmandlik haqida yozdi"
+        row = mms.token_level_ground_truth(query, source)
+        # Query tokens: u(0) katta(1) donishmandlik(2) haqida(3) yozdi(4).
+        # Index 2 replaces "falsafasi" with a non-stem-sharing word -- no
+        # lexical/stemming matcher can legitimately find this, so it must be
+        # excluded from expected_match_token_indices and listed as
+        # non_matchable instead.
+        self.assertEqual(row["expected_match_token_indices"], [0, 1, 3, 4])
+        self.assertEqual(row["non_matchable_token_indices"], [2])
+        self.assertEqual(row["counts"]["replace_synonym"], 1)
+
+    def test_inserted_word_is_non_matchable_not_expected(self):
+        source = "katta shahar markazida bozor ochildi"
+        query = "katta shahar eski markazida bozor ochildi"
+        row = mms.token_level_ground_truth(query, source)
+        # Query tokens: katta(0) shahar(1) eski(2) markazida(3) bozor(4)
+        # ochildi(5). "eski" (index 2) has no source counterpart at all.
+        self.assertEqual(row["expected_match_token_indices"], [0, 1, 3, 4, 5])
+        self.assertEqual(row["non_matchable_token_indices"], [2])
+        self.assertEqual(row["counts"]["inserted"], 1)
+
+    def test_deleted_source_word_leaves_every_query_token_classified(self):
+        source = "katta shahar eski markazida bozor ochildi"
+        query = "katta shahar markazida bozor ochildi"
+        row = mms.token_level_ground_truth(query, source)
+        # The deletion ("eski") lives only on the source side -- it has no
+        # query token index, so it must not shrink or gap the query's own
+        # index range: every one of the 5 query tokens is still classified.
+        self.assertEqual(row["query_token_count"], 5)
+        self.assertEqual(row["expected_match_token_indices"], [0, 1, 2, 3, 4])
+        self.assertEqual(row["non_matchable_token_indices"], [])
+
+    def test_replace_block_mixes_stem_and_synonym_pairing(self):
+        # Padded to clear the tokenizer's 5-token minimum. difflib reports
+        # "eski qadimgi" (2 source words) / "eskirgan zamonaviy" (2 query
+        # words) as a single "replace" opcode of EQUAL length -- paired
+        # index-by-index: index0 "eski"/"eskirgan" shares a stem (prefix
+        # "eski"); index1 "qadimgi"/"zamonaviy" does not.
+        source = "eski qadimgi shahar katta bozor"
+        query = "eskirgan zamonaviy shahar katta bozor"
+        row = mms.token_level_ground_truth(query, source)
+        # Query tokens: eskirgan(0) zamonaviy(1) shahar(2) katta(3) bozor(4).
+        self.assertEqual(row["counts"], {"equal": 3, "replace_stem": 1, "replace_synonym": 1, "inserted": 0})
+        self.assertEqual(row["expected_match_token_indices"], [0, 2, 3, 4])
+        self.assertEqual(row["non_matchable_token_indices"], [1])
+
+    def test_every_index_classified_exactly_once(self):
+        # Invariant: expected + non_matchable must partition
+        # range(query_token_count) with no gaps or overlaps, for any input,
+        # since difflib's opcodes partition the query sequence completely.
+        cases = [
+            ("katta oq uy juda yaxshi", "katta oq uy juda yaxshi"),
+            ("u katta falsafalari haqida yozdi", "u katta falsafasi haqida yozdi"),
+            ("katta shahar eski markazida bozor ochildi", "katta shahar markazida bozor ochildi"),
+            ("katta shahar markazida bozor ochildi", "katta shahar eski markazida bozor ochildi"),
+        ]
+        for query, source in cases:
+            row = mms.token_level_ground_truth(query, source)
+            combined = sorted(row["expected_match_token_indices"] + row["non_matchable_token_indices"])
+            self.assertEqual(combined, list(range(row["query_token_count"])))
+
+
 if __name__ == "__main__":
     unittest.main()
