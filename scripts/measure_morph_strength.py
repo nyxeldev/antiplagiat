@@ -231,6 +231,107 @@ def measure(query_text, source_text):
     }
 
 
+def token_level_ground_truth(query_text, source_text):
+    """Per-query-token ground truth for whether a token COULD legitimately be
+    matched by a lexical/stemming matcher against source_text, derived from
+    the SAME difflib.SequenceMatcher alignment as measure() above -- but
+    classifying EVERY query token position (content word or not), not just
+    content words, since backend.comparison.matching.compare() shingles over
+    every token's value/stem, not only content words.
+
+    Why this exists (feature/morph-token-ground-truth): the benchmark's
+    manifest.json marks morphological/paraphrase queries' ground truth as
+    "__FULL_TEXT__" (the whole query document). That is the right convention
+    for precision_at_k-style retrieval metrics, but it makes token_prf1()'s
+    MATCHING-level precision mechanically 1.0 for these categories --
+    predicted_tokens is always a subset of "the whole document" -- regardless
+    of whether the matched tokens are actually correct. This function gives a
+    real, token-level ground truth for the morphological category instead
+    (it does NOT replace or remove "__FULL_TEXT__" in manifest.json; see
+    docs/benchmarks/uz-morph-v3-matching.md).
+
+    Each query token index falls into exactly one of:
+      - "equal"           -- byte-for-byte identical to its aligned source
+                              token; a real match is trivially expected.
+      - "replace_stem"    -- substituted for a different source token that
+                              shares_stem() with it (a suffix-only change);
+                              a stemmer that strips the right suffix SHOULD
+                              be able to match it.
+      - "replace_synonym" -- substituted for a source token that does NOT
+                              share a stem (a true synonym/different word,
+                              not a suffix change); no lexical/stemming
+                              matcher can legitimately find this, so it is
+                              EXCLUDED from ground truth.
+      - "inserted"        -- no source counterpart at all (only possible
+                              when the query is not a pure substitution, see
+                              pure_substitution above); excluded from ground
+                              truth for the same reason as "replace_synonym".
+    A source-side "delete" opcode has no query token index at all, so it
+    contributes to neither list.
+
+    Returns a dict:
+      - query_token_count: len(tokenize(query_text))
+      - expected_match_token_indices: sorted query token indices where a
+        correct lexical matcher COULD legitimately report a match ("equal"
+        + "replace_stem"). This is the real ground truth to use in place of
+        "the whole document" for morphological-category precision/recall.
+      - non_matchable_token_indices: sorted query token indices where ANY
+        match reported by the algorithm is necessarily a FALSE one
+        ("replace_synonym" + "inserted") -- not a suffix variant of the
+        source, so stemming cannot legitimately bridge it.
+      - counts: {"equal", "replace_stem", "replace_synonym", "inserted"} ->
+        token counts, for a quick sanity check against query_token_count.
+
+    Invariant (see TokenLevelGroundTruthTests.test_every_index_classified_exactly_once):
+    sorted(expected_match_token_indices + non_matchable_token_indices) ==
+    list(range(query_token_count)) -- every query token is classified exactly
+    once, since difflib's opcodes partition the query sequence with no gaps
+    or overlaps.
+    """
+    q_tokens = tokenize(query_text)
+    s_vals = [t["value"] for t in tokenize(source_text)]
+    q_vals = [t["value"] for t in q_tokens]
+
+    matcher = difflib.SequenceMatcher(a=s_vals, b=q_vals, autojunk=False)
+    expected = []
+    non_matchable = []
+    counts = {"equal": 0, "replace_stem": 0, "replace_synonym": 0, "inserted": 0}
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            expected.extend(range(j1, j2))
+            counts["equal"] += j2 - j1
+        elif tag == "replace":
+            src_slice = s_vals[i1:i2]
+            qry_slice = q_vals[j1:j2]
+            paired_len = min(len(src_slice), len(qry_slice))
+            for k in range(paired_len):
+                index = j1 + k
+                if shares_stem(src_slice[k], qry_slice[k]):
+                    expected.append(index)
+                    counts["replace_stem"] += 1
+                else:
+                    non_matchable.append(index)
+                    counts["replace_synonym"] += 1
+            if len(qry_slice) > paired_len:
+                non_matchable.extend(range(j1 + paired_len, j2))
+                counts["inserted"] += len(qry_slice) - paired_len
+            # Leftover on the source side (src longer than qry) is a
+            # deletion: no query token index exists for it, so nothing is
+            # recorded here -- consistent with the plain "delete" branch.
+        elif tag == "insert":
+            non_matchable.extend(range(j1, j2))
+            counts["inserted"] += j2 - j1
+        # "delete": source-only tokens, no query-side index to record.
+
+    return {
+        "query_token_count": len(q_tokens),
+        "expected_match_token_indices": sorted(expected),
+        "non_matchable_token_indices": sorted(non_matchable),
+        "counts": counts,
+    }
+
+
 def main():
     manifest = json.loads((BENCHMARK_DIR / "manifest.json").read_text(encoding="utf-8"))
     corpus_text = {
@@ -249,6 +350,7 @@ def main():
         query_text = (BENCHMARK_DIR / q["file"]).read_text(encoding="utf-8")
         source_text = corpus_text[q["expected_sources"][0]]
         row = measure(query_text, source_text)
+        row["token_ground_truth"] = token_level_ground_truth(query_text, source_text)
         results[q["id"]] = row
         ratio = row["suffix_changed_ratio"]
         ratio_str = f"{ratio:.0%}" if ratio is not None else "n/a"
