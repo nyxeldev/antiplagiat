@@ -37,13 +37,13 @@ export default function Comparison() {
     if (problem) setError(problem); else { resetResult(); setSources(next); }
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!document || !sources.length || inFlight.current) return;
+    event.preventDefault(); if (!document || (!sources.length && !includeCorpus) || inFlight.current) return;
     const validation = fileError([document, ...sources]); if (validation) { setError(validation); return; }
     inFlight.current = true; setBusy(true); setError(null); setReport(null); key.current ??= crypto.randomUUID();
     const data = new FormData(); data.append("document", document); sources.forEach(source => data.append("sources", source));
     try {
       const params = includeCorpus
-        ? `?include_corpus=true${morphAware ? "&normalization=v3" : ""}` : "";
+        ? `?include_corpus=true${morphAware ? "&normalization=v3-matching" : ""}` : "";
       const path = `/compare${params}`;
       const result = await api(path, { method: "POST", body: data, headers: { "Idempotency-Key": key.current }, signal: AbortSignal.timeout(100_000) });
       if (!result.saved || !result.report_id) throw new Error("Hisobot saqlanganligi tasdiqlanmadi.");
@@ -97,7 +97,7 @@ export default function Comparison() {
                 onChange={event => { setMorphAware(event.target.checked); resetResult(); }} />
               <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}><IconSparkle style={{ width: "1.05rem", height: "1.05rem" }} />O‘zbekcha qo‘shimchalarni hisobga olish (tajriba)</span>
             </label>
-            <p className={styles.muted}>Qoidaga asoslangan, lug‘atsiz usul bilan o‘zbekcha so‘z qo‘shimchalarini (masalan “-lar”, “-ning”, “-dan”) tanib, nomzod manbalarni shu holatni hisobga olib qidiradi. Faqat qaysi hujjatlar nomzod sifatida tanlanishiga ta’sir qiladi; mos parchani belgilash hamon o‘zgarmagan algoritmda.</p>
+            <p className={styles.muted}>Qoidaga asoslangan, lug‘atsiz usul bilan o‘zbekcha so‘z qo‘shimchalarini (masalan “-lar”, “-ning”, “-dan”) tanib, nomzod manbalarni HAM, mos parchani belgilashni HAM shu holatni hisobga olib bajaradi: masalan “kitoblarni” va “kitobni” endi mos deb belgilanishi mumkin. Ko‘rsatilgan foiz shu sabab alohida, tajriba xususiyatiga ega siyosat (lexical-shingle-v2) bilan hisoblanadi — standart (bu belgisiz) natijalar bilan solishtirilmaydi.</p>
           </Pop>
         </Card>
       </fieldset>
@@ -107,8 +107,13 @@ export default function Comparison() {
 
     <div style={{ marginTop: "var(--sp-8)" }}>
       <StepBadge step={3}>Tekshiruvni boshlash</StepBadge>
-      <Button type="submit" loading={busy} disabled={!document || !sources.length}>{busy ? "Solishtirilmoqda…" : "Solishtirish"}</Button>
-      <p role="status" className={styles.muted} style={{ marginTop: "var(--sp-3)" }}>{busy ? "Fayllar yuklanmoqda, solishtirilmoqda va hisobot saqlanmoqda…" : report ? "Hisobot shaxsiy tarixingizga saqlandi." : ""}</p>
+      <Button type="submit" loading={busy} disabled={!document || (!sources.length && !includeCorpus)}>{busy ? "Solishtirilmoqda…" : "Solishtirish"}</Button>
+      <p role="status" className={styles.muted} style={{ marginTop: "var(--sp-3)" }}>
+        {busy ? "Fayllar yuklanmoqda, solishtirilmoqda va hisobot saqlanmoqda…"
+          : report ? "Hisobot shaxsiy tarixingizga saqlandi."
+          : document && !sources.length && !includeCorpus ? "Solishtirish uchun kamida bitta manba fayl yuklang yoki ichki korpusni yoqing."
+          : ""}
+      </p>
       <Pop show={!!report}>
         {report && <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
           <Link href={`/reports/${report.report_id}`}>Saqlangan hisobotni ochish</Link>

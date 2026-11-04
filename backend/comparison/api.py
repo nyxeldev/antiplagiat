@@ -27,27 +27,40 @@ def with_corpus(folder, items, normalization="v2"):
     The parser stays in the sandboxed worker and the database stays in this
     process, so the worker never receives credentials.
 
-    normalization defaults to "v2" (unchanged candidate retrieval). "v3" is
-    opt-in -- a reader explicitly ticks the experimental checkbox in
-    comparison.tsx -- and asks corpus.candidates() to match through the
-    rule-based uz-latin-v3 suffix stripper instead (see
-    backend/comparison/uz_latin_v3.py and docs/benchmarks/uz-morph-v3*.md
-    for what it does and its measured, known limitations). Either way the
-    match itself is still decided by the same unchanged exact/shingle
-    algorithm on the untouched original text below.
+    normalization is one of three modes (docs/decisions.md Sect.5), chosen
+    by a reader explicitly ticking an experimental checkbox -- old requests
+    keep their exact old behaviour either way:
+      "v2"          -- unchanged candidate retrieval, unchanged matching.
+      "v3"          -- corpus.candidates() matches through the rule-based
+                       uz-latin-v3 suffix stripper instead; matching is
+                       still the unchanged exact/shingle algorithm. This is
+                       the pre-existing, unchanged "v3" behaviour.
+      "v3-matching" -- new. Retrieval is the same as "v3" above, AND the
+                       exact/shingle algorithm itself also matches through
+                       uz-latin-v3-stemmed keys (backend/comparison/matching.py,
+                       match_keys()/morph_key()), so a morphological variant
+                       can be found as a match. The highlighted span is
+                       always the full original word (offsets untouched);
+                       only which runs are FOUND can change.
+    See backend/comparison/uz_latin_v3.py and docs/benchmarks/uz-morph-v3*.md
+    for what the stripper does and its measured, known limitations.
     """
     extracted = run_worker(folder, {"mode": "extract", "items": items})["documents"]
     document, sources = extracted[0], extracted[1:]
     tokens = tokenize(document["text"])
-    kwargs = {"normalization": normalization}
-    if normalization == "v3":
+    retrieval_normalization = "v3" if normalization in ("v3", "v3-matching") else "v2"
+    kwargs = {"normalization": retrieval_normalization}
+    if retrieval_normalization == "v3":
         kwargs["text"] = document["text"]
     found, limit = corpus.candidates(tokens, **kwargs)
     loaded = [doc for doc in (corpus.load_for_comparison(c["id"]) for c in found) if doc]
     (folder / "prepared.json").write_text(
         json.dumps({"document": document, "sources": sources + loaded}, ensure_ascii=False),
         encoding="utf-8")
-    result = run_worker(folder, {"mode": "prepared"})
+    manifest = {"mode": "prepared"}
+    if normalization == "v3-matching":
+        manifest["matching_normalization"] = "uz-latin-v3"
+    result = run_worker(folder, manifest)
     result["corpus"] = {
         "included": True, "retrieval_policy": corpus.RETRIEVAL_POLICY,
         "fts_configuration": corpus.FTS_CONFIGURATION, "candidate_limit": limit,
@@ -61,7 +74,13 @@ def with_corpus(folder, items, normalization="v2"):
     ] + ([
         "Normalizatsiya: uz-latin-v3 (tajriba, qoidaga asoslangan qo‘shimcha-tanish). Faqat nomzod "
         "tanlashga ta’sir qiladi; moslikni belgilash hamon o‘zgarmagan exact/shingle algoritmida.",
-    ] if normalization == "v3" else []) + result.get("limitations", [])
+    ] if normalization == "v3" else []) + ([
+        "Normalizatsiya: uz-latin-v3 + matching (tajriba, qoidaga asoslangan qo‘shimcha-tanish). Nomzod "
+        "tanlashga HAM, moslikni belgilashga HAM ta’sir qiladi: morfologik variant (masalan "
+        "“kitoblarni”/“kitobni”) endi mos deb belgilanishi mumkin. Highlight hamon ORIGINAL "
+        "to‘liq so‘zni (qo‘shimchasi bilan) qamraydi; faqat qaysi so‘zlar mos deb topilishi o‘zgaradi. "
+        "Ushbu rejim yolg‘on musbatlar bo‘yicha o‘lchangan, ammo hamon tajriba xususiyatga ega.",
+    ] if normalization == "v3-matching" else []) + result.get("limitations", [])
     return corpus.redact(result)
 
 
@@ -73,8 +92,8 @@ async def compare_uploads(request: Request, include_corpus: bool = False, normal
     if not gate.acquire(blocking=False):
         return JSONResponse(ComparisonError("busy", "Boshqa tekshiruv davom etmoqda. Birozdan so‘ng qayta urinib ko‘ring.", 429).payload(), 429, headers=headers)
     try:
-        if normalization not in ("v2", "v3"):
-            raise ComparisonError("normalization_invalid", "normalization faqat 'v2' yoki 'v3' bo‘lishi mumkin.", 400)
+        if normalization not in ("v2", "v3", "v3-matching"):
+            raise ComparisonError("normalization_invalid", "normalization faqat 'v2', 'v3' yoki 'v3-matching' bo‘lishi mumkin.", 400)
         length = request.headers.get("content-length")
         if length and (not length.isdecimal() or int(length) > MAX_BODY_BYTES):
             raise ComparisonError("total_limit", "Yuklash hajmi chegaradan oshdi.", 413)
@@ -92,6 +111,8 @@ async def compare_uploads(request: Request, include_corpus: bool = False, normal
                 raise ComparisonError("upload_format", "Yuklash formati buzilgan.", 400) from None
             finally:
                 upload.close()
+            if len(items) < 2 and not include_corpus:
+                raise ComparisonError("no_sources", "Kamida bitta manba fayl yuklang yoki ichki korpusni yoqing.", 400)
             digest = await run_in_threadpool(reports.fingerprint, folder, items)
             if include_corpus:
                 # A corpus run is a different request even with identical files;

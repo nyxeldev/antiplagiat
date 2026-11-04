@@ -147,6 +147,63 @@ class MatchingTests(unittest.TestCase):
                              matching.compare(document(text), [document(text)])["limitations"])
 
 
+    def test_matching_normalization_defaults_to_v2_unchanged(self):
+        result = matching.compare(document(TEXT), [document(TEXT)])
+        self.assertEqual(result["parameters"]["algorithm_version"], "lexical-shingle-v1")
+        self.assertEqual(result["parameters"]["normalization_version"], "uz-latin-v2")
+
+    def test_matching_normalization_rejects_unknown_value(self):
+        with self.assertRaises(ValueError):
+            matching.compare(document(TEXT), [document(TEXT)], matching_normalization="uz-latin-v4")
+
+    def test_v3_matching_finds_morphological_variants_v2_misses(self):
+        # Every word differs in suffix only (docs/decisions.md §5): v2 compares
+        # the exact casefolded surface form, so no 5-token shingle window can
+        # ever be equal and the run is invisible to it. v3-matching compares
+        # uz_latin_v3-stemmed keys instead, so the same six words -- sharing a
+        # stem pairwise -- form one contiguous run.
+        doc_words = ["kitoblarni", "talabalarga", "maktablarda",
+                    "universitetlarning", "mashqlarini", "darslarimizda"]
+        src_words = ["kitoblardan", "talabalardan", "maktablardan",
+                    "universitetlardan", "mashqlaridan", "darslarimizdan"]
+        doc_text, src_text = " ".join(doc_words), " ".join(src_words)
+
+        baseline = matching.compare(document(doc_text), [document(src_text)])
+        self.assertEqual(baseline["matched_tokens"], 0)
+
+        result = matching.compare(document(doc_text), [document(src_text)],
+                                  matching_normalization="uz-latin-v3")
+        self.assertEqual(result["matched_tokens"], 6)
+        self.assertEqual(result["coverage_percent"], 100.0)
+        self.assertEqual(result["parameters"]["algorithm_version"], "lexical-shingle-v2")
+        self.assertEqual(result["parameters"]["normalization_version"], "uz-latin-v3")
+        match = result["sources"][0]["matches"][0]
+        self.assertEqual(match["method"], "shingle")
+        # Offset guarantee: the highlighted span is the FULL original word
+        # (with its suffix), never the shortened stem used only to find it.
+        self.assertEqual(match["document"]["text"], doc_text)
+        self.assertEqual(match["source"]["text"], src_text)
+        for word in doc_words:
+            self.assertIn(word, match["document"]["text"])
+        for word in src_words:
+            self.assertIn(word, match["source"]["text"])
+        for role, original in [("document", doc_text), ("source", src_text)]:
+            span = match[role]
+            self.assertEqual(original[span["start"]:span["end"]], span["text"])
+
+    def test_v3_matching_does_not_merge_unrelated_words_into_one_stem(self):
+        # Collision-safety words already proven distinct in
+        # test_uz_latin_v3.py's own collision tests, reused here at the
+        # matching stage: a shared stem must not appear by accident among
+        # otherwise unrelated five-token runs.
+        unrelated_doc = " ".join(["bitiruvchilar", "osmonlarda", "chorrahalarda",
+                                  "ko'chalarimizda", "qishloqlarimizga"])
+        unrelated_src = " ".join(["non", "suv", "olma", "uzum", "anor"])
+        result = matching.compare(document(unrelated_doc), [document(unrelated_src)],
+                                  matching_normalization="uz-latin-v3")
+        self.assertEqual(result["matched_tokens"], 0)
+
+
 class ExtractionTests(unittest.TestCase):
     def parse(self, data, name):
         with tempfile.TemporaryDirectory() as folder:
@@ -247,13 +304,21 @@ class UploadTests(unittest.TestCase):
         result = self.parse([("sources", "source.txt", TEXT.encode()), ("document", "../../target.txt", TEXT.encode())])
         self.assertEqual(result[0]["name"], "target.txt")
         self.assertEqual(result[0]["path"], "upload-1")
-        for files in [[("document", "a.txt", b"x")], [("sources", "a.txt", b"x")] * 6,
+        for files in [[("sources", "a.txt", b"x")] * 6,
                       [("document", "a.txt", b"x")] * 2 + [("sources", "b.txt", b"x")],
                       [("document", "a.txt", b"x")] + [("sources", "b.txt", b"x")] * 6]:
             with self.assertRaises(ComparisonError):
                 self.parse(files)
         with self.assertRaises(ComparisonError):
             self.parse([("document", "a.txt", b"x"), ("sources", "b.txt", b"x")], truncate=True)
+
+    def test_document_without_manual_sources_is_allowed_by_the_parser(self):
+        # Whether a source is required at all (manual or corpus) is enforced by the
+        # caller (api.compare_uploads), which knows include_corpus; the raw upload
+        # parser only bounds the count (0-5), it does not require at least one.
+        result = self.parse([("document", "a.txt", b"x")])
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["role"], "document")
 
     def test_actual_file_and_total_boundaries(self):
         for size, fail in [(MAX_FILE_BYTES, False), (MAX_FILE_BYTES + 1, True)]:
@@ -303,6 +368,14 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             response = await self.request(body[:-10], content_type)
             self.assertEqual(response.status_code, 400)
         self.assertTrue(all(not Path(path).exists() for path in seen))
+        self.assertFalse(api.gate.locked())
+
+    async def test_neither_manual_sources_nor_corpus_is_rejected_before_any_work(self):
+        body, content_type = multipart([("document", "a.txt", TEXT.encode())])
+        with patch.object(api, "run_worker") as worker:
+            response = await self.request(body, content_type)
+            self.assertEqual(response.status_code, 400)
+            self.assertFalse(worker.called)
         self.assertFalse(api.gate.locked())
 
     def setUp(self):
