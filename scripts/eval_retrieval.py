@@ -59,6 +59,13 @@ CONFIGS = [
     # other three already-measured axes.
     {"name": "ablation_uz_latin_v3", "operator": "OR", "chunk_tokens": 40, "overlap_tokens": 20, "limit": 5,
      "normalization": "v3"},
+    # docs/decisions.md §5, three-mode comparison: identical to
+    # ablation_uz_latin_v3 above (retrieval-only) except the matching stage
+    # ALSO compares uz-latin-v3-stemmed keys (backend/comparison/matching.py,
+    # compare(matching_normalization=...)), so this isolates matching's own
+    # effect on recall/precision/FP, separate from retrieval's.
+    {"name": "ablation_uz_latin_v3_matching", "operator": "OR", "chunk_tokens": 40, "overlap_tokens": 20, "limit": 5,
+     "normalization": "v3", "matching_normalization": "uz-latin-v3"},
 ]
 
 
@@ -128,7 +135,8 @@ def run_config(manifest, admin_user_id, cfg, id_map):
         sources = [flat_doc(cid, corpus_by_id[cid]["_text"]) for cid in ranked_ids]
         t0 = time.perf_counter()
         if sources:
-            result = compare(flat_doc(q["id"], qtext), sources)
+            result = compare(flat_doc(q["id"], qtext), sources,
+                             matching_normalization=cfg.get("matching_normalization", "uz-latin-v2"))
             predicted_spans = [(m["document"]["start"], m["document"]["end"])
                                for source in result["sources"] for m in source["matches"]]
         else:

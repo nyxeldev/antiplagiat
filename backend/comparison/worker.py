@@ -28,7 +28,9 @@ def main(directory):
                 # Corpus runs: the parent already holds extracted text and adds
                 # retrieved corpus sources, so nothing is parsed a second time.
                 prepared = json.loads((folder / "prepared.json").read_text(encoding="utf-8"))
-                result = compare(prepared["document"], prepared["sources"])
+                matching_normalization = manifest.get("matching_normalization", "uz-latin-v2")
+                result = compare(prepared["document"], prepared["sources"],
+                                 matching_normalization=matching_normalization)
             else:
                 documents = [extract(folder / item["path"], item["name"]) for item in items]
                 result = ({"status": "extracted", "documents": documents} if mode == "extract"

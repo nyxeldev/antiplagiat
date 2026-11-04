@@ -3,12 +3,22 @@ import re
 import unicodedata
 from collections import defaultdict
 
+from . import uz_latin_v3
 from .policy import ComparisonError, MAX_MATCHES, MAX_OPERATIONS, MAX_TOKENS, SHINGLE_SIZE
 
 APOSTROPHES = str.maketrans({c: "'" for c in "‘’ʻʼʹ`´＇"})
 TOKEN = re.compile(r"[^\W_]+(?:'[^\W_]+)*", re.UNICODE)
 INVISIBLE_RUN = re.compile(r"[\u200b\u00ad\u200c\ufeff]+")
 NORMALIZATION_VERSION = "uz-latin-v2"
+# Opt-in matching-stage normalization (docs/decisions.md Sect.5): the shingle
+# algorithm compares uz-latin-v3-stemmed keys instead of raw casefolded token
+# values, so morphological variants (e.g. "kitoblarni"/"kitobni") can match.
+# span()/the highlighted text are untouched either way -- they always cover
+# the full original token, never a stem -- so this only ever widens which
+# runs are FOUND, never what a found run highlights.
+NORMALIZATION_VERSION_V3_MATCHING = "uz-latin-v3"
+ALGORITHM_VERSION = "lexical-shingle-v1"
+ALGORITHM_VERSION_V3_MATCHING = "lexical-shingle-v2"
 INVISIBLE_WARNING = "Lotin harflari orasidagi ko‘rinmas belgilar solishtirishda normallashtirildi; original matn saqlandi. ZWSP haqiqiy so‘z chegarasi ham bo‘lishi mumkin."
 ARABIC_WARNING = "Arab harakatlari bo‘yicha tokenizatsiya hali ishonchli emas; moslik va umumiy ko‘rsatkich ehtiyotkor talqin qilinishi kerak."
 
@@ -59,8 +69,29 @@ def span(document, tokens, start, end):
             "location": {"kind": places[0]["kind"], "from": places[0]["number"], "to": places[-1]["number"]}}
 
 
-def runs(target, source):
-    a, b = [t["value"] for t in target], [t["value"] for t in source]
+def morph_key(text, token):
+    """uz-latin-v3-stemmed shingle key for one token, or its plain value.
+
+    Needs the ORIGINAL (not yet casefolded) substring: uz_latin_v3.stem()'s
+    foreign-word/proper-noun guard reads the leading letter's case, which
+    token["value"] has already discarded via tokenize()'s casefold -- the
+    same asymmetry corpus.query_windows() works around for retrieval (see
+    its docstring), needed again here for the same reason.
+    """
+    raw = text[token["start"]:token["end"]]
+    stemmed = uz_latin_v3.stem(raw)
+    if stemmed == raw:
+        return token["value"]
+    return unicodedata.normalize("NFKC", stemmed).translate(APOSTROPHES).casefold()
+
+
+def match_keys(doc, tokens, matching_normalization):
+    if matching_normalization == NORMALIZATION_VERSION_V3_MATCHING:
+        return [morph_key(doc["text"], t) for t in tokens]
+    return [t["value"] for t in tokens]
+
+
+def runs(a, b):
     if a == b:
         return [(0, 0, len(a))]
     index = defaultdict(list)
@@ -88,7 +119,9 @@ def runs(target, source):
     return found
 
 
-def compare(document, sources):
+def compare(document, sources, matching_normalization=NORMALIZATION_VERSION):
+    if matching_normalization not in (NORMALIZATION_VERSION, NORMALIZATION_VERSION_V3_MATCHING):
+        raise ValueError("matching_normalization must be 'uz-latin-v2' or 'uz-latin-v3'")
     all_docs = [document, *sources]
     warnings = []
     if any(ignored_invisibles(doc["text"]) for doc in all_docs):
@@ -102,11 +135,12 @@ def compare(document, sources):
         except ComparisonError as error:
             error.file = doc["name"]
             raise
+    keys = [match_keys(doc, doc_tokens, matching_normalization) for doc, doc_tokens in zip(all_docs, tokens)]
     covered = set()
     results = []
-    for number, (source, source_tokens) in enumerate(zip(sources, tokens[1:]), 1):
+    for number, (source, source_tokens, source_keys) in enumerate(zip(sources, tokens[1:], keys[1:]), 1):
         local, matches = set(), []
-        for i, j, length in runs(tokens[0], source_tokens):
+        for i, j, length in runs(keys[0], source_keys):
             left = span(document, tokens[0], i, i + length)
             right = span(source, source_tokens, j, j + length)
             matches.append({"method": "exact" if left["text"] == right["text"] else "shingle",
@@ -116,13 +150,15 @@ def compare(document, sources):
         results.append({**source, "id": str(number), "token_count": len(source_tokens),
                         "coverage_percent": round(100 * len(local) / len(tokens[0]), 2),
                         "matched_tokens": len(local), "matches": matches})
+    algorithm_version = (ALGORITHM_VERSION if matching_normalization == NORMALIZATION_VERSION
+                        else ALGORITHM_VERSION_V3_MATCHING)
     return {"status": "completed", "coverage_percent": round(100 * len(covered) / len(tokens[0]), 2),
             "matched_tokens": len(covered), "token_count": len(tokens[0]),
             "document": document, "sources": results,
             "parameters": {"shingle_size": SHINGLE_SIZE, "minimum_match_tokens": SHINGLE_SIZE,
-                           "algorithm_version": "lexical-shingle-v1",
+                           "algorithm_version": algorithm_version,
                            "normalization": "NFKC + casefold + apostrophe folding + Latin-internal U+200B/U+00AD/U+200C/U+FEFF runs",
-                           "normalization_version": NORMALIZATION_VERSION,
+                           "normalization_version": matching_normalization,
                            "offset_unit": "Unicode code points; zero-based, end-exclusive"},
             "limitations": warnings + [
                 "O‘xshashlik plagiatning avtomatik isboti emas.",

@@ -147,6 +147,63 @@ class MatchingTests(unittest.TestCase):
                              matching.compare(document(text), [document(text)])["limitations"])
 
 
+    def test_matching_normalization_defaults_to_v2_unchanged(self):
+        result = matching.compare(document(TEXT), [document(TEXT)])
+        self.assertEqual(result["parameters"]["algorithm_version"], "lexical-shingle-v1")
+        self.assertEqual(result["parameters"]["normalization_version"], "uz-latin-v2")
+
+    def test_matching_normalization_rejects_unknown_value(self):
+        with self.assertRaises(ValueError):
+            matching.compare(document(TEXT), [document(TEXT)], matching_normalization="uz-latin-v4")
+
+    def test_v3_matching_finds_morphological_variants_v2_misses(self):
+        # Every word differs in suffix only (docs/decisions.md §5): v2 compares
+        # the exact casefolded surface form, so no 5-token shingle window can
+        # ever be equal and the run is invisible to it. v3-matching compares
+        # uz_latin_v3-stemmed keys instead, so the same six words -- sharing a
+        # stem pairwise -- form one contiguous run.
+        doc_words = ["kitoblarni", "talabalarga", "maktablarda",
+                    "universitetlarning", "mashqlarini", "darslarimizda"]
+        src_words = ["kitoblardan", "talabalardan", "maktablardan",
+                    "universitetlardan", "mashqlaridan", "darslarimizdan"]
+        doc_text, src_text = " ".join(doc_words), " ".join(src_words)
+
+        baseline = matching.compare(document(doc_text), [document(src_text)])
+        self.assertEqual(baseline["matched_tokens"], 0)
+
+        result = matching.compare(document(doc_text), [document(src_text)],
+                                  matching_normalization="uz-latin-v3")
+        self.assertEqual(result["matched_tokens"], 6)
+        self.assertEqual(result["coverage_percent"], 100.0)
+        self.assertEqual(result["parameters"]["algorithm_version"], "lexical-shingle-v2")
+        self.assertEqual(result["parameters"]["normalization_version"], "uz-latin-v3")
+        match = result["sources"][0]["matches"][0]
+        self.assertEqual(match["method"], "shingle")
+        # Offset guarantee: the highlighted span is the FULL original word
+        # (with its suffix), never the shortened stem used only to find it.
+        self.assertEqual(match["document"]["text"], doc_text)
+        self.assertEqual(match["source"]["text"], src_text)
+        for word in doc_words:
+            self.assertIn(word, match["document"]["text"])
+        for word in src_words:
+            self.assertIn(word, match["source"]["text"])
+        for role, original in [("document", doc_text), ("source", src_text)]:
+            span = match[role]
+            self.assertEqual(original[span["start"]:span["end"]], span["text"])
+
+    def test_v3_matching_does_not_merge_unrelated_words_into_one_stem(self):
+        # Collision-safety words already proven distinct in
+        # test_uz_latin_v3.py's own collision tests, reused here at the
+        # matching stage: a shared stem must not appear by accident among
+        # otherwise unrelated five-token runs.
+        unrelated_doc = " ".join(["bitiruvchilar", "osmonlarda", "chorrahalarda",
+                                  "ko'chalarimizda", "qishloqlarimizga"])
+        unrelated_src = " ".join(["non", "suv", "olma", "uzum", "anor"])
+        result = matching.compare(document(unrelated_doc), [document(unrelated_src)],
+                                  matching_normalization="uz-latin-v3")
+        self.assertEqual(result["matched_tokens"], 0)
+
+
 class ExtractionTests(unittest.TestCase):
     def parse(self, data, name):
         with tempfile.TemporaryDirectory() as folder:
