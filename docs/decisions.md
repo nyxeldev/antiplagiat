@@ -94,6 +94,16 @@ FATAL: could not create lock file "/var/run/postgresql/.s.PGSQL.<port>.lock": Pe
 
 **Tuzatish:** `pg_ctl start`ga `-o` orqali `unix_socket_directories=""` uzatildi — postgres Unix socket yaratishga umuman urinmaydi. Haqiqiy CI yurgizishda tasdiqlandi: barcha 43 ta integratsiya testi `continue-on-error`siz chinakamiga o'tadi (11.2 soniya). `continue-on-error` workflow faylidan olib tashlandi — endi bu testlar PR'ni backend job'ining qolgan qismi kabi haqiqatan himoya qiladi.
 
+## 9. `MIN_WORD_LEN_TO_STRIP` — eski ablatsiya tavsiyasi qayta ko'rib chiqildi (qiymat hamon 7)
+
+**Eski asos (2026-10-18, [docs/benchmarks/uz-morph-v3-d2-ablation.md](benchmarks/uz-morph-v3-d2-ablation.md)):** 7/6/5 qiymatlari retrieval darajasida (fts_v3, barcha besh qatlamda/to'rt metrikada) **bit-baytiga bir xil** natija berdi — 7dan pastga tushishning o'lchangan foydasi NOL edi, lekin chet so'zlarni (en/ru) noto'g'ri qirqish soni monoton oshdi (11→13→14). Shu sababli **7da qoldirish** tavsiya qilindi va qiymat o'zgartirilmadi.
+
+**YANGILANGAN ASOS (2026-11-04, [uz-morph-v3-matching.md §9](benchmarks/uz-morph-v3-matching.md)):** eski ablatsiya ikki bo'shliqqa ega edi — morfologik precision o'shanda `__FULL_TEXT__` ta'rifi bilan tautologik 1.0 edi (haqiqiy emas), va matching hamon `uz-latin-v2`da edi (`retrieval+matching` rejimi hali yo'q edi), demak chegara matching darajasida UMUMAN sinalmagan edi. `scripts/measure_strip_threshold_ablation.py` bu ikkisini to'ldirib qayta o'lchadi: `retrieval+matching` rejimida, §4'dagi HAQIQIY token-darajasidagi ground truth bilan, 7/6/5 uchun morfologik recall **monoton o'sadi** (0.7561 → 0.7883 → 0.8015), precision/FP narxisiz (ortiqcha belgilangan tokenlar va hard_negative+unrelated yolg'on musbatlar — bu safar HAQIQIY retrieval+matching orqali sinalgan — uchta qiymatda ham 0). Chet so'z noto'g'ri qirqilishi hamon monoton o'sadi (3→5→6 noyob so'z), lekin kichik.
+
+**Yangi tavsiya: 6** (marginal foyda-narx nisbati 7→6'da 6→5'dan yaxshi: 0.0161 vs 0.0132 recall/xato-so'z — batafsil uz-morph-v3-matching.md §9). **Qiymat hamon O'ZGARTIRILMAGAN** — `backend/comparison/uz_latin_v3.py`dagi `MIN_WORD_LEN_TO_STRIP = 7` qoladi; bu faqat yangilangan tavsiya, amalga oshirish alohida qaror.
+
+`MIN_STEM_LEN` (4 belgi) bu ablatsiyaga kiritilmadi — uning o'z o'lchovi hali qilinmagan.
+
 ---
 
 *Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`).*

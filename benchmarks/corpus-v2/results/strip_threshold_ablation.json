@@ -1,0 +1,2176 @@
+{
+  "7": {
+    "foreign_overstrip": {
+      "occurrences": 9,
+      "unique_words": 3,
+      "examples": [
+        "threatening->threate",
+        "planning->plan",
+        "learning->lear"
+      ]
+    },
+    "positive_categories": {
+      "paraphrase": [
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "en_paraphrase",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "en_paraphrase_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.05309734513274336,
+          "f1": 0.10084033613445377,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 6,
+          "query_id": "en_paraphrase_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.04,
+          "f1": 0.07692307692307693,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 5,
+          "query_id": "en_paraphrase_4",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "ru_paraphrase",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.06521739130434782,
+          "f1": 0.12244897959183672,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 6,
+          "query_id": "ru_paraphrase_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "ru_paraphrase_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "ru_paraphrase_4",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_adabiyot",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_kimyo",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_pedagogika",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_tarix",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "partial": [
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 55,
+          "query_id": "en_partial",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 58,
+          "query_id": "en_partial_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 76,
+          "query_id": "en_partial_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 31,
+          "query_id": "ru_partial",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 42,
+          "query_id": "ru_partial_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 28,
+          "query_id": "uz_partial",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 46,
+          "query_id": "uz_partial_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 58,
+          "query_id": "uz_partial_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "quoted": [
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 15,
+          "query_id": "en_quoted",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 29,
+          "query_id": "en_quoted_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 14,
+          "query_id": "ru_quoted",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 21,
+          "query_id": "ru_quoted_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 10,
+          "query_id": "uz_quoted",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 15,
+          "query_id": "uz_quoted_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "verbatim": [
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 92,
+          "query_id": "en_verbatim",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 110,
+          "query_id": "en_verbatim_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 110,
+          "query_id": "en_verbatim_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 79,
+          "query_id": "ru_verbatim",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 97,
+          "query_id": "ru_verbatim_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 90,
+          "query_id": "ru_verbatim_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 91,
+          "query_id": "uz_verbatim",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 161,
+          "query_id": "uz_verbatim_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 102,
+          "query_id": "uz_verbatim_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "morphological": [
+        {
+          "precision": 1.0,
+          "recall": 0.3048780487804878,
+          "f1": 0.4672897196261682,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 25,
+          "query_id": "uz_morph_adabiyot",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.635036496350365,
+          "f1": 0.7767857142857143,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 174,
+          "query_id": "uz_morph_adabiyot_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.7360594795539034,
+          "f1": 0.84796573875803,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 198,
+          "query_id": "uz_morph_biologiya_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8072289156626506,
+          "f1": 0.8933333333333333,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 201,
+          "query_id": "uz_morph_biologiya_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9076923076923077,
+          "f1": 0.9516129032258065,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 236,
+          "query_id": "uz_morph_ekologiya_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8713235294117647,
+          "f1": 0.9312377210216111,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 237,
+          "query_id": "uz_morph_ekologiya_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8316498316498316,
+          "f1": 0.9080882352941176,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 247,
+          "query_id": "uz_morph_falsafa",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8566037735849057,
+          "f1": 0.9227642276422764,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 227,
+          "query_id": "uz_morph_iqtisodiyot_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9407407407407408,
+          "f1": 0.9694656488549619,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 254,
+          "query_id": "uz_morph_kimyo",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.5,
+          "f1": 0.6666666666666666,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 39,
+          "query_id": "uz_morph_pedagogika",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.7673469387755102,
+          "f1": 0.8683602771362587,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 188,
+          "query_id": "uz_morph_pedagogika_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.905511811023622,
+          "f1": 0.9504132231404958,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 230,
+          "query_id": "uz_morph_pedagogika_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.4659090909090909,
+          "f1": 0.6356589147286822,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 41,
+          "query_id": "uz_morph_tarix",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8631921824104235,
+          "f1": 0.9265734265734267,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 265,
+          "query_id": "uz_morph_tarix_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9484536082474226,
+          "f1": 0.9735449735449735,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 276,
+          "query_id": "uz_morph_tarix_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ]
+    },
+    "negative_categories": [
+      {
+        "query_id": "en_hard_negative",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "en_ecology_2",
+          "en_physics",
+          "en_biology_2",
+          "en_literature_2",
+          "en_philosophy"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_hard_negative_2",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "en_history_2",
+          "en_literature_2",
+          "en_physics",
+          "en_philosophy",
+          "en_ecology_2"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_hard_negative_3",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "en_history_2",
+          "en_ecology_2",
+          "en_economics_2",
+          "en_literature_2",
+          "en_physics"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_unrelated",
+        "category": "unrelated",
+        "ranked_ids": [
+          "en_physics",
+          "en_ecology_2",
+          "en_philosophy",
+          "en_literature_2",
+          "en_history_2"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_unrelated_2",
+        "category": "unrelated",
+        "ranked_ids": [
+          "en_biology_2",
+          "en_physics",
+          "en_literature_2",
+          "en_history_2",
+          "en_philosophy"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_hard_negative",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "ru_pravo",
+          "ru_literatura_2",
+          "ru_biologiya_2",
+          "ru_geografiya",
+          "ru_filosofiya"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_hard_negative_2",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "ru_ekologiya_2",
+          "ru_literatura_2",
+          "ru_geografiya",
+          "ru_matematika",
+          "ru_pravo"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_unrelated",
+        "category": "unrelated",
+        "ranked_ids": [
+          "ru_literatura_2",
+          "ru_biologiya_2",
+          "ru_geografiya",
+          "ru_istoriya_2",
+          "ru_pravo"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_unrelated_2",
+        "category": "unrelated",
+        "ranked_ids": [
+          "ru_geografiya",
+          "ru_khimiya",
+          "ru_literatura_2",
+          "ru_ekologiya_2",
+          "ru_matematika"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_hard_negative",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "uz_pedagogika_2",
+          "uz_pedagogika_3",
+          "uz_musiqa",
+          "uz_adabiyot_2",
+          "uz_biologiya_3"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_hard_negative_2",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "uz_sport",
+          "uz_adabiyot_3",
+          "uz_arxitektura",
+          "uz_musiqa",
+          "uz_tarix_2"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_hard_negative_3",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "uz_ekologiya_3",
+          "uz_pedagogika_2",
+          "uz_sport",
+          "uz_pedagogika_3",
+          "uz_geografiya"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_unrelated",
+        "category": "unrelated",
+        "ranked_ids": [
+          "uz_tarix_2",
+          "uz_iqtisodiyot_2",
+          "uz_sport",
+          "uz_tarix_3",
+          "uz_ekologiya_3"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_unrelated_2",
+        "category": "unrelated",
+        "ranked_ids": [
+          "uz_musiqa",
+          "uz_arxitektura",
+          "uz_pedagogika_2",
+          "uz_kimyo",
+          "uz_pedagogika_3"
+        ],
+        "false_positive_tokens": 0
+      }
+    ]
+  },
+  "6": {
+    "foreign_overstrip": {
+      "occurrences": 11,
+      "unique_words": 5,
+      "examples": [
+        "threatening->threate",
+        "planning->plan",
+        "learning->lear",
+        "similar->simi",
+        "popular->popu"
+      ]
+    },
+    "positive_categories": {
+      "paraphrase": [
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "en_paraphrase",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "en_paraphrase_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.05309734513274336,
+          "f1": 0.10084033613445377,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 6,
+          "query_id": "en_paraphrase_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.04,
+          "f1": 0.07692307692307693,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 5,
+          "query_id": "en_paraphrase_4",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "ru_paraphrase",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.06521739130434782,
+          "f1": 0.12244897959183672,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 6,
+          "query_id": "ru_paraphrase_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "ru_paraphrase_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "ru_paraphrase_4",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_adabiyot",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_kimyo",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_pedagogika",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_tarix",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "partial": [
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 55,
+          "query_id": "en_partial",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 58,
+          "query_id": "en_partial_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 76,
+          "query_id": "en_partial_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 31,
+          "query_id": "ru_partial",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 42,
+          "query_id": "ru_partial_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 28,
+          "query_id": "uz_partial",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 46,
+          "query_id": "uz_partial_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 58,
+          "query_id": "uz_partial_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "quoted": [
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 15,
+          "query_id": "en_quoted",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 29,
+          "query_id": "en_quoted_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 14,
+          "query_id": "ru_quoted",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 21,
+          "query_id": "ru_quoted_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 10,
+          "query_id": "uz_quoted",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 15,
+          "query_id": "uz_quoted_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "verbatim": [
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 92,
+          "query_id": "en_verbatim",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 110,
+          "query_id": "en_verbatim_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 110,
+          "query_id": "en_verbatim_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 79,
+          "query_id": "ru_verbatim",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 97,
+          "query_id": "ru_verbatim_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 90,
+          "query_id": "ru_verbatim_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 91,
+          "query_id": "uz_verbatim",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 161,
+          "query_id": "uz_verbatim_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 102,
+          "query_id": "uz_verbatim_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "morphological": [
+        {
+          "precision": 1.0,
+          "recall": 0.3048780487804878,
+          "f1": 0.4672897196261682,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 25,
+          "query_id": "uz_morph_adabiyot",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.7299270072992701,
+          "f1": 0.8438818565400844,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 200,
+          "query_id": "uz_morph_adabiyot_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.758364312267658,
+          "f1": 0.8625792811839323,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 204,
+          "query_id": "uz_morph_biologiya_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8273092369477911,
+          "f1": 0.9054945054945054,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 206,
+          "query_id": "uz_morph_biologiya_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9153846153846154,
+          "f1": 0.9558232931726908,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 238,
+          "query_id": "uz_morph_ekologiya_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8786764705882353,
+          "f1": 0.9354207436399217,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 239,
+          "query_id": "uz_morph_ekologiya_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.835016835016835,
+          "f1": 0.910091743119266,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 248,
+          "query_id": "uz_morph_falsafa",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8603773584905661,
+          "f1": 0.9249492900608519,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 228,
+          "query_id": "uz_morph_iqtisodiyot_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9407407407407408,
+          "f1": 0.9694656488549619,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 254,
+          "query_id": "uz_morph_kimyo",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.6794871794871795,
+          "f1": 0.8091603053435115,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 53,
+          "query_id": "uz_morph_pedagogika",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8244897959183674,
+          "f1": 0.9038031319910514,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 202,
+          "query_id": "uz_morph_pedagogika_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9094488188976378,
+          "f1": 0.9525773195876288,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 231,
+          "query_id": "uz_morph_pedagogika_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.5227272727272727,
+          "f1": 0.6865671641791045,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 46,
+          "query_id": "uz_morph_tarix",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8859934853420195,
+          "f1": 0.9395509499136442,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 272,
+          "query_id": "uz_morph_tarix_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9518900343642611,
+          "f1": 0.9753521126760563,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 277,
+          "query_id": "uz_morph_tarix_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ]
+    },
+    "negative_categories": [
+      {
+        "query_id": "en_hard_negative",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "en_ecology_2",
+          "en_physics",
+          "en_biology_2",
+          "en_literature_2",
+          "en_philosophy"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_hard_negative_2",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "en_history_2",
+          "en_literature_2",
+          "en_physics",
+          "en_philosophy",
+          "en_ecology_2"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_hard_negative_3",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "en_history_2",
+          "en_ecology_2",
+          "en_economics_2",
+          "en_literature_2",
+          "en_physics"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_unrelated",
+        "category": "unrelated",
+        "ranked_ids": [
+          "en_physics",
+          "en_ecology_2",
+          "en_philosophy",
+          "en_literature_2",
+          "en_history_2"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_unrelated_2",
+        "category": "unrelated",
+        "ranked_ids": [
+          "en_biology_2",
+          "en_physics",
+          "en_literature_2",
+          "en_history_2",
+          "en_philosophy"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_hard_negative",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "ru_pravo",
+          "ru_literatura_2",
+          "ru_biologiya_2",
+          "ru_geografiya",
+          "ru_filosofiya"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_hard_negative_2",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "ru_ekologiya_2",
+          "ru_literatura_2",
+          "ru_geografiya",
+          "ru_matematika",
+          "ru_pravo"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_unrelated",
+        "category": "unrelated",
+        "ranked_ids": [
+          "ru_literatura_2",
+          "ru_biologiya_2",
+          "ru_geografiya",
+          "ru_istoriya_2",
+          "ru_pravo"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_unrelated_2",
+        "category": "unrelated",
+        "ranked_ids": [
+          "ru_geografiya",
+          "ru_khimiya",
+          "ru_literatura_2",
+          "ru_ekologiya_2",
+          "ru_matematika"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_hard_negative",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "uz_pedagogika_2",
+          "uz_pedagogika_3",
+          "uz_musiqa",
+          "uz_adabiyot_2",
+          "uz_biologiya_3"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_hard_negative_2",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "uz_sport",
+          "uz_adabiyot_3",
+          "uz_arxitektura",
+          "uz_musiqa",
+          "uz_tarix_2"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_hard_negative_3",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "uz_ekologiya_3",
+          "uz_sport",
+          "uz_pedagogika_2",
+          "uz_pedagogika_3",
+          "uz_geografiya"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_unrelated",
+        "category": "unrelated",
+        "ranked_ids": [
+          "uz_tarix_2",
+          "uz_iqtisodiyot_2",
+          "uz_sport",
+          "uz_tarix_3",
+          "uz_musiqa"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_unrelated_2",
+        "category": "unrelated",
+        "ranked_ids": [
+          "uz_musiqa",
+          "uz_arxitektura",
+          "uz_pedagogika_2",
+          "uz_kimyo",
+          "uz_pedagogika_3"
+        ],
+        "false_positive_tokens": 0
+      }
+    ]
+  },
+  "5": {
+    "foreign_overstrip": {
+      "occurrences": 12,
+      "unique_words": 6,
+      "examples": [
+        "threatening->threate",
+        "planning->plan",
+        "learning->lear",
+        "similar->simi",
+        "popular->popu",
+        "quanta->quan"
+      ]
+    },
+    "positive_categories": {
+      "paraphrase": [
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "en_paraphrase",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "en_paraphrase_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.05309734513274336,
+          "f1": 0.10084033613445377,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 6,
+          "query_id": "en_paraphrase_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.04,
+          "f1": 0.07692307692307693,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 5,
+          "query_id": "en_paraphrase_4",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "ru_paraphrase",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.06521739130434782,
+          "f1": 0.12244897959183672,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 6,
+          "query_id": "ru_paraphrase_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "ru_paraphrase_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "ru_paraphrase_4",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_adabiyot",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_kimyo",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_pedagogika",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": null,
+          "recall": 0.0,
+          "f1": 0.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 0,
+          "query_id": "uz_paraphrase_tarix",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "partial": [
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 55,
+          "query_id": "en_partial",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 58,
+          "query_id": "en_partial_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 76,
+          "query_id": "en_partial_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 31,
+          "query_id": "ru_partial",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 42,
+          "query_id": "ru_partial_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 28,
+          "query_id": "uz_partial",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 46,
+          "query_id": "uz_partial_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 58,
+          "query_id": "uz_partial_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "quoted": [
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 15,
+          "query_id": "en_quoted",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 29,
+          "query_id": "en_quoted_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 14,
+          "query_id": "ru_quoted",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 21,
+          "query_id": "ru_quoted_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 10,
+          "query_id": "uz_quoted",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 15,
+          "query_id": "uz_quoted_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "verbatim": [
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 92,
+          "query_id": "en_verbatim",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 110,
+          "query_id": "en_verbatim_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 110,
+          "query_id": "en_verbatim_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 79,
+          "query_id": "ru_verbatim",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 97,
+          "query_id": "ru_verbatim_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 90,
+          "query_id": "ru_verbatim_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 91,
+          "query_id": "uz_verbatim",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 161,
+          "query_id": "uz_verbatim_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 102,
+          "query_id": "uz_verbatim_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ],
+      "morphological": [
+        {
+          "precision": 1.0,
+          "recall": 0.3048780487804878,
+          "f1": 0.4672897196261682,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 25,
+          "query_id": "uz_morph_adabiyot",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.7518248175182481,
+          "f1": 0.8583333333333333,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 206,
+          "query_id": "uz_morph_adabiyot_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.758364312267658,
+          "f1": 0.8625792811839323,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 204,
+          "query_id": "uz_morph_biologiya_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8554216867469879,
+          "f1": 0.922077922077922,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 213,
+          "query_id": "uz_morph_biologiya_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9153846153846154,
+          "f1": 0.9558232931726908,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 238,
+          "query_id": "uz_morph_ekologiya_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8786764705882353,
+          "f1": 0.9354207436399217,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 239,
+          "query_id": "uz_morph_ekologiya_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8552188552188552,
+          "f1": 0.9219600725952813,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 254,
+          "query_id": "uz_morph_falsafa",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8603773584905661,
+          "f1": 0.9249492900608519,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 228,
+          "query_id": "uz_morph_iqtisodiyot_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9407407407407408,
+          "f1": 0.9694656488549619,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 254,
+          "query_id": "uz_morph_kimyo",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.6794871794871795,
+          "f1": 0.8091603053435115,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 53,
+          "query_id": "uz_morph_pedagogika",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8244897959183674,
+          "f1": 0.9038031319910514,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 202,
+          "query_id": "uz_morph_pedagogika_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9133858267716536,
+          "f1": 0.9547325102880658,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 232,
+          "query_id": "uz_morph_pedagogika_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.6363636363636364,
+          "f1": 0.7777777777777778,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 56,
+          "query_id": "uz_morph_tarix",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.8892508143322475,
+          "f1": 0.9413793103448276,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 273,
+          "query_id": "uz_morph_tarix_2",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        },
+        {
+          "precision": 1.0,
+          "recall": 0.9587628865979382,
+          "f1": 0.9789473684210526,
+          "false_positive_tokens": 0,
+          "true_positive_tokens": 279,
+          "query_id": "uz_morph_tarix_3",
+          "overmatched_tokens": 0,
+          "overmatched_words": []
+        }
+      ]
+    },
+    "negative_categories": [
+      {
+        "query_id": "en_hard_negative",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "en_ecology_2",
+          "en_physics",
+          "en_biology_2",
+          "en_literature_2",
+          "en_philosophy"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_hard_negative_2",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "en_history_2",
+          "en_literature_2",
+          "en_physics",
+          "en_philosophy",
+          "en_ecology_2"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_hard_negative_3",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "en_history_2",
+          "en_ecology_2",
+          "en_economics_2",
+          "en_literature_2",
+          "en_physics"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_unrelated",
+        "category": "unrelated",
+        "ranked_ids": [
+          "en_physics",
+          "en_ecology_2",
+          "en_philosophy",
+          "en_literature_2",
+          "en_history_2"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "en_unrelated_2",
+        "category": "unrelated",
+        "ranked_ids": [
+          "en_biology_2",
+          "en_physics",
+          "en_literature_2",
+          "en_history_2",
+          "en_philosophy"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_hard_negative",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "ru_pravo",
+          "ru_literatura_2",
+          "ru_biologiya_2",
+          "ru_geografiya",
+          "ru_filosofiya"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_hard_negative_2",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "ru_ekologiya_2",
+          "ru_literatura_2",
+          "ru_geografiya",
+          "ru_matematika",
+          "ru_pravo"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_unrelated",
+        "category": "unrelated",
+        "ranked_ids": [
+          "ru_literatura_2",
+          "ru_biologiya_2",
+          "ru_geografiya",
+          "ru_istoriya_2",
+          "ru_pravo"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "ru_unrelated_2",
+        "category": "unrelated",
+        "ranked_ids": [
+          "ru_geografiya",
+          "ru_khimiya",
+          "ru_literatura_2",
+          "ru_ekologiya_2",
+          "ru_matematika"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_hard_negative",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "uz_pedagogika_2",
+          "uz_musiqa",
+          "uz_pedagogika_3",
+          "uz_adabiyot_2",
+          "uz_biologiya_3"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_hard_negative_2",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "uz_sport",
+          "uz_adabiyot_3",
+          "uz_arxitektura",
+          "uz_musiqa",
+          "uz_tarix_2"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_hard_negative_3",
+        "category": "hard_negative",
+        "ranked_ids": [
+          "uz_ekologiya_3",
+          "uz_pedagogika_2",
+          "uz_sport",
+          "uz_pedagogika_3",
+          "uz_geografiya"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_unrelated",
+        "category": "unrelated",
+        "ranked_ids": [
+          "uz_tarix_2",
+          "uz_iqtisodiyot_2",
+          "uz_sport",
+          "uz_tarix_3",
+          "uz_musiqa"
+        ],
+        "false_positive_tokens": 0
+      },
+      {
+        "query_id": "uz_unrelated_2",
+        "category": "unrelated",
+        "ranked_ids": [
+          "uz_musiqa",
+          "uz_arxitektura",
+          "uz_pedagogika_2",
+          "uz_kimyo",
+          "uz_pedagogika_3"
+        ],
+        "false_positive_tokens": 0
+      }
+    ]
+  }
+}
