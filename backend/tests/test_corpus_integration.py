@@ -5,6 +5,7 @@ Never touches an existing database. All documents are synthetic.
 import asyncio
 import json
 import secrets
+import tempfile
 import unittest
 import uuid
 from pathlib import Path
@@ -14,7 +15,7 @@ from starlette.requests import Request
 
 from backend import corpus, corpus_api, manage, persistence
 from backend.comparison import api
-from backend.tests.fixtures import multipart
+from backend.tests.fixtures import docx, multipart, pdf
 from backend.tests.postgres_fixture import isolated_postgres, runtime_environment
 
 UZ = ("Ilmiy tadqiqot ishida matn oxshashligini aniqlash usullari batafsil tahlil qilinadi "
@@ -238,6 +239,194 @@ class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
             with self.subTest(attempt=label), self.assertRaises(Exception):
                 with persistence.database(self.runtime) as conn:
                     conn.execute(statement, (stored["id"],))
+
+
+class CorpusUploadFormatTests(CorpusFixture, unittest.TestCase):
+    """POST /corpus/documents end-to-end (corpus_api.add -> ingest() ->
+    run_worker(mode="extract") -> corpus.add_document()), through the
+    sandboxed extraction worker -- never exercised by CorpusDatabaseTests,
+    which bypasses extraction entirely by calling corpus.add_document()
+    directly with a hand-built "extracted" dict. Covers every format the
+    admin corpus upload endpoint accepts (TXT/DOCX/PDF, see
+    backend/corpus_api.py's CorpusUpload.headers_finished()), plus the
+    scanned-PDF rejection (no text layer -> no OCR -> explicit error, never
+    an empty/near-empty corpus document).
+    """
+
+    def corpus_upload(self, name, content, **field_overrides):
+        fields = {"title": "upload-" + uuid.uuid4().hex[:8], "author_display": "Sinov Muallif",
+                  "doc_type": "bmi", "year": "2024", "language_hint": "uz", "source_note": "sinov",
+                  "permission_basis": "Sinov uchun akademiya ruxsati", **field_overrides}
+        body, kind = multipart([("file", name, content)] +
+                               [(field, field, value.encode()) for field, value in fields.items()])
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if sent:
+                return {"type": "http.disconnect"}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        scope = {"type": "http", "method": "POST", "scheme": "http", "path": "/corpus/documents",
+                 "query_string": b"", "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                 "headers": [(b"content-type", kind.encode()), (b"content-length", str(len(body)).encode())]}
+        with patch.object(corpus_api.auth, "require_corpus_manager",
+                          return_value={"id": str(self.manager_id), "role": "corpus_manager"}):
+            return asyncio.run(corpus_api.add(Request(scope, receive)))
+
+    def payload(self, response):
+        return json.loads(bytes(response.body))
+
+    def stored_row(self, document_id):
+        with persistence.database(self.admin) as conn:
+            doc = conn.execute("SELECT extracted_text, segments, char_count FROM antiplagiat.corpus_documents"
+                               " WHERE id=%s", (document_id,)).fetchone()
+            chunks = conn.execute("SELECT chunk_text, char_start, char_end FROM antiplagiat.corpus_chunks"
+                                  " WHERE corpus_document_id=%s ORDER BY chunk_index", (document_id,)).fetchall()
+        return doc, chunks
+
+    def test_txt_upload_through_the_real_endpoint(self):
+        # The only format CorpusDatabaseTests' self.add() already covers --
+        # but that helper skips extraction; this goes through the real
+        # endpoint (including the sandboxed worker) for the first time.
+        text = self.unique(UZ)
+        response = self.corpus_upload("real.txt", text.encode())
+        self.assertEqual(response.status_code, 200)
+        stored = self.payload(response)
+        doc, chunks = self.stored_row(stored["id"])
+        self.assertEqual(doc["extracted_text"], text)
+        self.assertEqual(doc["char_count"], len(text))
+        for chunk in chunks:
+            self.assertEqual(text[chunk["char_start"]:chunk["char_end"]], chunk["chunk_text"])
+
+    def test_docx_upload_preserves_text_segments_and_offsets(self):
+        text = self.unique(UZ)
+        response = self.corpus_upload("real.docx", docx(text=text))
+        self.assertEqual(response.status_code, 200)
+        stored = self.payload(response)
+        doc, chunks = self.stored_row(stored["id"])
+        self.assertEqual(doc["extracted_text"], text)
+        self.assertEqual(doc["segments"][0]["kind"], "paragraph")
+        self.assertGreaterEqual(len(chunks), 1)
+        for chunk in chunks:
+            self.assertEqual(text[chunk["char_start"]:chunk["char_end"]], chunk["chunk_text"])
+
+    def test_pdf_with_text_layer_preserves_text_segments_and_offsets(self):
+        text = self.unique(EN)
+        response = self.corpus_upload("real.pdf", pdf(text=text))
+        self.assertEqual(response.status_code, 200)
+        stored = self.payload(response)
+        doc, chunks = self.stored_row(stored["id"])
+        self.assertEqual(doc["extracted_text"], text)
+        self.assertEqual(doc["segments"][0]["kind"], "page")
+        self.assertGreaterEqual(len(chunks), 1)
+        for chunk in chunks:
+            self.assertEqual(text[chunk["char_start"]:chunk["char_end"]], chunk["chunk_text"])
+
+    def test_scanned_pdf_is_rejected_not_ingested_as_empty(self):
+        before = len(corpus.list_documents(1, "active")["items"])
+        response = self.corpus_upload("scan.pdf", pdf(text="", scan=True))
+        self.assertEqual(response.status_code, 422)
+        error = self.payload(response)["error"]
+        self.assertEqual(error["code"], "no_text_layer")
+        self.assertEqual(error["file"], "scan.pdf")
+        # No partial/empty document was left behind -- ingest() never even
+        # reached corpus.add_document(), since extraction failed first.
+        self.assertEqual(len(corpus.list_documents(1, "active")["items"]), before)
+
+    def test_blank_pdf_without_any_text_is_rejected_the_same_way(self):
+        response = self.corpus_upload("blank.pdf", pdf(text=""))
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(self.payload(response)["error"]["code"], "no_text_layer")
+
+
+class CorpusBatchIngestTests(CorpusFixture, unittest.TestCase):
+    """backend.manage.corpus_add_batch(): many files/folders in one CLI run,
+    shared metadata, one result per file, one bad file never stops the rest.
+    """
+
+    SHARED_INPUTS = ["Sinov Muallif", "bmi", "uz", "sinov", "Sinov uchun akademiya ruxsati", ""]
+
+    def write(self, folder, name, content):
+        path = Path(folder) / name
+        path.write_bytes(content)
+        return path
+
+    def test_mixed_batch_reports_added_duplicate_and_error_per_file_and_continues(self):
+        with tempfile.TemporaryDirectory() as folder:
+            existing_text = self.unique(UZ)
+            self.add(existing_text, "pre-existing-" + uuid.uuid4().hex[:8], raw=existing_text.encode())
+            good_txt = self.write(folder, "a-good.txt", self.unique(EN).encode())
+            good_docx = self.write(folder, "b-good.docx", docx(text=self.unique(UZ)))
+            duplicate = self.write(folder, "c-duplicate.txt", existing_text.encode())
+            bad_scan = self.write(folder, "d-scan.pdf", pdf(text="", scan=True))
+            with patch("builtins.input", side_effect=list(self.SHARED_INPUTS)):
+                results = manage.corpus_add_batch(self.admin, [folder], "corpus.manager")
+            by_name = {Path(r["path"]).name: r for r in results}
+            self.assertEqual(len(results), 4)
+            self.assertEqual(by_name["a-good.txt"]["status"], "added")
+            self.assertEqual(by_name["b-good.docx"]["status"], "added")
+            self.assertEqual(by_name["c-duplicate.txt"]["status"], "duplicate")
+            self.assertEqual(by_name["d-scan.pdf"]["status"], "error")
+            self.assertEqual(by_name["d-scan.pdf"]["code"], "no_text_layer")
+            # Both successes actually persisted, with the filename stem as title.
+            with persistence.database(self.admin) as conn:
+                titles = {row["original_filename"]: row["title"] for row in conn.execute(
+                    "SELECT original_filename, title FROM antiplagiat.corpus_documents WHERE id = ANY(%s)",
+                    ([by_name["a-good.txt"]["id"], by_name["b-good.docx"]["id"]],)).fetchall()}
+            self.assertEqual(titles["a-good.txt"], "a-good")
+            self.assertEqual(titles["b-good.docx"], "b-good")
+
+    def test_one_file_failing_does_not_stop_files_that_come_after_it(self):
+        with tempfile.TemporaryDirectory() as folder:
+            # Empty .txt matches the batch's own extension filter (so the
+            # directory scan does not silently skip it, unlike an
+            # unsupported extension -- see test_a_single_file_path_and_a_
+            # directory_can_be_combined) but fails extraction ("empty").
+            self.write(folder, "a-bad.txt", b"")
+            self.write(folder, "b-good.txt", self.unique(RU).encode())
+            with patch("builtins.input", side_effect=list(self.SHARED_INPUTS)):
+                results = manage.corpus_add_batch(self.admin, [folder], "corpus.manager")
+            by_name = {Path(r["path"]).name: r for r in results}
+            self.assertEqual(by_name["a-bad.txt"]["status"], "error")
+            self.assertEqual(by_name["a-bad.txt"]["code"], "empty")
+            self.assertEqual(by_name["b-good.txt"]["status"], "added")
+
+    def test_missing_permission_basis_aborts_before_touching_any_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            tag = uuid.uuid4().hex[:8]
+            self.write(folder, f"a-{tag}.txt", self.unique(UZ).encode())
+            self.write(folder, f"b-{tag}.txt", self.unique(EN).encode())
+            inputs = ["Sinov Muallif", "bmi", "uz", "sinov", "", ""]  # empty permission_basis
+            with patch("builtins.input", side_effect=inputs):
+                with self.assertRaises(ValueError):
+                    manage.corpus_add_batch(self.admin, [folder], "corpus.manager")
+            with persistence.database(self.admin) as conn:
+                found = conn.execute("SELECT count(*) AS n FROM antiplagiat.corpus_documents"
+                                     " WHERE original_filename IN (%s, %s)",
+                                     (f"a-{tag}.txt", f"b-{tag}.txt")).fetchone()
+            self.assertEqual(found["n"], 0)
+
+    def test_a_single_file_path_and_a_directory_can_be_combined(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.write(folder, "inside.txt", self.unique(UZ).encode())
+            self.write(folder, "ignored.md", b"not a corpus format, but inside a directory -- skipped silently")
+            with tempfile.TemporaryDirectory() as other:
+                standalone = self.write(other, "standalone.txt", self.unique(EN).encode())
+                with patch("builtins.input", side_effect=list(self.SHARED_INPUTS)):
+                    results = manage.corpus_add_batch(self.admin, [folder, str(standalone)], "corpus.manager")
+            by_name = {Path(r["path"]).name: r for r in results}
+            self.assertEqual(set(by_name), {"inside.txt", "standalone.txt"})  # ignored.md never appears
+            self.assertEqual(by_name["inside.txt"]["status"], "added")
+            self.assertEqual(by_name["standalone.txt"]["status"], "added")
+
+    def test_requires_admin_or_corpus_manager_account(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.write(folder, "a.txt", self.unique(UZ).encode())
+            with patch("builtins.input", side_effect=list(self.SHARED_INPUTS)):
+                with self.assertRaises(ValueError):
+                    manage.corpus_add_batch(self.admin, [folder], "corpus.reader")
 
 
 class CorpusComparisonTests(CorpusFixture, unittest.TestCase):

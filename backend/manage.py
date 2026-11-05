@@ -229,12 +229,33 @@ def corpus_manager_user_id(config, username):
     return row["id"]
 
 
-def corpus_add(config, path, username):
-    """Parse the file in the sandboxed worker, then store it with its permission basis."""
+CORPUS_UPLOAD_SUFFIXES = (".txt", ".docx", ".pdf")
+
+
+def _ingest_one(config, source, metadata, uploaded_by):
+    """Extract one already-validated file in the sandboxed worker, then store it.
+
+    Shared by corpus_add (single file, interactive) and corpus_add_batch (many
+    files, one failure must not stop the rest) so both go through the exact
+    same extraction/storage path -- never a separate, untested shortcut.
+    """
     import shutil
     import tempfile
     from backend import corpus
     from backend.comparison.runner import run_worker
+
+    with tempfile.TemporaryDirectory(prefix="antiplagiat-corpus-cli-") as directory:
+        folder = Path(directory)
+        shutil.copyfile(source, folder / "corpus-upload")
+        extracted = run_worker(folder, {"mode": "extract",
+                                        "items": [{"path": "corpus-upload", "name": source.name}]})
+        raw = (folder / "corpus-upload").read_bytes()
+        return corpus.add_document(metadata, extracted["documents"][0], uploaded_by, raw, config)
+
+
+def corpus_add(config, path, username):
+    """Parse the file in the sandboxed worker, then store it with its permission basis."""
+    from backend import corpus
 
     source = Path(path)
     if not source.is_file():
@@ -254,13 +275,72 @@ def corpus_add(config, path, username):
     problems = corpus.metadata_errors(metadata)
     if problems:
         raise ValueError(" ".join(problems))
-    with tempfile.TemporaryDirectory(prefix="antiplagiat-corpus-cli-") as directory:
-        folder = Path(directory)
-        shutil.copyfile(source, folder / "corpus-upload")
-        extracted = run_worker(folder, {"mode": "extract",
-                                        "items": [{"path": "corpus-upload", "name": source.name}]})
-        raw = (folder / "corpus-upload").read_bytes()
-        return corpus.add_document(metadata, extracted["documents"][0], uploaded_by, raw, config)
+    return _ingest_one(config, source, metadata, uploaded_by)
+
+
+def _expand_batch_paths(paths):
+    """Each entry may be a file or a directory (non-recursive: only files
+    directly inside it, sorted for a deterministic, reproducible order).
+    A directory contributes only its TXT/DOCX/PDF files silently (mixed
+    directories are normal); a FILE path the caller named explicitly is kept
+    as-is even with an unsupported suffix, so it surfaces as a per-file error
+    below rather than being silently dropped.
+    """
+    files = []
+    for raw in paths:
+        candidate = Path(raw)
+        if candidate.is_dir():
+            files.extend(sorted(p for p in candidate.iterdir()
+                               if p.is_file() and p.suffix.lower() in CORPUS_UPLOAD_SUFFIXES))
+        else:
+            files.append(candidate)
+    return files
+
+
+def corpus_add_batch(config, paths, username):
+    """Ingest many files/folders in one run: shared metadata, one result per
+    file (added / duplicate / error), one bad file never stops the rest.
+    """
+    from backend import corpus
+
+    uploaded_by = corpus_manager_user_id(config, username)
+    files = _expand_batch_paths(paths)
+    if not files:
+        raise ValueError("Birorta ham fayl topilmadi.")
+    shared = {
+        "author_display": input("Muallif (ko‘rsatiladigan nom, butun partiya uchun): ").strip(),
+        "doc_type": input(f"Turi ({'/'.join(corpus.DOC_TYPES)}, butun partiya uchun): ").strip(),
+        "language_hint": input("Til belgisi [uz]: ").strip() or "uz",
+        "source_note": input("Manba izohi (ixtiyoriy, butun partiya uchun): ").strip(),
+        "permission_basis": input("Ruxsat asosi (majburiy, butun partiya uchun): ").strip(),
+    }
+    if not shared["permission_basis"]:
+        raise ValueError("Ruxsat asosi majburiy; usiz hech bir hujjat korpusga kirmaydi.")
+    year_input = input("Yil (ixtiyoriy, butun partiya uchun): ").strip()
+    shared["year"] = int(year_input) if year_input.isdecimal() else None
+
+    results = []
+    for source in files:
+        result = {"path": str(source)}
+        try:
+            if not source.is_file():
+                raise ValueError("Fayl topilmadi.")
+            if source.suffix.lower() not in CORPUS_UPLOAD_SUFFIXES:
+                raise ValueError("Faqat TXT, DOCX va PDF qabul qilinadi: " + source.suffix)
+            metadata = {**shared, "title": source.stem, "original_filename": source.name}
+            problems = corpus.metadata_errors(metadata)
+            if problems:
+                raise ValueError(" ".join(problems))
+            stored = _ingest_one(config, source, metadata, uploaded_by)
+            result.update(status="added", id=stored["id"], chunk_count=stored["chunk_count"])
+        except ServiceError as error:
+            result.update(status="duplicate" if error.code == "corpus_duplicate" else "error",
+                          code=error.code, message=error.message)
+        except Exception as error:
+            result.update(status="error", code=getattr(error, "code", None),
+                          message=getattr(error, "message", str(error)))
+        results.append(result)
+    return results
 
 
 def main():
@@ -276,6 +356,11 @@ def main():
     add_corpus = sub.add_parser("corpus-add")
     add_corpus.add_argument("path", help="Lokal TXT/DOCX/matnli PDF fayl yo‘li.")
     add_corpus.add_argument("--as-user", required=True, help="Korpusni boshqaradigan admin yoki corpus_manager login.")
+    add_corpus_batch = sub.add_parser("corpus-add-batch")
+    add_corpus_batch.add_argument("paths", nargs="+",
+                                  help="Bir yoki bir nechta lokal TXT/DOCX/PDF fayl yoki papka yo‘li.")
+    add_corpus_batch.add_argument("--as-user", required=True,
+                                  help="Korpusni boshqaradigan admin yoki corpus_manager login.")
     show_corpus = sub.add_parser("corpus-list")
     show_corpus.add_argument("--page", type=int, default=1)
     show_corpus.add_argument("--status", choices=["active", "withdrawn", "all"], default="active")
@@ -298,6 +383,21 @@ def main():
         elif args.command == "corpus-add":
             stored = corpus_add(config, args.path, getattr(args, "as_user"))
             print(f"Korpusga qo‘shildi: {stored['id']}; chunk: {stored['chunk_count']}, token: {stored['token_count']}.")
+        elif args.command == "corpus-add-batch":
+            results = corpus_add_batch(config, args.paths, getattr(args, "as_user"))
+            for result in results:
+                if result["status"] == "added":
+                    print(f"QO‘SHILDI   {result['path']}  ({result['id']}, {result['chunk_count']} chunk)")
+                elif result["status"] == "duplicate":
+                    print(f"DUBLIKAT    {result['path']}  {result['message']}")
+                else:
+                    print(f"XATO        {result['path']}  {result['message']}")
+            counts = {status: sum(1 for r in results if r["status"] == status)
+                     for status in ("added", "duplicate", "error")}
+            print(f"Jami: {len(results)}; qo‘shildi {counts['added']}, dublikat {counts['duplicate']}, "
+                  f"xato {counts['error']}.")
+            if counts["error"]:
+                sys.exit(1)
         elif args.command == "corpus-list":
             from backend import corpus
             page = corpus.list_documents(args.page, args.status, config)
