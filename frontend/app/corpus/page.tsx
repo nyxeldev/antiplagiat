@@ -108,7 +108,10 @@ export default function CorpusAdmin() {
               <div className={styles.headerRow}><span>Hujjat</span><span>Turi</span><span>Yil</span><span>Holat</span><span /></div>
               {data.items.map(item => (
                 <div key={item.id} role="button" tabIndex={0} className={styles.row} onClick={() => setDetail(item)}
-                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetail(item); } }}>
+                  onKeyDown={e => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetail(item); }
+                  }}>
                   <div>
                     <div className={styles.title}>{item.title}</div>
                     <div className={styles.author}>{item.author_display}</div>
