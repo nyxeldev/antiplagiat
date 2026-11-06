@@ -14,6 +14,8 @@ const FOCUSABLE = 'a[href],button:not([disabled]),textarea,input,select,[tabinde
 export function Dialog({ open, onClose, title, children, onLight, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; onLight?: boolean; wide?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const trigger = useRef<Element | null>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
 
   useEffect(() => {
     if (!open) return;
@@ -22,7 +24,7 @@ export function Dialog({ open, onClose, title, children, onLight, wide }: { open
     const focusables = () => Array.from(node?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
     focusables()[0]?.focus();
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") { onClose(); return; }
+      if (event.key === "Escape") { onCloseRef.current(); return; }
       if (event.key !== "Tab") return;
       const items = focusables(); if (!items.length) return;
       const first = items[0], last = items[items.length - 1];
@@ -34,7 +36,10 @@ export function Dialog({ open, onClose, title, children, onLight, wide }: { open
       document.removeEventListener("keydown", onKey);
       (trigger.current as HTMLElement | null)?.focus?.();
     };
-  }, [open, onClose]);
+    // Deliberately excludes onClose: that function is recreated on every
+    // render of the caller, and re-running this effect per keystroke would
+    // steal focus away from whatever input the user is typing into.
+  }, [open]);
 
   if (typeof document === "undefined") return null;
   return createPortal(
