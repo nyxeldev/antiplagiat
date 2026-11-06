@@ -7,6 +7,8 @@ import AppShell from "./shell/AppShell";
 const SessionContext = createContext<() => void>(() => {});
 export const useSessionExpired = () => useContext(SessionContext);
 type User = { id: string; username: string; role: string };
+const UserContext = createContext<User | null>(null);
+export const useUser = () => useContext(UserContext);
 export default function AccountShell({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null); const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
@@ -44,7 +46,7 @@ export default function AccountShell({ children }: { children: ReactNode }) {
   );
   if (!user) return <Login loginName={loginName} password={password} busy={busy} error={error}
     onLoginName={setLoginName} onPassword={setPassword} onSubmit={login} />;
-  return <SessionContext.Provider value={expired}>
+  return <SessionContext.Provider value={expired}><UserContext.Provider value={user}>
     <AppShell user={user} onLogout={logout} busy={busy} error={error}><div key={user.id}>{children}</div></AppShell>
-  </SessionContext.Provider>;
+  </UserContext.Provider></SessionContext.Provider>;
 }

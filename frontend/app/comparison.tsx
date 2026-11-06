@@ -5,7 +5,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../lib/client-api";
 import { useSessionExpired } from "./account-shell";
 import { IconDatabase, IconSparkle } from "./icons";
-import { EASE_OUT, Pop, Rise } from "./motion";
+import { Disclosure, EASE_OUT, Pop, Rise } from "./motion";
 import ReportView, { type Report } from "./report-view";
 import { Alert, Button, Card } from "./ui/primitives";
 import { Dropzone, StepBadge } from "./ui/Dropzone";
@@ -23,7 +23,7 @@ function fileError(files: File[]) {
 export default function Comparison() {
   const expired = useSessionExpired(); const key = useRef<string | null>(null); const inFlight = useRef(false);
   const [document, setDocument] = useState<File | null>(null); const [sources, setSources] = useState<File[]>([]);
-  const [includeCorpus, setIncludeCorpus] = useState(false);
+  const [includeCorpus, setIncludeCorpus] = useState(true);
   const [morphAware, setMorphAware] = useState(false);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const [report, setReport] = useState<Report | null>(null);
   function resetResult() { key.current = null; setReport(null); setError(null); }
@@ -75,22 +75,14 @@ export default function Comparison() {
       <StepBadge step={2}>Solishtirish manbalari</StepBadge>
       <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
         <legend className={styles.srOnly}>Manba hujjatlar va ichki korpus</legend>
-        <AnimatePresence initial={false}>
-          {sources.map((file, index) => <motion.div key={`${index}-${file.name}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ duration: 0.2, ease: EASE_OUT }}>
-            <FileItem name={file.name} size={file.size} removeLabel={`${file.name} manbasini olib tashlash`}
-              onRemove={() => { setSources(sources.filter((_, i) => i !== index)); resetResult(); }} />
-          </motion.div>)}
-        </AnimatePresence>
-        {sources.length < 5 && <Dropzone label={`Manba qo‘shish (${sources.length}/5)`} hint="Bir nechtasini birdan tanlash mumkin"
-          accept={accept} multiple describedBy="upload-help" onFiles={addSources} />}
 
-        <Card pad={false} style={{ padding: "var(--sp-4)", marginTop: "var(--sp-2)" }}>
+        <Card pad={false} style={{ padding: "var(--sp-4)" }}>
           <label className={styles.corpusOption} htmlFor="include-corpus">
             <input id="include-corpus" type="checkbox" checked={includeCorpus} disabled={busy}
               onChange={event => { setIncludeCorpus(event.target.checked); resetResult(); }} />
-            <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}><IconDatabase style={{ width: "1.05rem", height: "1.05rem" }} />Ichki korpus bo‘yicha ham tekshirish</span>
+            <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}><IconDatabase style={{ width: "1.05rem", height: "1.05rem" }} />Ichki korpus bo‘yicha tekshirish</span>
           </label>
-          <p className={styles.muted}>Qo‘shimcha ravishda akademiyaning ruxsat asosida saqlangan ichki korpusidan nomzod manbalar tanlanadi. Korpus manbasidan faqat mos parcha va qisqa kontekst ko‘rsatiladi; to‘liq matn berilmaydi. Limit tufayli korpusdagi barcha hujjatlar solishtirilmaydi.</p>
+          <p className={styles.muted}>Birlamchi usul: akademiyaning ruxsat asosida saqlangan ichki korpusidan nomzod manbalar avtomatik tanlanadi. Korpus manbasidan faqat mos parcha va qisqa kontekst ko‘rsatiladi; to‘liq matn berilmaydi. Limit tufayli korpusdagi barcha hujjatlar solishtirilmaydi.</p>
           <Pop show={includeCorpus}>
             <label className={styles.corpusOption} htmlFor="morph-aware">
               <input id="morph-aware" type="checkbox" checked={morphAware} disabled={busy}
@@ -100,6 +92,21 @@ export default function Comparison() {
             <p className={styles.muted}>Qoidaga asoslangan, lug‘atsiz usul bilan o‘zbekcha so‘z qo‘shimchalarini (masalan “-lar”, “-ning”, “-dan”) tanib, nomzod manbalarni HAM, mos parchani belgilashni HAM shu holatni hisobga olib bajaradi: masalan “kitoblarni” va “kitobni” endi mos deb belgilanishi mumkin. Ko‘rsatilgan foiz shu sabab alohida, tajriba xususiyatiga ega siyosat (lexical-shingle-v2) bilan hisoblanadi — standart (bu belgisiz) natijalar bilan solishtirilmaydi.</p>
           </Pop>
         </Card>
+
+        <Disclosure defaultOpen={sources.length > 0}
+          summary={<>Qo‘shimcha manba qo‘shish (qo‘lda yuklash){sources.length > 0 ? ` — ${sources.length} ta tanlangan` : ""}</>}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)", marginTop: "var(--sp-3)" }}>
+            <p className={styles.muted} style={{ marginTop: 0 }}>Ichki korpusga qo‘shilmagan yoki alohida solishtirish kerak bo‘lgan manbalarni shu yerdan qo‘lda yuklang.</p>
+            <AnimatePresence initial={false}>
+              {sources.map((file, index) => <motion.div key={`${index}-${file.name}`} initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.97 }} transition={{ duration: 0.2, ease: EASE_OUT }}>
+                <FileItem name={file.name} size={file.size} removeLabel={`${file.name} manbasini olib tashlash`}
+                  onRemove={() => { setSources(sources.filter((_, i) => i !== index)); resetResult(); }} />
+              </motion.div>)}
+            </AnimatePresence>
+            {sources.length < 5 && <Dropzone label={`Manba qo‘shish (${sources.length}/5)`} hint="Bir nechtasini birdan tanlash mumkin"
+              accept={accept} multiple describedBy="upload-help" onFiles={addSources} />}
+          </div>
+        </Disclosure>
       </fieldset>
     </div>
 

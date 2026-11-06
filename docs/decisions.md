@@ -104,6 +104,14 @@ FATAL: could not create lock file "/var/run/postgresql/.s.PGSQL.<port>.lock": Pe
 
 `MIN_STEM_LEN` (4 belgi) bu ablatsiyaga kiritilmadi — uning o'z o'lchovi hali qilinmagan.
 
+## 10. Korpus birlamchi tekshiruv oqimi — qo'lda manba ixtiyoriy qolishi
+
+**Qaror (2026-11-05):** `frontend/app/comparison.tsx`dagi `includeCorpus` bayrog'ining boshlang'ich qiymati `false`dan `true`ga o'zgartirildi — yangi tekshiruv ekranini ochganda ichki korpus bo'yicha solishtirish **default yoqilgan**. Qo'lda manba fayl yuklash **olib tashlanmadi**: u endi yig'ilgan (collapsed) "Qo'shimcha manba qo'shish (qo'lda yuklash)" bo'limida (`motion.tsx`dagi `Disclosure` orqali) joylashgan, kerak bo'lsa ochiladi.
+
+**Sabab:** [1-qaror]ning rol matritsasi va bu PRdagi korpus boshqaruv ekrani (`frontend/app/corpus/page.tsx`) bilan admin/`corpus_manager` endi korpusni haqiqiy hujjatlar bilan to'ldira oladi — demak korpus endigacha "qo'shimcha tekshirish" emas, **birlamchi** solishtirish manbasi bo'lishi mumkin. Qo'lda yuklash butunlay olib tashlanmadi, chunki: (a) korpusga hali kiritilmagan hujjatlar bilan solishtirish ehtiyoji qoladi, (b) foydalanuvchi ikkalasini ham birga ishlatishi mumkin bo'lishi kerak.
+
+**O'zgarmagan xulq (mavjud testlar bilan kafolatlangan):** ikkalasi ham (korpus VA qo'lda manba) o'chirilgan holatda solishtirish faol emas — bu mavjud `no_sources` mantig'i (`!document || (!sources.length && !includeCorpus)` sharti `comparison.tsx`da o'zgarmadi, faqat boshlang'ich qiymati). Backend tomonidagi `no_sources` rad etilishi va "faqat korpus" muvaffaqiyati sinovlari ([7-qaror]da eslatilgan `backend/tests/test_comparison.py` va `backend/tests/test_corpus_integration.py`) **o'zgartirilmadi** — bu ularning aynan shu sharti tasdiqlagan default-holatdan mustaqil ekanini ko'rsatadi. O'zgarish faqat frontenddagi boshlang'ich holat va UI tartibi; backend `/compare` so'rovi, uning validatsiyasi yoki mavjud hisob-kitob o'zgarmadi.
+
 ---
 
 *Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`).*
