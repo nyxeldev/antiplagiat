@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/client-api";
 import { useSessionExpired, useUser } from "../account-shell";
-import { IconDatabase, IconPlus, IconTrash } from "../icons";
+import { IconCloud, IconDatabase, IconPlus, IconTrash, IconUpload } from "../icons";
 import { Pop, Rise } from "../motion";
 import { Alert, Badge, Button, Card, EmptyState, Field, IconButton, Input, Pagination, Select, Skeleton } from "../ui/primitives";
 import { ConfirmDialog, Dialog } from "../ui/Dialog";
@@ -183,13 +183,25 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
   const [permissionBasis, setPermissionBasis] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const inFlight = useRef(false);
 
   function reset() {
     setFile(null); setTitle(""); setAuthor(""); setDocType("bmi"); setYear("");
     setLanguage("uz"); setSourceNote(""); setPermissionBasis(""); setError(null);
+    setConfirmDiscard(false);
   }
-  function close() { if (busy) return; reset(); onClose(); }
+  const hasProgress = !!file || !!title.trim() || !!author.trim() || !!year
+    || !!sourceNote.trim() || !!permissionBasis.trim();
+  // Backdrop click / Escape / the Cancel button all route through here, so a
+  // slip that would otherwise close the dialog mid-upload asks first instead
+  // of silently discarding the picked file and filled fields.
+  function close() {
+    if (busy || confirmDiscard) return;
+    if (hasProgress) { setConfirmDiscard(true); return; }
+    reset(); onClose();
+  }
+  function discard() { reset(); onClose(); }
 
   function pick(files: File[]) {
     const picked = files[0]; if (!picked) return;
@@ -216,50 +228,74 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
     } finally { inFlight.current = false; setBusy(false); }
   }
 
-  return <Dialog open={open} onClose={close} title="Korpusga hujjat qo‘shish">
-    <form onSubmit={submit} className={styles.formGrid}>
-      {!file
-        ? <Dropzone label="Fayl tanlang yoki shu yerga tashlang" hint="UTF-8 TXT, DOCX yoki matn qatlamli PDF, 10 MiB gacha."
-            accept=".txt,.docx,.pdf" onFiles={pick} onLight />
-        : <FileItem name={file.name} size={file.size} onRemove={() => setFile(null)} removeLabel="Faylni olib tashlash" onLight />}
+  return <Dialog open={open} onClose={close} title="Korpusga hujjat qo‘shish" wide>
+    {confirmDiscard ? (
+      <div className={styles.formGrid}>
+        <Alert variant="warning" onLight>Kiritilgan ma’lumotlar hali saqlanmagan. Oynani yopsangiz, ular yo‘qoladi.</Alert>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--sp-3)" }}>
+          <Button type="button" variant="secondary" onClick={() => setConfirmDiscard(false)}>Davom etish</Button>
+          <Button type="button" variant="destructive" onClick={discard}>Tashlab ketish</Button>
+        </div>
+      </div>
+    ) : <form onSubmit={submit} className={styles.formGrid}>
+      <div className={styles.addDocGrid}>
+        <div className={styles.addDocUpload}>
+          <div className={styles.sourceTabs} role="tablist" aria-label="Qo‘shish manbasi">
+            <div className={styles.sourceTab} role="tab" aria-selected="true">
+              <span className={styles.sourceTabLabel}><IconUpload />Kompyuterdan</span>
+            </div>
+            <button type="button" role="tab" className={`${styles.sourceTab} ${styles.sourceTabDisabled}`} aria-selected="false"
+              disabled title="Google Drive integratsiyasi tez orada qo‘shiladi">
+              <span className={styles.sourceTabLabel}><IconCloud />Google Drive’dan</span>
+              <Badge variant="neutral">Tez orada</Badge>
+            </button>
+          </div>
+          {!file
+            ? <Dropzone label="Fayl tanlang yoki shu yerga tashlang" hint="UTF-8 TXT, DOCX yoki matn qatlamli PDF, 10 MiB gacha."
+                accept=".txt,.docx,.pdf" onFiles={pick} onLight />
+            : <FileItem name={file.name} size={file.size} onRemove={() => setFile(null)} removeLabel="Faylni olib tashlash" onLight />}
+        </div>
 
-      <Field label="Sarlavha" htmlFor="corpus-title" onLight>
-        <Input id="corpus-title" required maxLength={300} value={title} disabled={busy} onLight
-          onChange={e => setTitle(e.target.value)} />
-      </Field>
-      <Field label="Muallif (ixtiyoriy)" htmlFor="corpus-author" onLight>
-        <Input id="corpus-author" maxLength={300} value={author} disabled={busy} onLight
-          onChange={e => setAuthor(e.target.value)} />
-      </Field>
-      <Field label="Turi" htmlFor="corpus-type" onLight>
-        <Select id="corpus-type" value={docType} disabled={busy} onLight onChange={e => setDocType(e.target.value)}>
-          {Object.entries(DOC_TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </Select>
-      </Field>
-      <Field label="Yil (ixtiyoriy)" htmlFor="corpus-year" onLight>
-        <Input id="corpus-year" type="number" min={1900} max={2300} value={year} disabled={busy} onLight
-          onChange={e => setYear(e.target.value)} />
-      </Field>
-      <Field label="Til belgisi" htmlFor="corpus-lang" onLight>
-        <Input id="corpus-lang" maxLength={32} value={language} disabled={busy} onLight
-          onChange={e => setLanguage(e.target.value)} />
-      </Field>
-      <Field label="Manba izohi (ixtiyoriy)" htmlFor="corpus-note" onLight>
-        <Input id="corpus-note" maxLength={2000} value={sourceNote} disabled={busy} onLight
-          onChange={e => setSourceNote(e.target.value)} />
-      </Field>
-      <Field label="Ruxsat asosi (majburiy)" htmlFor="corpus-permission"
-        hint="Bu hujjatni korpusga qo‘shish huquqi qayerdan kelganini qisqacha yozing." onLight>
-        <Input id="corpus-permission" required maxLength={2000} value={permissionBasis} disabled={busy} onLight
-          onChange={e => setPermissionBasis(e.target.value)} />
-      </Field>
+        <div className={styles.addDocFields}>
+          <Field label="Sarlavha" htmlFor="corpus-title" onLight>
+            <Input id="corpus-title" required maxLength={300} value={title} disabled={busy} onLight
+              onChange={e => setTitle(e.target.value)} />
+          </Field>
+          <Field label="Muallif (ixtiyoriy)" htmlFor="corpus-author" onLight>
+            <Input id="corpus-author" maxLength={300} value={author} disabled={busy} onLight
+              onChange={e => setAuthor(e.target.value)} />
+          </Field>
+          <Field label="Turi" htmlFor="corpus-type" onLight>
+            <Select id="corpus-type" value={docType} disabled={busy} onLight onChange={e => setDocType(e.target.value)}>
+              {Object.entries(DOC_TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </Select>
+          </Field>
+          <Field label="Yil (ixtiyoriy)" htmlFor="corpus-year" onLight>
+            <Input id="corpus-year" type="number" min={1900} max={2300} value={year} disabled={busy} onLight
+              onChange={e => setYear(e.target.value)} />
+          </Field>
+          <Field label="Til belgisi" htmlFor="corpus-lang" onLight>
+            <Input id="corpus-lang" maxLength={32} value={language} disabled={busy} onLight
+              onChange={e => setLanguage(e.target.value)} />
+          </Field>
+          <Field label="Manba izohi (ixtiyoriy)" htmlFor="corpus-note" onLight>
+            <Input id="corpus-note" maxLength={2000} value={sourceNote} disabled={busy} onLight
+              onChange={e => setSourceNote(e.target.value)} />
+          </Field>
+          <Field label="Ruxsat asosi (majburiy)" htmlFor="corpus-permission"
+            hint="Bu hujjatni korpusga qo‘shish huquqi qayerdan kelganini qisqacha yozing." onLight>
+            <Input id="corpus-permission" required maxLength={2000} value={permissionBasis} disabled={busy} onLight
+              onChange={e => setPermissionBasis(e.target.value)} />
+          </Field>
+        </div>
+      </div>
 
       <Pop show={!!error}>{error && <Alert variant="error" onLight>{error}</Alert>}</Pop>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--sp-3)" }}>
+      <div className={styles.addDocActions}>
         <Button type="button" variant="secondary" onClick={close} disabled={busy}>Bekor qilish</Button>
         <Button type="submit" loading={busy} disabled={!file || !title.trim() || !permissionBasis.trim()}>Qo‘shish</Button>
       </div>
-    </form>
+    </form>}
   </Dialog>;
 }
