@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, type ReactNode } from "react";
 import { Pop } from "../motion";
-import { IconHistory, IconHome, IconLogout, IconMenu, IconUser, IconX } from "../icons";
+import { IconDatabase, IconHistory, IconHome, IconLogout, IconMenu, IconUser, IconX } from "../icons";
 import { Alert, IconButton } from "../ui/primitives";
 import styles from "./shell.module.css";
 
@@ -12,19 +12,23 @@ const NAV = [
   { href: "/", label: "Yangi tekshiruv", icon: <IconHome /> },
   { href: "/history", label: "Tekshiruvlar tarixi", icon: <IconHistory /> },
 ];
+const CORPUS_NAV = { href: "/corpus", label: "Korpus boshqaruvi", icon: <IconDatabase /> };
+export const CORPUS_MANAGEMENT_ROLES = new Set(["admin", "corpus_manager"]);
 
 function titleFor(pathname: string) {
   if (pathname === "/") return "Yangi tekshiruv";
   if (pathname === "/history") return "Tekshiruvlar tarixi";
+  if (pathname === "/corpus") return "Korpus boshqaruvi";
   if (pathname.startsWith("/reports/")) return "Solishtirish hisoboti";
   return "Antiplagiat";
 }
 
-export default function AppShell({ user, onLogout, busy, error, children }: { user: { username: string }; onLogout: () => void; busy: boolean; error?: string | null; children: ReactNode }) {
+export default function AppShell({ user, onLogout, busy, error, children }: { user: { username: string; role: string }; onLogout: () => void; busy: boolean; error?: string | null; children: ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerPathname, setDrawerPathname] = useState(pathname);
   if (pathname !== drawerPathname) { setDrawerPathname(pathname); setDrawerOpen(false); }
+  const items = CORPUS_MANAGEMENT_ROLES.has(user.role) ? [...NAV, CORPUS_NAV] : NAV;
 
   const nav = (
     <>
@@ -33,7 +37,7 @@ export default function AppShell({ user, onLogout, busy, error, children }: { us
         <div className={styles.brandText}><strong>Islom akademiyasi</strong><span>Antiplagiat</span></div>
       </div>
       <nav className={styles.nav} aria-label="Asosiy navigatsiya">
-        {NAV.map(item => (
+        {items.map(item => (
           <Link key={item.href} href={item.href} className={styles.navLink} aria-current={pathname === item.href ? "page" : undefined}>
             {item.icon}{item.label}
           </Link>

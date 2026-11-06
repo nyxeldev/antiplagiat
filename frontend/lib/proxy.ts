@@ -47,6 +47,14 @@ export async function proxy(request: NextRequest, path: string) {
     };
     const url = new URL(path, api);
     if (path === "/reports") url.search = request.nextUrl.search;
+    if (path === "/corpus/documents") {
+      const page = request.nextUrl.searchParams.get("page");
+      const status = request.nextUrl.searchParams.get("status");
+      const parts: string[] = [];
+      if (page && /^[0-9]+$/.test(page)) parts.push(`page=${page}`);
+      if (status && ["active", "withdrawn", "all"].includes(status)) parts.push(`status=${status}`);
+      if (parts.length) url.search = parts.join("&");
+    }
     // The only compare options forwarded; everything else stays server decided.
     if (path === "/compare" && request.nextUrl.searchParams.get("include_corpus") === "true") {
       const normalization = request.nextUrl.searchParams.get("normalization");
