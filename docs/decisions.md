@@ -120,13 +120,15 @@ Bu **qaror**, bajarilmagan ish yoki kamchilik emas: tizim faqat lotin yozuvidagi
 
 Ehtiyoj paydo bo'lsa (masalan, kirill yozuvidagi hujjatlar korpusga haqiqatan kiritilsa boshlansa), bu qaror qayta ko'rib chiqiladi — bu yopiq eshik emas, hozirgi arxiv tarkibiga asoslangan ustuvorlik.
 
-## 12. Ustoz uchun yangi rol yaratilmadi — mavjud `user` roli ishlatildi
+## 12. Ustoz uchun yangi rol yaratilmadi — mavjud `user` roli, endi admin bergan bayroq bilan
 
-**Qaror (2026-11-08):** FAZA 2 (korpusga hujjat taklif qilish va moderatsiya) uchun bazada yangi `teacher` roli **qo'shilmadi**. O'rniga mavjud `user` roli "ustoz" vazifasini bajaradi: `backend/auth.py`dagi yangi `require_teacher()` shunchaki `role == "user"`ni talab qiladi, `TEACHER_SUBMISSION_ROLE` konstantasi orqali.
+**Qaror (2026-11-08, FAZA 2da qabul qilingan, 2026-11-08da bayroq bilan qattiqlashtirilgan):** FAZA 2 (korpusga hujjat taklif qilish va moderatsiya) uchun bazada yangi `teacher` roli **qo'shilmadi**. O'rniga mavjud `user` roli "ustoz" vazifasini bajarishga **nomzod** hisoblanadi, lekin bu avtomatik huquq EMAS: `antiplagiat.users.can_submit_to_corpus` bayrog'i (migratsiya 006, default `false`) har bir `user`-rolidagi akkaunt uchun alohida, admin tomonidan yoqiladi.
 
-**Sabab:** loyihaning MAQSADi — tizimni "kafedra ustozlariga" ochish — shuni ko'rsatadiki, bu platformaning oddiy (admin/corpus_manager/reviewer bo'lmagan) foydalanuvchilari **aynan** ustozlarning o'zi, alohida ikkinchi populyatsiya emas. Yangi rol qo'shish `migration 001`dagi `users.role` CHECK cheklovini (checksummli, o'zgartirib bo'lmaydigan) kengaytiruvchi yangi migratsiya talab qilardi — bazaviy jadvalga tegish, faqat nomlash aniqligi uchun. Mavjud `user` rolidan foydalanish bu xavfni butunlay olib tashlaydi va "mavjud user roli — o'zing asosla" variantini to'g'ridan-to'g'ri qondiradi.
+**Sabab (rol tanlovi uchun, FAZA 2):** loyihaning MAQSADi — tizimni "kafedra ustozlariga" ochish — shuni ko'rsatadiki, bu platformaning oddiy (admin/corpus_manager/reviewer bo'lmagan) foydalanuvchilari **aynan** ustozlarning o'zi, alohida ikkinchi populyatsiya emas. Yangi rol qo'shish `migration 001`dagi `users.role` CHECK cheklovini (checksummli, o'zgartirib bo'lmaydigan) kengaytiruvchi yangi migratsiya talab qilardi — bazaviy jadvalga tegish, faqat nomlash aniqligi uchun. Mavjud `user` rolidan foydalanish bu xavfni butunlay olib tashlaydi.
 
-**Oqibat:** admin/corpus_manager o'zining to'g'ridan-to'g'ri (`/corpus/documents`, moderatsiyasiz, `review_status='approved'`) yo'lini saqlab qoladi; oddiy `user` esa faqat yangi `/corpus/submissions` orqali, har doim `review_status='pending'` bilan, taklif qila oladi. Kelajakda haqiqiy ikkinchi populyatsiya (masalan, talabalar) paydo bo'lsa, bu qaror qayta ko'rib chiqiladi.
+**Sabab (bayrog'i uchun, keyinroq qattiqlashtirish):** "har bir `user` akkaunti avtomatik ravishda korpusga taklif qila oladi" — bu haqiqiy ustozlar bilan bir xil `user` rolini baham ko'radigan har qanday oddiy ro'yxatdan o'tgan akkauntga ham taklif huquqini beradi, chunki bu platformada `user` roli ko'proq auditoriyani qamrab oladi. Shu sabab alohida ruxsat darajasi kerak: `can_submit_to_corpus` — bazaga tegishli, lekin `users.role` CHECK invariantiga tegmaydigan minimal qo'shimcha.
+
+**Oqibat:** admin/corpus_manager o'zining to'g'ridan-to'g'ri (`/corpus/documents`, moderatsiyasiz, `review_status='approved'`) yo'lini saqlab qoladi va `require_teacher()`da bayroqdan mustaqil ravishda o'tadi. Oddiy `user` esa faqat `can_submit_to_corpus=true` bo'lgandagina `/corpus/submissions` orqali, har doim `review_status='pending'` bilan, taklif qila oladi; bayroqsiz `user` va `reviewer` — 403. Bayroqni yoqish/o'chirish faqat `admin` uchun ochiq (`require_admin()`, `POST /users/{user_id}/corpus-submission-access`, `backend/auth.py`dagi `set_corpus_submission_access()`). Kelajakda haqiqiy ikkinchi populyatsiya (masalan, talabalar) paydo bo'lsa, bu qaror qayta ko'rib chiqiladi.
 
 ---
 

@@ -239,6 +239,31 @@ def approve(request: Request, document_id: str):
     return JSONResponse(corpus.approve(document_id), headers=HEADERS)
 
 
+@router.post("/users/{user_id}/corpus-submission-access")
+async def set_submission_access(request: Request, user_id: str):
+    """Admin-only grant/revoke of a "user"-role account's right to submit to
+    the corpus moderation queue (backend/auth.py's can_submit_to_corpus flag,
+    see docs/decisions.md §12). Body: {"enabled": true|false}.
+    """
+    auth.require_admin(request)
+    body = bytearray()
+    try:
+        async with asyncio.timeout(10):
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > 4096:
+                    raise corpus.CorpusError("corpus_metadata", "So‘rov tanasi juda uzun.", 400)
+                body.extend(chunk)
+    except TimeoutError:
+        raise corpus.CorpusError("upload_interrupted", "So‘rov vaqti tugadi.", 408) from None
+    try:
+        enabled = json.loads(body).get("enabled")
+    except (ValueError, AttributeError, UnicodeError):
+        enabled = None
+    if not isinstance(enabled, bool):
+        raise corpus.CorpusError("corpus_metadata", "'enabled' maydoni true/false bo‘lishi kerak.", 400)
+    return JSONResponse(auth.set_corpus_submission_access(user_id, enabled), headers=HEADERS)
+
+
 @router.post("/corpus/documents/{document_id}/reject")
 async def reject(request: Request, document_id: str):
     auth.require_corpus_manager(request)

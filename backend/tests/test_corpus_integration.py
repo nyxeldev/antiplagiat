@@ -82,7 +82,8 @@ class CorpusFixture:
     def add(self, text, title, raw=None, visibility=None):
         metadata = corpus_metadata(title, **({"visibility": visibility} if visibility else {}))
         return corpus.add_document(metadata, extracted(text, title),
-                                   self.admin_id, raw if raw is not None else text.encode())
+                                   self.admin_id, raw if raw is not None else text.encode(),
+                                   review_status="approved")
 
 
 class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
@@ -763,7 +764,12 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
     def payload(self, response):
         return json.loads(bytes(response.body))
 
-    def submit_as(self, role, user_id, text, **field_overrides):
+    def submit_as(self, role, user_id, text, can_submit_to_corpus=True, **field_overrides):
+        # can_submit_to_corpus defaults to True so every existing "user"-role
+        # caller in this suite keeps exercising the happy submission path;
+        # the flag-enforcement test below passes False explicitly to cover
+        # the 403 case. admin/corpus_manager ignore the flag either way
+        # (require_teacher lets them through unconditionally).
         fields = {"title": "sub-" + uuid.uuid4().hex[:8], "author_display": "Sinov Ustoz",
                   "doc_type": "bmi", "permission_basis": "Sinov uchun akademiya ruxsati", **field_overrides}
         body, kind = multipart([("file", "t.txt", text.encode())] +
@@ -780,7 +786,8 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
         scope = {"type": "http", "method": "POST", "scheme": "http", "path": "/corpus/submissions",
                  "query_string": b"", "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
                  "headers": [(b"content-type", kind.encode()), (b"content-length", str(len(body)).encode())]}
-        with patch.object(corpus_api.auth, "require_user", return_value={"id": str(user_id), "role": role}):
+        with patch.object(corpus_api.auth, "require_user", return_value={
+                "id": str(user_id), "role": role, "can_submit_to_corpus": can_submit_to_corpus}):
             return asyncio.run(corpus_api.submit(Request(scope, receive)))
 
     def reject_as(self, role, user_id, document_id, reason):
@@ -801,20 +808,27 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
             return asyncio.run(corpus_api.reject(Request(scope, receive), document_id))
 
     def test_role_matrix_for_submission_and_moderation(self):
-        # Only "user" (the teacher role) may submit for review.
+        # A flagged "user" (admin-granted can_submit_to_corpus) may submit for review.
         response = self.submit_as("user", self.user_id, self.unique(
             "Rol matritsasi sinovi uchun alohida mustaqil matn namunasi"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.payload(response)["status"], "pending")
-        # admin/corpus_manager/reviewer have no use for this path -- they either
-        # already have a direct, unmoderated upload (admin/corpus_manager) or no
-        # corpus access at all (reviewer) -- and are refused, not silently routed.
-        for role, user_id in (("admin", self.admin_id), ("corpus_manager", self.manager_id),
-                              ("reviewer", self.reviewer_id)):
+        # admin/corpus_manager may ALSO use this path (not just their own direct,
+        # unmoderated /corpus/documents upload) -- require_teacher lets them
+        # through unconditionally, regardless of can_submit_to_corpus.
+        for role, user_id in (("admin", self.admin_id), ("corpus_manager", self.manager_id)):
             with self.subTest(role=role):
-                with self.assertRaises(persistence.ServiceError) as raised:
-                    self.submit_as(role, user_id, self.unique("Boshqa rol sinov matni"))
-                self.assertEqual(raised.exception.status, 403)
+                response = self.submit_as(role, user_id, self.unique("Admin yoki manager sinov matni"))
+                self.assertEqual(response.status_code, 200)
+        # A flagless "user" (the default, can_submit_to_corpus=false) is refused.
+        with self.assertRaises(persistence.ServiceError) as raised:
+            self.submit_as("user", self.user_id, self.unique("Bayroqsiz foydalanuvchi sinov matni"),
+                           can_submit_to_corpus=False)
+        self.assertEqual(raised.exception.status, 403)
+        # reviewer has no corpus access at all and is refused regardless of the flag.
+        with self.assertRaises(persistence.ServiceError) as raised:
+            self.submit_as("reviewer", self.reviewer_id, self.unique("Reviewer sinov matni"))
+        self.assertEqual(raised.exception.status, 403)
         # Only admin/corpus_manager may read or act on the moderation queue.
         for role, user_id in (("user", self.user_id), ("reviewer", self.reviewer_id)):
             with self.subTest(role=role), patch.object(
@@ -828,6 +842,62 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
                 response = corpus_api.listing(Request(self.scope("GET", "/corpus/documents")),
                                               review_status="pending")
                 self.assertEqual(response.status_code, 200)
+
+    def set_access_as(self, role, acting_user_id, target_user_id, enabled):
+        body = json.dumps({} if enabled is None else {"enabled": enabled}).encode()
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if sent:
+                return {"type": "http.disconnect"}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        scope = {"type": "http", "method": "POST", "scheme": "http",
+                 "path": f"/users/{target_user_id}/corpus-submission-access", "query_string": b"",
+                 "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10), "headers": []}
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(acting_user_id), "role": role}):
+            return asyncio.run(corpus_api.set_submission_access(Request(scope, receive), target_user_id))
+
+    def test_can_submit_to_corpus_flag_is_admin_only_and_gates_submission(self):
+        newcomer = manage.create_user(self.admin, "corpus.newcomer." + uuid.uuid4().hex[:8],
+                                      secrets.token_urlsafe(24))
+        # Flagless by default -> refused, even though the account is "user"-role.
+        with self.assertRaises(persistence.ServiceError) as raised:
+            self.submit_as("user", newcomer, self.unique("Yangi foydalanuvchi sinov matni"),
+                           can_submit_to_corpus=False)
+        self.assertEqual(raised.exception.status, 403)
+
+        # Only admin may grant/revoke -- corpus_manager is refused, even though
+        # it already manages the corpus itself.
+        with self.assertRaises(persistence.ServiceError) as raised:
+            self.set_access_as("corpus_manager", self.manager_id, newcomer, True)
+        self.assertEqual(raised.exception.status, 403)
+
+        granted = self.payload(self.set_access_as("admin", self.admin_id, newcomer, True))
+        self.assertTrue(granted["can_submit_to_corpus"])
+        with persistence.database(self.admin) as conn:
+            row = conn.execute("SELECT can_submit_to_corpus FROM antiplagiat.users WHERE id=%s",
+                               (newcomer,)).fetchone()
+        self.assertTrue(row["can_submit_to_corpus"])
+
+        revoked = self.payload(self.set_access_as("admin", self.admin_id, newcomer, False))
+        self.assertFalse(revoked["can_submit_to_corpus"])
+
+        # A missing/non-boolean 'enabled' is a client error, not silently ignored.
+        with self.assertRaises(corpus.CorpusError) as raised:
+            self.set_access_as("admin", self.admin_id, newcomer, None)
+        self.assertEqual(raised.exception.status, 400)
+
+        # Granting it on a non-"user" account is refused: the flag is only
+        # meaningful for the role require_teacher actually checks it on --
+        # admin/corpus_manager already pass unconditionally, reviewer has no
+        # corpus access at all either way.
+        with self.assertRaises(persistence.ServiceError) as raised:
+            self.set_access_as("admin", self.admin_id, self.reviewer_id, True)
+        self.assertEqual(raised.exception.status, 404)
 
     def test_pending_submission_is_excluded_from_search_until_approved(self):
         from backend.comparison.matching import tokenize
@@ -892,7 +962,8 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
         theirs = self.payload(self.submit_as("user", other_id,
             self.unique("Boshqa foydalanuvchi yuklagan maqola matni namunasi")))
         with patch.object(corpus_api.auth, "require_user",
-                          return_value={"id": str(self.user_id), "role": "user"}):
+                          return_value={"id": str(self.user_id), "role": "user",
+                                       "can_submit_to_corpus": True}):
             response = corpus_api.my_submissions(Request(self.scope("GET", "/corpus/submissions")))
         ids = [item["id"] for item in self.payload(response)["items"]]
         self.assertIn(mine["id"], ids)

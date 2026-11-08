@@ -133,6 +133,11 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
              "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
              "AND table_name='corpus_documents' AND column_name='review_status') AS present"),
         ],
+        "006_corpus_submission_access": [
+            ("users_can_submit_to_corpus_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='users' AND column_name='can_submit_to_corpus') AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:
@@ -189,6 +194,7 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                 ("tables_revoke", "REVOKE ALL ON ALL TABLES IN SCHEMA antiplagiat FROM PUBLIC, {}"),
                 ("schema_usage", "GRANT USAGE ON SCHEMA antiplagiat TO {}"),
                 ("users_select", "GRANT SELECT ON antiplagiat.users TO {}"),
+                ("users_submission_access", "GRANT UPDATE(can_submit_to_corpus) ON antiplagiat.users TO {}"),
                 ("sessions_access", "GRANT SELECT, INSERT, DELETE ON antiplagiat.sessions TO {}"),
                 ("reports_access", "GRANT SELECT, INSERT ON antiplagiat.reports TO {}"),
                 ("reports_purge", "GRANT UPDATE(snapshot, deleted_at) ON antiplagiat.reports TO {}"),
@@ -261,7 +267,8 @@ def _ingest_one(config, source, metadata, uploaded_by):
         extracted = run_worker(folder, {"mode": "extract",
                                         "items": [{"path": "corpus-upload", "name": source.name}]})
         raw = (folder / "corpus-upload").read_bytes()
-        return corpus.add_document(metadata, extracted["documents"][0], uploaded_by, raw, config)
+        return corpus.add_document(metadata, extracted["documents"][0], uploaded_by, raw, config,
+                                   review_status="approved")
 
 
 def corpus_add(config, path, username):

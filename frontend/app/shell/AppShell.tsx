@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, type ReactNode } from "react";
 import { Pop } from "../motion";
-import { IconDatabase, IconHistory, IconHome, IconLogout, IconMenu, IconUser, IconX } from "../icons";
+import { IconDatabase, IconHistory, IconHome, IconLogout, IconMenu, IconUpload, IconUser, IconX } from "../icons";
 import { Alert, IconButton } from "../ui/primitives";
 import styles from "./shell.module.css";
 
@@ -13,22 +13,28 @@ const NAV = [
   { href: "/history", label: "Tekshiruvlar tarixi", icon: <IconHistory /> },
 ];
 const CORPUS_NAV = { href: "/corpus", label: "Korpus boshqaruvi", icon: <IconDatabase /> };
+const SUBMIT_NAV = { href: "/corpus/submit", label: "Korpusga hujjat taklif qilish", icon: <IconUpload /> };
 export const CORPUS_MANAGEMENT_ROLES = new Set(["admin", "corpus_manager"]);
 
 function titleFor(pathname: string) {
   if (pathname === "/") return "Yangi tekshiruv";
   if (pathname === "/history") return "Tekshiruvlar tarixi";
   if (pathname === "/corpus") return "Korpus boshqaruvi";
+  if (pathname === "/corpus/submit") return "Korpusga hujjat taklif qilish";
   if (pathname.startsWith("/reports/")) return "Solishtirish hisoboti";
   return "Antiplagiat";
 }
 
-export default function AppShell({ user, onLogout, busy, error, children }: { user: { username: string; role: string }; onLogout: () => void; busy: boolean; error?: string | null; children: ReactNode }) {
+export default function AppShell({ user, onLogout, busy, error, children }: { user: { username: string; role: string; can_submit_to_corpus?: boolean }; onLogout: () => void; busy: boolean; error?: string | null; children: ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerPathname, setDrawerPathname] = useState(pathname);
   if (pathname !== drawerPathname) { setDrawerPathname(pathname); setDrawerOpen(false); }
-  const items = CORPUS_MANAGEMENT_ROLES.has(user.role) ? [...NAV, CORPUS_NAV] : NAV;
+  // A flagless "user" account never sees the submission entry, in the nav or
+  // otherwise -- corpus/submit/page.tsx enforces the same check again itself,
+  // since a hidden nav link is not an access control.
+  const items = CORPUS_MANAGEMENT_ROLES.has(user.role) ? [...NAV, CORPUS_NAV]
+    : user.role === "user" && user.can_submit_to_corpus ? [...NAV, SUBMIT_NAV] : NAV;
 
   const nav = (
     <>
