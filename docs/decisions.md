@@ -112,6 +112,14 @@ FATAL: could not create lock file "/var/run/postgresql/.s.PGSQL.<port>.lock": Pe
 
 **O'zgarmagan xulq (mavjud testlar bilan kafolatlangan):** ikkalasi ham (korpus VA qo'lda manba) o'chirilgan holatda solishtirish faol emas — bu mavjud `no_sources` mantig'i (`!document || (!sources.length && !includeCorpus)` sharti `comparison.tsx`da o'zgarmadi, faqat boshlang'ich qiymati). Backend tomonidagi `no_sources` rad etilishi va "faqat korpus" muvaffaqiyati sinovlari ([7-qaror]da eslatilgan `backend/tests/test_comparison.py` va `backend/tests/test_corpus_integration.py`) **o'zgartirilmadi** — bu ularning aynan shu sharti tasdiqlagan default-holatdan mustaqil ekanini ko'rsatadi. O'zgarish faqat frontenddagi boshlang'ich holat va UI tartibi; backend `/compare` so'rovi, uning validatsiyasi yoki mavjud hisob-kitob o'zgarmadi.
 
+## 11. O'zbek kirill yozuvini qo'llab-quvvatlash — ataylab qilinmagan ish
+
+Bu **qaror**, bajarilmagan ish yoki kamchilik emas: tizim faqat lotin yozuvidagi o'zbek matnini qayta ishlaydi (`backend/comparison/uz_latin_v3.py` va undan oldingi normalizatsiya qatlamlari), kirill transliteratsiyasi yoki kirill uchun alohida normalizatsiya yo'li qo'shilmaydi.
+
+**Sabab:** korpusga kiritiladigan akademik arxiv (BMI, dissertatsiya, kurs ishi, maqola) deyarli to'liq lotin yozuvida yozilgan — kirill hujjatlar amaliyotda uchramaydi. Kirill qo'llab-quvvatlashni qo'shish (alifbo aniqlash, transliteratsiya yoki ikkinchi normalizatsiya/`fts` yo'li, va bularni sinovdan o'tkazish) real foydalanish hajmiga nisbatan o'lchanmagan murakkablik qo'shardi.
+
+Ehtiyoj paydo bo'lsa (masalan, kirill yozuvidagi hujjatlar korpusga haqiqatan kiritilsa boshlansa), bu qaror qayta ko'rib chiqiladi — bu yopiq eshik emas, hozirgi arxiv tarkibiga asoslangan ustuvorlik.
+
 ---
 
 *Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`).*

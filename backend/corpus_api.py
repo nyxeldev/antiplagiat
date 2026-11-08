@@ -27,7 +27,7 @@ HEADERS = {"Cache-Control": "no-store"}
 gate = threading.Lock()  # One corpus ingest at a time; the worker is single use.
 MAX_CORPUS_BODY_BYTES = MAX_FILE_BYTES + 64 * 1024
 TEXT_FIELDS = ("title", "author_display", "doc_type", "year", "language_hint",
-               "source_note", "permission_basis")
+               "source_note", "permission_basis", "visibility")
 
 
 class CorpusUpload:

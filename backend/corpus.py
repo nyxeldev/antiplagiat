@@ -48,6 +48,15 @@ CORPUS_EXCERPT_BUDGET = 20_000
 # stays hidden even when the flat cap alone would not have limited it.
 CORPUS_CONTEXT_FRACTION = 0.5
 DOC_TYPES = ("bmi", "dissertatsiya", "kurs_ishi", "maqola", "boshqa")
+# "excerpt" (default): a reader may see the matched passage plus bounded
+# context for this corpus source, as redact() already does today.
+# "metadata_only": the author has restricted text display. The document still
+# participates in retrieval and its coverage still counts toward the overall
+# percentage (compare() never looks at visibility), but redact() withholds
+# every excerpt and matched passage for it -- only metadata (title, author,
+# year, coverage percent, match count) ever reaches a reader.
+VISIBILITIES = ("excerpt", "metadata_only")
+RESTRICTED_REASON = "Muallif matn ko‘rsatilishini cheklagan."
 PAGE_SIZE = 20
 
 
@@ -118,6 +127,8 @@ def metadata_errors(metadata):
         problems.append("Ruxsat asosi majburiy; usiz hujjat korpusga kirmaydi.")
     if metadata.get("doc_type") not in DOC_TYPES:
         problems.append("Hujjat turi noto‘g‘ri: " + "/".join(DOC_TYPES) + ".")
+    if (metadata.get("visibility") or "excerpt") not in VISIBILITIES:
+        problems.append("Ko‘rinish darajasi noto‘g‘ri: " + "/".join(VISIBILITIES) + ".")
     year = metadata.get("year")
     if year is not None and not (isinstance(year, int) and 1900 <= year <= 2300):
         problems.append("Yil 1900–2300 oralig‘ida bo‘lishi kerak.")
@@ -151,7 +162,8 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
            str(metadata.get("source_note", "") or ""), str(metadata["permission_basis"]).strip(),
            uploaded_by, str(metadata.get("original_filename", "") or extracted.get("name", "")),
            digest_text(raw_bytes), extracted["text"], NORMALIZATION_VERSION,
-           len(extracted["text"]), len(tokens), Jsonb(extracted["segments"]))
+           len(extracted["text"]), len(tokens), Jsonb(extracted["segments"]),
+           metadata.get("visibility") or "excerpt")
     with database(config) as conn:
         # Handled inside the transaction: database() turns any psycopg.Error into a
         # generic 503, so a duplicate must be classified before it escapes.
@@ -159,8 +171,9 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
             conn.execute(
                 "INSERT INTO antiplagiat.corpus_documents(id,title,author_display,doc_type,year,"
                 "language_hint,source_note,permission_basis,uploaded_by_user_id,original_filename,"
-                "content_sha256,extracted_text,extraction_policy,char_count,token_count,segments)"
-                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", row)
+                "content_sha256,extracted_text,extraction_policy,char_count,token_count,segments,"
+                "visibility)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", row)
             conn.cursor().executemany(
                 "INSERT INTO antiplagiat.corpus_chunks(id,corpus_document_id,chunk_index,char_start,"
                 "char_end,token_start,token_end,chunk_text,chunk_text_uz_latin_v3)"
@@ -273,7 +286,7 @@ def load_for_comparison(document_id):
     with database() as conn:
         row = conn.execute(
             "SELECT id,title,author_display,doc_type,year,source_note,original_filename,"
-            "extracted_text,segments,token_count FROM antiplagiat.corpus_documents"
+            "extracted_text,segments,token_count,visibility FROM antiplagiat.corpus_documents"
             " WHERE id=%s AND status='active'", (document_id,)).fetchone()
     if not row or row["extracted_text"] is None:
         return None
@@ -282,7 +295,8 @@ def load_for_comparison(document_id):
             "corpus": {"id": str(row["id"]), "title": row["title"],
                        "author_display": row["author_display"], "doc_type": row["doc_type"],
                        "year": row["year"], "source_note": row["source_note"],
-                       "original_filename": row["original_filename"]}}
+                       "original_filename": row["original_filename"],
+                       "visibility": row["visibility"]}}
 
 
 def redact(result):
@@ -302,8 +316,19 @@ def redact(result):
         text = source.pop("text", "")
         source.pop("segments", None)
         source["text_withheld"] = True
+        restricted = source["corpus"].get("visibility") == "metadata_only"
+        if restricted:
+            source["restricted"] = True
+            source["restriction_reason"] = RESTRICTED_REASON
         for match in source.get("matches", []):
             side = match["source"]
+            if restricted:
+                # No fragment of corpus text reaches the reader at all, not even
+                # the matched passage itself -- only that a match exists and how
+                # it counted toward coverage_percent (computed upstream in
+                # matching.py, untouched here).
+                side.pop("text", None)
+                continue
             start, end = side["start"], side["end"]
             truncated = len(side["text"]) > CORPUS_MATCH_CHARS
             flat_room = max(0, min(CORPUS_CONTEXT_CHARS, budget // 2))

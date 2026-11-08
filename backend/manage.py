@@ -123,6 +123,11 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
              "AND table_name='corpus_chunks' AND column_name='chunk_text_uz_latin_v3') AS present"),
             ("corpus_chunks_fts_v3_index", "SELECT to_regclass('antiplagiat.corpus_chunks_fts_v3') IS NOT NULL AS present"),
         ],
+        "004_corpus_visibility": [
+            ("corpus_documents_visibility_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='corpus_documents' AND column_name='visibility') AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:
@@ -268,6 +273,7 @@ def corpus_add(config, path, username):
         "language_hint": input("Til belgisi [uz]: ").strip() or "uz",
         "source_note": input("Manba izohi (ixtiyoriy): ").strip(),
         "permission_basis": input("Ruxsat asosi (majburiy): ").strip(),
+        "visibility": input("Ko‘rinish (excerpt/metadata_only) [excerpt]: ").strip() or "excerpt",
         "original_filename": source.name,
     }
     year = input("Yil (ixtiyoriy): ").strip()
@@ -313,6 +319,7 @@ def corpus_add_batch(config, paths, username):
         "language_hint": input("Til belgisi [uz]: ").strip() or "uz",
         "source_note": input("Manba izohi (ixtiyoriy, butun partiya uchun): ").strip(),
         "permission_basis": input("Ruxsat asosi (majburiy, butun partiya uchun): ").strip(),
+        "visibility": input("Ko‘rinish (excerpt/metadata_only, butun partiya uchun) [excerpt]: ").strip() or "excerpt",
     }
     if not shared["permission_basis"]:
         raise ValueError("Ruxsat asosi majburiy; usiz hech bir hujjat korpusga kirmaydi.")

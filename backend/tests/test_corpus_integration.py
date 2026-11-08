@@ -79,8 +79,9 @@ class CorpusFixture:
         # Distinct content per test; the digest uniqueness rule is tested on purpose.
         return f"{text} sinovbelgisi{uuid.uuid4().hex[:10]}"
 
-    def add(self, text, title, raw=None):
-        return corpus.add_document(corpus_metadata(title), extracted(text, title),
+    def add(self, text, title, raw=None, visibility=None):
+        metadata = corpus_metadata(title, **({"visibility": visibility} if visibility else {}))
+        return corpus.add_document(metadata, extracted(text, title),
                                    self.admin_id, raw if raw is not None else text.encode())
 
 
@@ -103,6 +104,32 @@ class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
         for chunk in chunks:
             self.assertTrue(chunk["indexed"])
             self.assertEqual(text[chunk["char_start"]:chunk["char_end"]], chunk["chunk_text"])
+
+    def test_visibility_defaults_to_excerpt_and_rejects_unknown_values(self):
+        text = self.unique(UZ)
+        stored = self.add(text, "vis-default-" + uuid.uuid4().hex[:8])
+        with persistence.database(self.admin) as conn:
+            row = conn.execute("SELECT visibility FROM antiplagiat.corpus_documents WHERE id=%s",
+                               (stored["id"],)).fetchone()
+        self.assertEqual(row["visibility"], "excerpt")
+        with self.assertRaises(corpus.CorpusError) as raised:
+            corpus.add_document(corpus_metadata("vis-bad", visibility="public"),
+                                extracted(self.unique(UZ), "vis-bad"), self.admin_id, b"x")
+        self.assertEqual(raised.exception.code, "corpus_metadata")
+
+    def test_metadata_only_visibility_is_stored_and_immutable_through_the_app(self):
+        text = self.unique(UZ)
+        stored = self.add(text, "vis-meta-" + uuid.uuid4().hex[:8], visibility="metadata_only")
+        with persistence.database(self.admin) as conn:
+            row = conn.execute("SELECT visibility FROM antiplagiat.corpus_documents WHERE id=%s",
+                               (stored["id"],)).fetchone()
+        self.assertEqual(row["visibility"], "metadata_only")
+        # The runtime role has no UPDATE grant on this column at all (see
+        # backend/manage.py's migrate()), so the app can never flip it post-ingest.
+        with self.assertRaises(persistence.ServiceError):
+            with persistence.database(self.runtime) as conn:
+                conn.execute("UPDATE antiplagiat.corpus_documents SET visibility='excerpt' WHERE id=%s",
+                             (stored["id"],))
 
     def test_v3_column_is_populated_without_changing_original_text_or_offsets(self):
         """uz-latin-v3 stays retrieval-only: proven, not claimed.
@@ -346,7 +373,7 @@ class CorpusBatchIngestTests(CorpusFixture, unittest.TestCase):
     shared metadata, one result per file, one bad file never stops the rest.
     """
 
-    SHARED_INPUTS = ["Sinov Muallif", "bmi", "uz", "sinov", "Sinov uchun akademiya ruxsati", ""]
+    SHARED_INPUTS = ["Sinov Muallif", "bmi", "uz", "sinov", "Sinov uchun akademiya ruxsati", "", ""]
 
     def write(self, folder, name, content):
         path = Path(folder) / name
@@ -605,6 +632,32 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
         # Corpus text away from the matched passage must never be returned.
         self.assertNotIn("MAXFIYKORPUSJUMLASI", raw)
         self.assertNotIn("toldiruvchi60", raw)
+
+    def test_metadata_only_source_withholds_every_excerpt_but_still_counts_coverage(self):
+        filler = " ".join(f"metaonlytoldiruvchi{i} jumla matni" for i in range(120))
+        secret = "METAONLYMAXFIYKORPUSJUMLASI faqat korpusda turadi va javobga chiqmasligi kerak"
+        self.add(self.unique(f"{UZ} {filler} {secret}"), "metaonly-" + uuid.uuid4().hex[:8],
+                 visibility="metadata_only")
+        body, kind = multipart([("document", "t.txt", UZ.encode()),
+                                ("sources", "s.txt", UNRELATED.encode())])
+        response = self.request(body, kind, include_corpus=True)
+        raw = bytes(response.body).decode("utf-8")
+        result = self.payload(response)
+        source = next(s for s in result["sources"] if s.get("corpus"))
+        self.assertNotIn("text", source)
+        self.assertNotIn("segments", source)
+        self.assertTrue(source["text_withheld"])
+        self.assertTrue(source["restricted"])
+        self.assertEqual(source["restriction_reason"], corpus.RESTRICTED_REASON)
+        self.assertTrue(source["matches"])  # moslik topiladi
+        for match in source["matches"]:
+            self.assertNotIn("text", match["source"])
+            self.assertNotIn("excerpt", match["source"])
+        self.assertGreater(source["coverage_percent"], 0)  # foizga kiradi
+        self.assertGreater(result["coverage_percent"], 0)
+        # Not even the matched passage itself may leak, unlike a plain excerpt source.
+        self.assertNotIn("METAONLYMAXFIYKORPUSJUMLASI", raw)
+        self.assertNotIn("metaonlytoldiruvchi60", raw)
 
     def test_personal_report_text_never_reaches_the_corpus(self):
         before = corpus.list_documents(1, "all")["items"]
