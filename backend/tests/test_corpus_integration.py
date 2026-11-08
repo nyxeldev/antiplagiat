@@ -497,8 +497,14 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
         self.assertTrue(all("corpus" not in s for s in result["sources"]))
 
     def test_flag_on_adds_the_corpus_candidate_with_usable_offsets(self):
-        stored = self.add(UZ, "on-" + uuid.uuid4().hex[:8])
-        document = UZ + " Qoshimcha mustaqil xulosa qismi bu yerda yozilgan."
+        # unique(), not bare UZ: otherwise this document ties exactly (same
+        # ts_rank -- the shared UZ content, nothing more) with every other
+        # test's own self.unique(UZ)/UZ corpus document across this whole
+        # module's shared cluster, and DEFAULT_CANDIDATES then keeps only
+        # the lowest-UUID few -- order/UUID-dependent, not reproducible.
+        text = self.unique(UZ)
+        stored = self.add(text, "on-" + uuid.uuid4().hex[:8])
+        document = text + " Qoshimcha mustaqil xulosa qismi bu yerda yozilgan."
         body, kind = multipart([("document", "t.txt", document.encode()),
                                 ("sources", "s.txt", UNRELATED.encode())])
         result = self.payload(self.request(body, kind, include_corpus=True))
@@ -513,7 +519,7 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
         match = source["matches"][0]
         self.assertEqual(result["document"]["text"][match["document"]["start"]:match["document"]["end"]],
                          match["document"]["text"])
-        self.assertIn(match["source"]["text"], UZ)
+        self.assertIn(match["source"]["text"], text)
         self.assertGreater(source["coverage_percent"], 0)
         self.assertLessEqual(result["coverage_percent"], 100.0)
 
