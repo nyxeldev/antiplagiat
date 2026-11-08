@@ -35,6 +35,7 @@ export default function CorpusAdmin() {
   const user = useUser();
   const expired = useSessionExpired();
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
   const [status, setStatus] = useState("active");
   const [version, setVersion] = useState(0);
   const [data, setData] = useState<{ items: Item[]; has_next: boolean } | null>(null);
@@ -76,6 +77,10 @@ export default function CorpusAdmin() {
     </Card></Rise>;
   }
 
+  const needle = search.trim().toLocaleLowerCase("uz-UZ");
+  const visibleItems = !data ? [] : !needle ? data.items
+    : data.items.filter(item => item.title.toLocaleLowerCase("uz-UZ").includes(needle) || item.author_display.toLocaleLowerCase("uz-UZ").includes(needle));
+
   return <Rise>
     <Card>
       <div className={pageStyles.sectionHeading}>
@@ -85,6 +90,8 @@ export default function CorpusAdmin() {
       <p className={pageStyles.muted}>Tekshiruvda nomzod manba sifatida ishlatiladigan hujjatlar. Matnning o‘zi hech qachon ko‘rsatilmaydi — faqat metama’lumot.</p>
 
       <div className={styles.filters}>
+        <Input className={styles.search} placeholder="Nomi yoki muallif bo‘yicha qidirish" aria-label="Qidirish"
+          value={search} onChange={e => setSearch(e.target.value)} />
         <Select className={styles.select} value={status} aria-label="Holat bo‘yicha filtr"
           onChange={e => { setData(null); setStatus(e.target.value); setPage(1); }}>
           <option value="active">Faol</option>
@@ -92,6 +99,9 @@ export default function CorpusAdmin() {
           <option value="all">Barchasi</option>
         </Select>
       </div>
+      {search.trim() && <p className={pageStyles.muted} style={{ marginTop: "calc(-1 * var(--sp-3))", marginBottom: "var(--sp-4)" }}>
+        Qidiruv faqat joriy sahifadagi hujjatlar orasida ishlaydi.
+      </p>}
 
       {error && <Alert variant="error">{error} <button onClick={() => { setData(null); setVersion(v => v + 1); }}
         style={{ background: "none", border: 0, color: "inherit", textDecoration: "underline", cursor: "pointer", font: "inherit" }}>Qayta urinish</button></Alert>}
@@ -101,12 +111,12 @@ export default function CorpusAdmin() {
       </div>}
 
       {data && <>
-        {!data.items.length
+        {!visibleItems.length
           ? <EmptyState icon={<IconDatabase />} title="Hujjat yo‘q"
-              description="Bu filtr bo‘yicha korpusda hujjat topilmadi." />
+              description={search.trim() ? "Qidiruvga mos hujjat joriy sahifada topilmadi." : "Bu filtr bo‘yicha korpusda hujjat topilmadi."} />
           : <div className={styles.table}>
               <div className={styles.headerRow}><span>Hujjat</span><span>Turi</span><span>Yil</span><span>Holat</span><span /></div>
-              {data.items.map(item => (
+              {visibleItems.map(item => (
                 <div key={item.id} role="button" tabIndex={0} className={styles.row} onClick={() => setDetail(item)}
                   onKeyDown={e => {
                     if (e.target !== e.currentTarget) return;
@@ -190,7 +200,7 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!file || !title.trim() || !author.trim() || !permissionBasis.trim() || inFlight.current) return;
+    if (!file || !title.trim() || !permissionBasis.trim() || inFlight.current) return;
     inFlight.current = true; setBusy(true); setError(null);
     const data = new FormData();
     data.append("file", file); data.append("title", title); data.append("author_display", author);
@@ -217,8 +227,8 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
         <Input id="corpus-title" required maxLength={300} value={title} disabled={busy} onLight
           onChange={e => setTitle(e.target.value)} />
       </Field>
-      <Field label="Muallif (ko‘rsatiladigan nom)" htmlFor="corpus-author" onLight>
-        <Input id="corpus-author" required maxLength={300} value={author} disabled={busy} onLight
+      <Field label="Muallif (ixtiyoriy)" htmlFor="corpus-author" onLight>
+        <Input id="corpus-author" maxLength={300} value={author} disabled={busy} onLight
           onChange={e => setAuthor(e.target.value)} />
       </Field>
       <Field label="Turi" htmlFor="corpus-type" onLight>
@@ -248,7 +258,7 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--sp-3)" }}>
         <Button type="button" variant="secondary" onClick={close} disabled={busy}>Bekor qilish</Button>
-        <Button type="submit" loading={busy} disabled={!file || !title.trim() || !author.trim() || !permissionBasis.trim()}>Qo‘shish</Button>
+        <Button type="submit" loading={busy} disabled={!file || !title.trim() || !permissionBasis.trim()}>Qo‘shish</Button>
       </div>
     </form>
   </Dialog>;

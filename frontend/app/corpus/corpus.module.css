@@ -1,5 +1,6 @@
 .filters { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; margin-bottom: var(--sp-5); }
 .filters .select { max-width: 12rem; }
+.filters .search { flex: 1 1 16rem; max-width: 24rem; }
 
 .table { display: flex; flex-direction: column; gap: var(--sp-2); }
 .headerRow { display: none; }
