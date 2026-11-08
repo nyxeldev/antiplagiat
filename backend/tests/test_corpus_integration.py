@@ -634,16 +634,25 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
         self.assertNotIn("toldiruvchi60", raw)
 
     def test_metadata_only_source_withholds_every_excerpt_but_still_counts_coverage(self):
+        # A base sentence sharing no vocabulary with UZ/RU/EN/UNRELATED, so this
+        # document never becomes a retrieval candidate for another test's
+        # plain-UZ query (and vice versa) -- the source is also picked out by
+        # its own stored id below, not just "the first corpus source", in case
+        # retrieval ever does return more than one candidate.
+        base = self.unique("Kompyuter tizimlarida malumotlar bazasini loyihalashtirish "
+                            "asoslari keng yoritilgan va amaliy misollar orqali tushuntirilgan")
         filler = " ".join(f"metaonlytoldiruvchi{i} jumla matni" for i in range(120))
         secret = "METAONLYMAXFIYKORPUSJUMLASI faqat korpusda turadi va javobga chiqmasligi kerak"
-        self.add(self.unique(f"{UZ} {filler} {secret}"), "metaonly-" + uuid.uuid4().hex[:8],
-                 visibility="metadata_only")
-        body, kind = multipart([("document", "t.txt", UZ.encode()),
+        stored = self.add(f"{base} {filler} {secret}", "metaonly-" + uuid.uuid4().hex[:8],
+                          visibility="metadata_only")
+        document = base + " Qoshimcha mustaqil xulosa qismi bu yerda yozilgan."
+        body, kind = multipart([("document", "t.txt", document.encode()),
                                 ("sources", "s.txt", UNRELATED.encode())])
         response = self.request(body, kind, include_corpus=True)
         raw = bytes(response.body).decode("utf-8")
         result = self.payload(response)
-        source = next(s for s in result["sources"] if s.get("corpus"))
+        corpus_sources = [s for s in result["sources"] if s.get("corpus")]
+        source = next(s for s in corpus_sources if s["corpus"]["id"] == stored["id"])
         self.assertNotIn("text", source)
         self.assertNotIn("segments", source)
         self.assertTrue(source["text_withheld"])
