@@ -33,3 +33,4 @@ export const IconFlask = (p: IconProps) => <svg {...base} {...p}><path d="M9 2h6
 export const IconLoader = (p: IconProps) => <svg {...base} {...p}><path d="M12 3a9 9 0 1 0 9 9" /></svg>;
 export const IconSparkle = (p: IconProps) => <svg {...base} {...p}><path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z" /></svg>;
 export const IconPlus = (p: IconProps) => <svg {...base} {...p}><path d="M12 5v14M5 12h14" /></svg>;
+export const IconCloud = (p: IconProps) => <svg {...base} {...p}><path d="M7 18h11a4 4 0 0 0 .5-7.97A6 6 0 0 0 7.1 11.1 4.5 4.5 0 0 0 7 18Z" /></svg>;

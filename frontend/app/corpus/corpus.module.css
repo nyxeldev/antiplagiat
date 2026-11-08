@@ -37,3 +37,23 @@
 .detailGrid dd { overflow-wrap: anywhere; }
 
 .formGrid { display: flex; flex-direction: column; gap: var(--sp-4); margin-top: var(--sp-4); }
+
+.addDocGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--sp-5); align-items: start; }
+.addDocUpload { display: flex; flex-direction: column; gap: var(--sp-3); }
+.addDocFields { display: flex; flex-direction: column; gap: var(--sp-3); }
+.addDocActions { display: flex; justify-content: flex-end; gap: var(--sp-3); margin-top: var(--sp-2); }
+
+.sourceTabs { display: flex; gap: var(--sp-2); }
+.sourceTab {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); text-align: center;
+  padding: var(--sp-3); border-radius: var(--r-md); border: 1px solid var(--line-light-strong);
+  background: var(--paper-1); color: var(--ink-on-light-muted); font: inherit; cursor: default;
+}
+.sourceTab[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft-on-light); color: var(--ink-on-light); }
+.sourceTabDisabled { cursor: not-allowed; opacity: 0.65; }
+.sourceTabLabel { display: flex; align-items: center; gap: var(--sp-2); font-weight: 650; font-size: var(--fs-sm); }
+.sourceTabLabel svg { width: 1.1rem; height: 1.1rem; flex: none; }
+
+@media (max-width: 767px) {
+  .addDocGrid { grid-template-columns: 1fr; }
+}
