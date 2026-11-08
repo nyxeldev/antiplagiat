@@ -15,6 +15,7 @@ const DOC_TYPE_LABEL: Record<string, string> = {
   bmi: "BMI", dissertatsiya: "Dissertatsiya", kurs_ishi: "Kurs ishi", maqola: "Maqola", boshqa: "Boshqa",
 };
 const STATUS_LABEL: Record<string, string> = { active: "Faol", withdrawn: "Chiqarilgan" };
+const VISIBILITY_LABEL: Record<string, string> = { excerpt: "Parcha ko‘rinadi", metadata_only: "Faqat ma’lumot (matn yashirin)" };
 const MIB = 1024 * 1024;
 
 type Item = {
@@ -181,6 +182,7 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
   const [language, setLanguage] = useState("uz");
   const [sourceNote, setSourceNote] = useState("");
   const [permissionBasis, setPermissionBasis] = useState("");
+  const [visibility, setVisibility] = useState("excerpt");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -188,7 +190,7 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
 
   function reset() {
     setFile(null); setTitle(""); setAuthor(""); setDocType("bmi"); setYear("");
-    setLanguage("uz"); setSourceNote(""); setPermissionBasis(""); setError(null);
+    setLanguage("uz"); setSourceNote(""); setPermissionBasis(""); setVisibility("excerpt"); setError(null);
     setConfirmDiscard(false);
   }
   const hasProgress = !!file || !!title.trim() || !!author.trim() || !!year
@@ -218,6 +220,7 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
     data.append("file", file); data.append("title", title); data.append("author_display", author);
     data.append("doc_type", docType); data.append("language_hint", language);
     data.append("source_note", sourceNote); data.append("permission_basis", permissionBasis);
+    data.append("visibility", visibility);
     if (year) data.append("year", year);
     try {
       await api("/corpus/documents", { method: "POST", body: data, signal: AbortSignal.timeout(60_000) });
@@ -286,6 +289,12 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
             hint="Bu hujjatni korpusga qo‘shish huquqi qayerdan kelganini qisqacha yozing." onLight>
             <Input id="corpus-permission" required maxLength={2000} value={permissionBasis} disabled={busy} onLight
               onChange={e => setPermissionBasis(e.target.value)} />
+          </Field>
+          <Field label="Ko‘rinish darajasi" htmlFor="corpus-visibility"
+            hint="Faqat ma’lumot: moslik va foiz hisoblanadi, lekin hech qanday matn parchasi ko‘rsatilmaydi." onLight>
+            <Select id="corpus-visibility" value={visibility} disabled={busy} onLight onChange={e => setVisibility(e.target.value)}>
+              {Object.entries(VISIBILITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </Select>
           </Field>
         </div>
       </div>

@@ -20,7 +20,7 @@ type CorpusMeta = {
 };
 type Source = Document & {
   id: string; matched_tokens: number; coverage_percent: number; matches: Match[];
-  corpus?: CorpusMeta; text_withheld?: boolean;
+  corpus?: CorpusMeta; text_withheld?: boolean; restricted?: boolean; restriction_reason?: string;
 };
 export type Report = {
   report_id: string; created_at: string; saved: boolean;
@@ -53,15 +53,19 @@ function CorpusExcerpt({ source, span }: { source: Source; span: Span }) {
     <div className={reportStyles.excerptBody}>
       <p className={pageStyles.muted}>{details || "Metama’lumot ko‘rsatilmagan"}{meta.source_note ? ` · ${meta.source_note}` : ""}</p>
       <p className={pageStyles.muted}>{place(span.location)}</p>
-      <p className={reportStyles.text}>
-        {span.excerpt?.before ? "…" : ""}{span.excerpt?.before ?? ""}
-        <mark>{span.text}</mark>
-        {span.excerpt?.after ?? ""}{span.excerpt?.after ? "…" : ""}
-      </p>
-      <p className={pageStyles.muted}>
-        {span.match_truncated ? "Mos parcha ko‘rsatish uchun qisqartirildi. " : ""}
-        To‘liq korpus matni ko‘rsatilmaydi; faqat mos parcha va cheklangan kontekst beriladi.
-      </p>
+      {source.restricted
+        ? <Alert variant="warning" onLight>{source.restriction_reason || "Muallif matn ko‘rsatilishini cheklagan."}</Alert>
+        : <>
+          <p className={reportStyles.text}>
+            {span.excerpt?.before ? "…" : ""}{span.excerpt?.before ?? ""}
+            <mark>{span.text}</mark>
+            {span.excerpt?.after ?? ""}{span.excerpt?.after ? "…" : ""}
+          </p>
+          <p className={pageStyles.muted}>
+            {span.match_truncated ? "Mos parcha ko‘rsatish uchun qisqartirildi. " : ""}
+            To‘liq korpus matni ko‘rsatilmaydi; faqat mos parcha va cheklangan kontekst beriladi.
+          </p>
+        </>}
     </div>
   </article>;
 }
