@@ -120,6 +120,14 @@ Bu **qaror**, bajarilmagan ish yoki kamchilik emas: tizim faqat lotin yozuvidagi
 
 Ehtiyoj paydo bo'lsa (masalan, kirill yozuvidagi hujjatlar korpusga haqiqatan kiritilsa boshlansa), bu qaror qayta ko'rib chiqiladi — bu yopiq eshik emas, hozirgi arxiv tarkibiga asoslangan ustuvorlik.
 
+## 12. Ustoz uchun yangi rol yaratilmadi — mavjud `user` roli ishlatildi
+
+**Qaror (2026-11-08):** FAZA 2 (korpusga hujjat taklif qilish va moderatsiya) uchun bazada yangi `teacher` roli **qo'shilmadi**. O'rniga mavjud `user` roli "ustoz" vazifasini bajaradi: `backend/auth.py`dagi yangi `require_teacher()` shunchaki `role == "user"`ni talab qiladi, `TEACHER_SUBMISSION_ROLE` konstantasi orqali.
+
+**Sabab:** loyihaning MAQSADi — tizimni "kafedra ustozlariga" ochish — shuni ko'rsatadiki, bu platformaning oddiy (admin/corpus_manager/reviewer bo'lmagan) foydalanuvchilari **aynan** ustozlarning o'zi, alohida ikkinchi populyatsiya emas. Yangi rol qo'shish `migration 001`dagi `users.role` CHECK cheklovini (checksummli, o'zgartirib bo'lmaydigan) kengaytiruvchi yangi migratsiya talab qilardi — bazaviy jadvalga tegish, faqat nomlash aniqligi uchun. Mavjud `user` rolidan foydalanish bu xavfni butunlay olib tashlaydi va "mavjud user roli — o'zing asosla" variantini to'g'ridan-to'g'ri qondiradi.
+
+**Oqibat:** admin/corpus_manager o'zining to'g'ridan-to'g'ri (`/corpus/documents`, moderatsiyasiz, `review_status='approved'`) yo'lini saqlab qoladi; oddiy `user` esa faqat yangi `/corpus/submissions` orqali, har doim `review_status='pending'` bilan, taklif qila oladi. Kelajakda haqiqiy ikkinchi populyatsiya (masalan, talabalar) paydo bo'lsa, bu qaror qayta ko'rib chiqiladi.
+
 ---
 
 *Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`).*

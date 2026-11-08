@@ -128,6 +128,11 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
              "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
              "AND table_name='corpus_documents' AND column_name='visibility') AS present"),
         ],
+        "005_corpus_moderation": [
+            ("corpus_documents_review_status_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='corpus_documents' AND column_name='review_status') AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:
@@ -189,6 +194,7 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                 ("reports_purge", "GRANT UPDATE(snapshot, deleted_at) ON antiplagiat.reports TO {}"),
                 ("corpus_documents_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_documents TO {}"),
                 ("corpus_documents_withdraw", "GRANT UPDATE(status, withdrawn_at, updated_at, extracted_text) ON antiplagiat.corpus_documents TO {}"),
+                ("corpus_documents_moderate", "GRANT UPDATE(review_status, rejection_reason) ON antiplagiat.corpus_documents TO {}"),
                 ("corpus_chunks_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_chunks TO {}"),
                 ("corpus_chunks_purge", "GRANT UPDATE(chunk_text, chunk_text_uz_latin_v3) ON antiplagiat.corpus_chunks TO {}"),
             ]:

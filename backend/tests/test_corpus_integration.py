@@ -742,5 +742,172 @@ class CorpusAccessTests(CorpusFixture, unittest.TestCase):
         self.assertEqual(raised.exception.status, 403)
 
 
+class CorpusModerationTests(CorpusFixture, unittest.TestCase):
+    """FAZA 2: a teacher's (role="user") moderated submission queue --
+    corpus_api.submit/my_submissions for the teacher, corpus_api.detail/
+    approve/reject for admin/corpus_manager. "user" has no direct, unmoderated
+    path; admin/corpus_manager keep theirs (CorpusUploadFormatTests) unchanged.
+    """
+
+    def scope(self, method, path, query=b""):
+        return {"type": "http", "method": method, "scheme": "http", "path": path,
+                "query_string": query, "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                "headers": [(b"x-antiplagiat-local", b"1")]}
+
+    def payload(self, response):
+        return json.loads(bytes(response.body))
+
+    def submit_as(self, role, user_id, text, **field_overrides):
+        fields = {"title": "sub-" + uuid.uuid4().hex[:8], "author_display": "Sinov Ustoz",
+                  "doc_type": "bmi", "permission_basis": "Sinov uchun akademiya ruxsati", **field_overrides}
+        body, kind = multipart([("file", "t.txt", text.encode())] +
+                               [(field, field, str(value).encode()) for field, value in fields.items()])
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if sent:
+                return {"type": "http.disconnect"}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        scope = {"type": "http", "method": "POST", "scheme": "http", "path": "/corpus/submissions",
+                 "query_string": b"", "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                 "headers": [(b"content-type", kind.encode()), (b"content-length", str(len(body)).encode())]}
+        with patch.object(corpus_api.auth, "require_user", return_value={"id": str(user_id), "role": role}):
+            return asyncio.run(corpus_api.submit(Request(scope, receive)))
+
+    def reject_as(self, role, user_id, document_id, reason):
+        body = json.dumps({"reason": reason} if reason is not None else {}).encode()
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if sent:
+                return {"type": "http.disconnect"}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        scope = {"type": "http", "method": "POST", "scheme": "http",
+                 "path": f"/corpus/documents/{document_id}/reject", "query_string": b"",
+                 "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10), "headers": []}
+        with patch.object(corpus_api.auth, "require_user", return_value={"id": str(user_id), "role": role}):
+            return asyncio.run(corpus_api.reject(Request(scope, receive), document_id))
+
+    def test_role_matrix_for_submission_and_moderation(self):
+        # Only "user" (the teacher role) may submit for review.
+        response = self.submit_as("user", self.user_id, self.unique(
+            "Rol matritsasi sinovi uchun alohida mustaqil matn namunasi"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.payload(response)["status"], "pending")
+        # admin/corpus_manager/reviewer have no use for this path -- they either
+        # already have a direct, unmoderated upload (admin/corpus_manager) or no
+        # corpus access at all (reviewer) -- and are refused, not silently routed.
+        for role, user_id in (("admin", self.admin_id), ("corpus_manager", self.manager_id),
+                              ("reviewer", self.reviewer_id)):
+            with self.subTest(role=role):
+                with self.assertRaises(persistence.ServiceError) as raised:
+                    self.submit_as(role, user_id, self.unique("Boshqa rol sinov matni"))
+                self.assertEqual(raised.exception.status, 403)
+        # Only admin/corpus_manager may read or act on the moderation queue.
+        for role, user_id in (("user", self.user_id), ("reviewer", self.reviewer_id)):
+            with self.subTest(role=role), patch.object(
+                    corpus_api.auth, "require_user", return_value={"id": str(user_id), "role": role}):
+                with self.assertRaises(persistence.ServiceError) as raised:
+                    corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
+                self.assertEqual(raised.exception.status, 403)
+        for role, user_id in (("admin", self.admin_id), ("corpus_manager", self.manager_id)):
+            with self.subTest(role=role), patch.object(
+                    corpus_api.auth, "require_user", return_value={"id": str(user_id), "role": role}):
+                response = corpus_api.listing(Request(self.scope("GET", "/corpus/documents")),
+                                              review_status="pending")
+                self.assertEqual(response.status_code, 200)
+
+    def test_pending_submission_is_excluded_from_search_until_approved(self):
+        from backend.comparison.matching import tokenize
+
+        base = self.unique("Dasturiy taminot sinash metodologiyasi va test holatlari "
+                           "tahlili ushbu bobda keng yoritiladi")
+        stored = self.payload(self.submit_as("user", self.user_id, base + " qoshimcha jumla."))
+        self.assertEqual(stored["review_status"], "pending")
+        tokens = tokenize(base)
+        found, _ = corpus.candidates(tokens)
+        self.assertNotIn(stored["id"], [c["id"] for c in found])  # pending hujjat qidiruvga tushmaydi
+
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.admin_id), "role": "admin"}):
+            approved = corpus_api.approve(Request(self.scope("POST", "/corpus/documents")), stored["id"])
+        self.assertEqual(self.payload(approved)["review_status"], "approved")
+        found_after, _ = corpus.candidates(tokens)
+        self.assertIn(stored["id"], [c["id"] for c in found_after])  # endi foizga kiradi
+
+        # Already approved: approving again finds nothing left pending.
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.manager_id), "role": "corpus_manager"}):
+            with self.assertRaises(corpus.CorpusError) as raised:
+                corpus_api.approve(Request(self.scope("POST", "/corpus/documents")), stored["id"])
+        self.assertEqual(raised.exception.status, 404)
+
+    def test_rejected_submission_requires_a_reason_and_purges_its_text(self):
+        text = self.unique("Alohida boshqa mavzudagi uslubiy qollanma matni tahlili")
+        stored = self.payload(self.submit_as("user", self.user_id, text))
+
+        with self.assertRaises(corpus.CorpusError) as raised:
+            self.reject_as("admin", self.admin_id, stored["id"], None)
+        self.assertEqual(raised.exception.status, 400)
+        with self.assertRaises(corpus.CorpusError) as raised_blank:
+            self.reject_as("admin", self.admin_id, stored["id"], "   ")
+        self.assertEqual(raised_blank.exception.status, 400)
+
+        rejected = self.payload(self.reject_as("corpus_manager", self.manager_id, stored["id"],
+                                               "Ruxsat asosi yetarli emas"))
+        self.assertEqual(rejected["review_status"], "rejected")
+        with persistence.database(self.admin) as conn:
+            row = conn.execute("SELECT status,review_status,rejection_reason,extracted_text"
+                               " FROM antiplagiat.corpus_documents WHERE id=%s", (stored["id"],)).fetchone()
+            chunks = conn.execute("SELECT chunk_text,chunk_text_uz_latin_v3 FROM antiplagiat.corpus_chunks"
+                                  " WHERE corpus_document_id=%s", (stored["id"],)).fetchall()
+        self.assertEqual(row["status"], "withdrawn")
+        self.assertEqual(row["review_status"], "rejected")
+        self.assertEqual(row["rejection_reason"], "Ruxsat asosi yetarli emas")
+        self.assertIsNone(row["extracted_text"])  # rad etilgan hujjat matni saqlanmaydi
+        self.assertTrue(all(c["chunk_text"] == "" and c["chunk_text_uz_latin_v3"] == "" for c in chunks))
+
+        # Already rejected: nothing left pending to reject again.
+        with self.assertRaises(corpus.CorpusError) as raised_again:
+            self.reject_as("admin", self.admin_id, stored["id"], "ikkinchi urinish")
+        self.assertEqual(raised_again.exception.status, 404)
+
+    def test_teacher_sees_only_own_submissions(self):
+        other_id = manage.create_user(self.admin, "corpus.other." + uuid.uuid4().hex[:8],
+                                      secrets.token_urlsafe(24))
+        mine = self.payload(self.submit_as("user", self.user_id,
+            self.unique("Mening ozim yuklagan maqola matni namunasi")))
+        theirs = self.payload(self.submit_as("user", other_id,
+            self.unique("Boshqa foydalanuvchi yuklagan maqola matni namunasi")))
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.user_id), "role": "user"}):
+            response = corpus_api.my_submissions(Request(self.scope("GET", "/corpus/submissions")))
+        ids = [item["id"] for item in self.payload(response)["items"]]
+        self.assertIn(mine["id"], ids)
+        self.assertNotIn(theirs["id"], ids)  # boshqa ustozning takliflarini ko'rmaydi
+
+    def test_admin_can_view_submission_detail_including_text_teacher_cannot(self):
+        text = self.unique("Yana boshqa mustaqil matn moderatsiya korinishi uchun")
+        stored = self.payload(self.submit_as("user", self.user_id, text))
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.admin_id), "role": "admin"}):
+            response = corpus_api.detail(Request(self.scope("GET", f"/corpus/documents/{stored['id']}")),
+                                         stored["id"])
+        detail = self.payload(response)
+        self.assertEqual(detail["review_status"], "pending")
+        self.assertEqual(detail["extracted_text"], text)
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.user_id), "role": "user"}):
+            with self.assertRaises(persistence.ServiceError) as raised:
+                corpus_api.detail(Request(self.scope("GET", f"/corpus/documents/{stored['id']}")), stored["id"])
+        self.assertEqual(raised.exception.status, 403)
+
+
 if __name__ == "__main__":
     unittest.main()

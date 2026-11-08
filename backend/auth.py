@@ -123,6 +123,12 @@ def require_user(request):
 
 
 CORPUS_MANAGEMENT_ROLES = {"admin", "corpus_manager"}
+# A teacher is not a separate database role: every ordinary signed-in account
+# IS a department teacher, since that is this whole platform's audience (see
+# docs/decisions.md). Submitting a document for moderation is therefore
+# "user", the same role every other non-privileged account already has --
+# admin/corpus_manager keep their own direct, unmoderated upload path.
+TEACHER_SUBMISSION_ROLE = "user"
 
 
 def require_corpus_manager(request):
@@ -130,6 +136,15 @@ def require_corpus_manager(request):
     user = require_user(request)
     if user.get("role") not in CORPUS_MANAGEMENT_ROLES:
         raise ServiceError("forbidden", "Bu amal uchun administrator yoki korpus boshqaruvchisi roli kerak.", 403)
+    return user
+
+
+def require_teacher(request):
+    # The corpus submission queue only; never widens access to corpus
+    # administration or another user's personal reports.
+    user = require_user(request)
+    if user.get("role") != TEACHER_SUBMISSION_ROLE:
+        raise ServiceError("forbidden", "Bu amal uchun oddiy foydalanuvchi hisobi kerak.", 403)
     return user
 
 
