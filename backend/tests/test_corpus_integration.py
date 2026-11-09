@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from starlette.requests import Request
 
-from backend import corpus, corpus_api, manage, persistence
+from backend import corpus, corpus_api, manage, persistence, rate_limit, reports
 from backend.comparison import api
 from backend.tests.fixtures import docx, multipart, pdf
 from backend.tests.postgres_fixture import isolated_postgres, runtime_environment
@@ -691,6 +691,183 @@ class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
             docs = conn.execute("SELECT count(*) AS n FROM antiplagiat.corpus_documents"
                                 " WHERE extracted_text LIKE %s", ("%" + secret[:40] + "%",)).fetchone()["n"]
         self.assertEqual((hit, docs), (0, 0))
+
+
+class CorpusExcerptDefenseTests(CorpusFixture, unittest.TestCase):
+    """FAZA 3: per-user x per-document cumulative excerpt budget, its audit
+    log, and the persisted per-user rate limit -- docs/decisions.md Sect.2.
+    """
+
+    def request(self, body, content_type, include_corpus=True, user_id=None,
+                idempotency_key=None):
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if sent:
+                return {"type": "http.disconnect"}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+        query = ["include_corpus=true"] if include_corpus else []
+        scope = {"type": "http", "method": "POST", "scheme": "http", "path": "/compare",
+                 "query_string": "&".join(query).encode(),
+                 "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                 "headers": [(b"content-type", content_type.encode()), (b"x-antiplagiat-local", b"1"),
+                             (b"idempotency-key", (idempotency_key or str(uuid.uuid4())).encode())]}
+        owner = str(user_id or self.user_id)
+        with patch.object(api.auth, "require_user", return_value={"id": owner, "role": "user"}):
+            return asyncio.run(api.compare_uploads(Request(scope, receive), include_corpus=include_corpus))
+
+    def payload(self, response):
+        return json.loads(bytes(response.body))
+
+    def audit_rows(self, user_id, document_id):
+        with persistence.database(self.admin) as conn:
+            return conn.execute(
+                "SELECT chars_shown, report_id FROM antiplagiat.corpus_excerpt_audit"
+                " WHERE user_id=%s AND corpus_document_id=%s", (user_id, document_id)).fetchall()
+
+    def test_budget_exhaustion_withholds_text_but_keeps_match_and_percent(self):
+        match_text = self.unique("Byudjet sinovi uchun maxsus noyob jumla namunasi butunlay")
+        stored = self.add(match_text + " qoshimcha toldiruvchi gap shu yerda.",
+                          "budget-" + uuid.uuid4().hex[:8])
+        # A tiny, exact budget: one disclosure of match_text fits (floor ==
+        # ceiling == its own length), a second one for the same document
+        # does not -- deterministic regardless of document length.
+        with patch.object(corpus, "CORPUS_DOCUMENT_BUDGET_FLOOR", len(match_text)), \
+                patch.object(corpus, "CORPUS_DOCUMENT_BUDGET_CEILING", len(match_text)):
+            document = match_text + " Mustaqil xulosa qismi shu yerda yoziladi aniq."
+            body, kind = multipart([("document", "t.txt", document.encode())])
+            first = self.payload(self.request(body, kind))
+            source = next(s for s in first["sources"] if s.get("corpus", {}).get("id") == stored["id"])
+            self.assertTrue(source["matches"])
+            match = source["matches"][0]
+            self.assertIn("text", match["source"])
+            self.assertNotIn("budget_exhausted", match["source"])
+            first_percent = source["coverage_percent"]
+            self.assertGreater(first_percent, 0)
+            self.assertEqual(len(self.audit_rows(self.user_id, stored["id"])), 1)
+
+            body2, kind2 = multipart([("document", "t.txt", document.encode())])
+            second = self.payload(self.request(body2, kind2))
+            source2 = next(s for s in second["sources"] if s.get("corpus", {}).get("id") == stored["id"])
+            match2 = source2["matches"][0]
+            # Budget spent: no text passage any more...
+            self.assertNotIn("text", match2["source"])
+            self.assertTrue(match2["source"]["budget_exhausted"])
+            self.assertEqual(match2["source"]["budget_exhausted_reason"], corpus.BUDGET_EXHAUSTED_REASON)
+            # ...but match existence, location and coverage percent are unaffected.
+            self.assertEqual(match2["source"]["start"], match["source"]["start"])
+            self.assertEqual(source2["coverage_percent"], first_percent)
+            self.assertEqual(second["coverage_percent"], first["coverage_percent"])
+            # Still exactly one audit row (second disclosure was refused, not logged).
+            self.assertEqual(len(self.audit_rows(self.user_id, stored["id"])), 1)
+
+    def test_reopening_a_saved_report_does_not_respend_the_budget(self):
+        match_text = self.unique("Qayta ochish sinovi uchun alohida noyob jumla")
+        stored = self.add(match_text + " qoldiq toldiruvchi matn shu joyda davom etadi.",
+                          "reopen-" + uuid.uuid4().hex[:8])
+        document = match_text + " Mustaqil qism shu yerda yoziladi."
+        body, kind = multipart([("document", "t.txt", document.encode())])
+        saved = self.payload(self.request(body, kind))
+        self.assertEqual(len(self.audit_rows(self.user_id, stored["id"])), 1)
+        for _ in range(5):
+            reports.get(str(self.user_id), saved["report_id"])
+        # Reading the same saved report repeatedly spends nothing new.
+        self.assertEqual(len(self.audit_rows(self.user_id, stored["id"])), 1)
+
+    def test_metadata_only_document_never_spends_the_budget(self):
+        match_text = self.unique("Metadata only byudjet sinovi uchun maxsus jumla")
+        stored = self.add(match_text + " qoldiq matn shu yerda.",
+                          "meta-budget-" + uuid.uuid4().hex[:8], visibility="metadata_only")
+        document = match_text + " Mustaqil qism shu yerda yoziladi."
+        body, kind = multipart([("document", "t.txt", document.encode())])
+        result = self.payload(self.request(body, kind))
+        source = next(s for s in result["sources"] if s.get("corpus", {}).get("id") == stored["id"])
+        self.assertTrue(source["restricted"])
+        self.assertTrue(source["matches"])
+        self.assertEqual(self.audit_rows(self.user_id, stored["id"]), [])
+
+    def test_audit_log_never_stores_excerpt_text(self):
+        match_text = self.unique("Audit jurnali sinovi uchun o'ziga xos jumla MAXFIYBELGI")
+        stored = self.add(match_text + " qoldiq matn shu yerda davom etadi.",
+                          "audit-" + uuid.uuid4().hex[:8])
+        document = match_text + " Mustaqil qism shu yerda yoziladi."
+        body, kind = multipart([("document", "t.txt", document.encode())])
+        result = self.payload(self.request(body, kind))
+        source = next(s for s in result["sources"] if s.get("corpus", {}).get("id") == stored["id"])
+        shown_chars = len(source["matches"][0]["source"]["text"])
+        rows = self.audit_rows(self.user_id, stored["id"])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["chars_shown"], shown_chars)
+        self.assertEqual(rows[0]["report_id"], uuid.UUID(result["report_id"]))
+        # The audit table has no text-bearing column at all -- confirmed directly
+        # against the schema, not just this one row's visible fields.
+        with persistence.database(self.admin) as conn:
+            columns = {r["column_name"] for r in conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_schema='antiplagiat'"
+                " AND table_name='corpus_excerpt_audit'").fetchall()}
+        self.assertEqual(columns, {"id", "user_id", "corpus_document_id", "report_id",
+                                   "chars_shown", "created_at"})
+
+
+class RateLimitTests(CorpusFixture, unittest.TestCase):
+    def fresh_user(self, label):
+        # A dedicated account per assertion, never one of CorpusFixture's
+        # shared ids: those accumulate counts across every other test in
+        # this module's shared cluster, which would make a saturation
+        # assertion here depend on unrelated tests' timing/ordering.
+        return manage.create_user(self.admin, f"ratelimit.{label}." + uuid.uuid4().hex[:8],
+                                  secrets.token_urlsafe(24))
+
+    def test_limit_is_enforced_per_user_and_scope(self):
+        saturated = self.fresh_user("saturated")
+        for _ in range(rate_limit.LIMITS["corpus"]):
+            rate_limit.enforce(saturated, "corpus")
+        with self.assertRaises(persistence.ServiceError) as raised:
+            rate_limit.enforce(saturated, "corpus")
+        self.assertEqual((raised.exception.status, raised.exception.code), (429, "rate_limited"))
+        # A different user, or a different scope, has its own independent budget.
+        rate_limit.enforce(self.fresh_user("other"), "corpus")
+        rate_limit.enforce(saturated, "compare")
+
+    def test_limit_survives_a_simulated_backend_restart(self):
+        # Nothing in this process has called enforce() for this user/scope yet --
+        # the count below is pre-seeded directly in the database, as if written
+        # by a NOW-DEAD earlier process. enforce() still refuses the very next
+        # call, proving the limit is read from durable storage, not rebuilt
+        # in memory (a real restart would leave this table exactly as-is).
+        fresh_user = manage.create_user(self.admin, "ratelimit.restart." + uuid.uuid4().hex[:8],
+                                        secrets.token_urlsafe(24))
+        with persistence.database(self.admin) as conn:
+            conn.execute(
+                "INSERT INTO antiplagiat.rate_limit_counters(user_id, scope, window_start, count)"
+                " VALUES (%s, 'corpus', date_trunc('minute', now()), %s)",
+                (fresh_user, rate_limit.LIMITS["corpus"]))
+        with self.assertRaises(persistence.ServiceError) as raised:
+            rate_limit.enforce(fresh_user, "corpus")
+        self.assertEqual(raised.exception.status, 429)
+
+    def test_corpus_endpoint_rejects_with_429_once_its_limit_is_reached(self):
+        # A dedicated admin account, not CLUSTER's shared admin_id, for the
+        # same reason as fresh_user() above.
+        admin_id = manage.create_user(self.admin, "ratelimit.endpoint-admin." + uuid.uuid4().hex[:8],
+                                      secrets.token_urlsafe(24), role="admin")
+        with patch.object(corpus_api.rate_limit, "LIMITS", {**rate_limit.LIMITS, "corpus": 2}):
+            with patch.object(corpus_api.auth, "require_user",
+                              return_value={"id": str(admin_id), "role": "admin"}):
+                for _ in range(2):
+                    response = corpus_api.listing(Request(
+                        {"type": "http", "method": "GET", "path": "/corpus/documents",
+                         "query_string": b"", "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                         "headers": [(b"x-antiplagiat-local", b"1")]}))
+                    self.assertEqual(response.status_code, 200)
+                with self.assertRaises(persistence.ServiceError) as raised:
+                    corpus_api.listing(Request(
+                        {"type": "http", "method": "GET", "path": "/corpus/documents",
+                         "query_string": b"", "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                         "headers": [(b"x-antiplagiat-local", b"1")]}))
+                self.assertEqual(raised.exception.status, 429)
 
 
 class CorpusAccessTests(CorpusFixture, unittest.TestCase):

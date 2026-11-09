@@ -47,6 +47,19 @@ CORPUS_EXCERPT_BUDGET = 20_000
 # that side (outside the match), so some of a short document's text always
 # stays hidden even when the flat cap alone would not have limited it.
 CORPUS_CONTEXT_FRACTION = 0.5
+# Per-user x per-document cumulative cap on MATCH TEXT (not context) shown
+# across SEPARATE reports -- closes docs/decisions.md Sect.2's "unlimited
+# aggregation" gap. Shape: a fraction of the document's own size, clamped
+# between a floor and a ceiling (see redact()'s docstring for the reasoning
+# behind each number).
+CORPUS_DOCUMENT_BUDGET_FRACTION = 0.15
+CORPUS_DOCUMENT_BUDGET_FLOOR = CORPUS_MATCH_CHARS
+CORPUS_DOCUMENT_BUDGET_CEILING = 6_000
+BUDGET_EXHAUSTED_REASON = (
+    "Bu korpus hujjati bo‘yicha sizga ko‘rsatish byudjeti tugadi: moslik va foiz "
+    "hamon ko‘rinadi, lekin matn parchasi endi berilmaydi. Byudjet avvalgi "
+    "hisobotni qayta ochishda sarflanmaydi -- faqat yangi tekshiruv yaratilganda."
+)
 DOC_TYPES = ("bmi", "dissertatsiya", "kurs_ishi", "maqola", "boshqa")
 # "excerpt" (default): a reader may see the matched passage plus bounded
 # context for this corpus source, as redact() already does today.
@@ -391,7 +404,7 @@ def load_for_comparison(document_id):
     with database() as conn:
         row = conn.execute(
             "SELECT id,title,author_display,doc_type,year,source_note,original_filename,"
-            "extracted_text,segments,token_count,visibility FROM antiplagiat.corpus_documents"
+            "extracted_text,segments,token_count,char_count,visibility FROM antiplagiat.corpus_documents"
             " WHERE id=%s AND status='active' AND review_status='approved'", (document_id,)).fetchone()
     if not row or row["extracted_text"] is None:
         return None
@@ -401,23 +414,127 @@ def load_for_comparison(document_id):
                        "author_display": row["author_display"], "doc_type": row["doc_type"],
                        "year": row["year"], "source_note": row["source_note"],
                        "original_filename": row["original_filename"],
-                       "visibility": row["visibility"]}}
+                       "visibility": row["visibility"], "char_count": row["char_count"]}}
 
 
-def redact(result):
+def per_document_budget(char_count):
+    """Lifetime cap (across all reports) on MATCH TEXT characters a single
+    user may be shown for one corpus document.
+
+    Fraction (15%): generous enough that a genuine reviewer can confirm
+    several distinct matches against the same source over multiple real
+    sessions, while still keeping cumulative exposure to a small share of
+    any document long enough for the fraction to matter (see the ceiling).
+
+    Floor (CORPUS_MATCH_CHARS, 1200): without it, a short document's 15%
+    could fall below one truncated match's own length, which would make the
+    very first, totally fresh query withhold text for a document nobody has
+    seen yet -- defeating the feature (redact() guarantees at least one full
+    match is shown before any budget is ever spent). The floor also means a
+    short document (under ~8000 characters, where 15% < the floor) is
+    proportionally MORE exposed than a long one -- an accepted, documented
+    residual limitation (docs/decisions.md Sect.2), not something this
+    formula tries to close.
+
+    Ceiling (6000 = 5x CORPUS_MATCH_CHARS): without it, a long document (a
+    full dissertation can run to hundreds of thousands of characters) would
+    let its 15% grow to tens of thousands of characters -- a real
+    reconstruction risk, exactly what Sect.2 flagged as open. The ceiling
+    caps the maximum ever assembled, from ANY document regardless of size,
+    at about five matches' worth: enough to substantiate several distinct
+    findings, not enough to rebuild a real paper.
+    """
+    return int(min(max(char_count * CORPUS_DOCUMENT_BUDGET_FRACTION, CORPUS_DOCUMENT_BUDGET_FLOOR),
+                   CORPUS_DOCUMENT_BUDGET_CEILING))
+
+
+def _already_shown_chars(user_id, document_ids, config=None):
+    """Cumulative MATCH TEXT characters already shown to this user, per
+    document, from backend/corpus.py's own audit log (migration 007) --
+    never from the text itself, which this table does not store.
+    """
+    if not document_ids:
+        return {}
+    with database(config) as conn:
+        rows = conn.execute(
+            "SELECT corpus_document_id, SUM(chars_shown) AS spent FROM antiplagiat.corpus_excerpt_audit"
+            " WHERE user_id=%s AND corpus_document_id = ANY(%s) GROUP BY corpus_document_id",
+            (user_id, document_ids)).fetchall()
+    return {str(r["corpus_document_id"]): r["spent"] for r in rows}
+
+
+def record_excerpt_disclosures(user_id, report_id, debits, config=None):
+    """One audit row per (user, corpus document) actually revealed in this
+    report -- chars_shown only, never the excerpt text. Called once, AFTER
+    reports.save() has given the report its id (redact() runs before that
+    row exists, so it can only hand back what to debit, not write it itself).
+    """
+    if not debits:
+        return
+    with database(config) as conn:
+        conn.cursor().executemany(
+            "INSERT INTO antiplagiat.corpus_excerpt_audit(id,user_id,corpus_document_id,report_id,chars_shown)"
+            " VALUES (%s,%s,%s,%s,%s)",
+            [(uuid.uuid4(), user_id, document_id, report_id, chars) for document_id, chars in debits.items()])
+
+
+def redact(result, user_id=None, config=None):
     """Replace full corpus text with bounded excerpts before the report is saved.
 
     The checked document keeps its own text; only corpus sources are reduced.
-    The report-wide budget governs the surrounding context, which is corpus text
-    the reader has not otherwise seen. The matched run itself is capped
-    separately: it is by definition identical to text already in the checked
-    document, so counting it against the budget would hide evidence without
-    protecting anything.
+    The report-wide budget (CORPUS_EXCERPT_BUDGET) governs the surrounding
+    CONTEXT, which is corpus text the reader has not otherwise seen, within
+    this one report. It is unchanged by what follows.
+
+    user_id=None (every existing caller/test that never passed one) keeps
+    the exact old behaviour: no database access, no cross-report budget --
+    this is deliberately preserved so backend/tests/test_corpus.py's pure,
+    no-database redaction tests stay meaningful and unchanged. The real
+    production caller (backend/comparison/api.py's with_corpus()) always has
+    an authenticated user and passes it, which additionally enforces
+    per_document_budget(): the cumulative MATCH TEXT (not context) shown to
+    THAT user for THAT corpus document, across every separate report ever
+    created -- not just this one. This is what actually closes
+    docs/decisions.md Sect.2's gap: today's CORPUS_EXCERPT_BUDGET resets on
+    every new /compare call, so nothing stopped many separate requests from
+    together reassembling an unbounded share of a document; this one does
+    not reset, because it is read from (and added to) the database rather
+    than a fresh local variable.
+
+    Matches are walked in order and each one is binary: shown in full (up to
+    CORPUS_MATCH_CHARS) or not at all, never partially -- so the budget is
+    always spent in whole-match units, and a document's budget floor
+    (CORPUS_DOCUMENT_BUDGET_FLOOR == CORPUS_MATCH_CHARS) guarantees the
+    FIRST match of the FIRST report against a fresh document always fits,
+    however many more matches that same report finds. Once a document's
+    budget for this user is spent, later matches for it keep their
+    coverage_percent/location/source name -- compare()'s own coverage
+    accounting (backend/comparison/matching.py) never looks at any of this
+    -- only the text passage itself is withheld, with budget_exhausted_reason
+    explaining why.
+
+    Admin/corpus_manager get no special-cased exemption here: the budget
+    applies to every role identically through this comparison path. They
+    already have a separate, role-gated, unredacted path to the same text
+    (corpus_api.py's GET /corpus/documents/{id}, for moderation) -- their
+    corpus-management role does not need to ALSO make this reader-facing,
+    budget-protected path unlimited.
+
+    metadata_only sources never reach the loop below at all for the budget
+    (see `restricted`): they give no excerpt in the first place, so nothing
+    is ever spent for them.
+
+    Reopening an already saved report never calls this function again
+    (backend/reports.py's get() returns the stored, already-redacted
+    snapshot) -- so the budget is only ever spent once, at creation.
     """
     budget = CORPUS_EXCERPT_BUDGET
-    for source in result.get("sources", []):
-        if not source.get("corpus"):
-            continue
+    corpus_sources = [s for s in result.get("sources", []) if s.get("corpus")]
+    budgetable_ids = [s["corpus"]["id"] for s in corpus_sources
+                      if s["corpus"].get("visibility") != "metadata_only" and s["corpus"].get("char_count") is not None]
+    spent = _already_shown_chars(user_id, budgetable_ids, config) if user_id is not None else {}
+    debits = {}
+    for source in corpus_sources:
         text = source.pop("text", "")
         source.pop("segments", None)
         source["text_withheld"] = True
@@ -425,6 +542,11 @@ def redact(result):
         if restricted:
             source["restricted"] = True
             source["restriction_reason"] = RESTRICTED_REASON
+        document_id = source["corpus"]["id"]
+        char_count = source["corpus"].get("char_count")
+        remaining = None
+        if not restricted and user_id is not None and char_count is not None:
+            remaining = per_document_budget(char_count) - spent.get(document_id, 0)
         for match in source.get("matches", []):
             side = match["source"]
             if restricted:
@@ -434,8 +556,17 @@ def redact(result):
                 # matching.py, untouched here).
                 side.pop("text", None)
                 continue
-            start, end = side["start"], side["end"]
             truncated = len(side["text"]) > CORPUS_MATCH_CHARS
+            match_text = side["text"][:CORPUS_MATCH_CHARS] if truncated else side["text"]
+            if remaining is not None and len(match_text) > remaining:
+                side.pop("text", None)
+                side["budget_exhausted"] = True
+                side["budget_exhausted_reason"] = BUDGET_EXHAUSTED_REASON
+                continue
+            if remaining is not None:
+                remaining -= len(match_text)
+                debits[document_id] = debits.get(document_id, 0) + len(match_text)
+            start, end = side["start"], side["end"]
             flat_room = max(0, min(CORPUS_CONTEXT_CHARS, budget // 2))
             # Independently cap each side by a fraction of what that side
             # actually has available outside the match.
@@ -444,13 +575,19 @@ def redact(result):
             before = text[max(0, start - room_before):start]
             after = text[end:end + room_after]
             budget = max(0, budget - len(before) - len(after))
-            side["text"] = side["text"][:CORPUS_MATCH_CHARS] if truncated else side["text"]
+            side["text"] = match_text
             side["match_truncated"] = truncated
             side["excerpt"] = {"before": before, "after": after}
     result["excerpt_policy"] = {
         "context_chars": CORPUS_CONTEXT_CHARS, "match_chars": CORPUS_MATCH_CHARS,
         "report_context_budget_chars": CORPUS_EXCERPT_BUDGET,
+        "document_budget_fraction": CORPUS_DOCUMENT_BUDGET_FRACTION,
+        "document_budget_floor_chars": CORPUS_DOCUMENT_BUDGET_FLOOR,
+        "document_budget_ceiling_chars": CORPUS_DOCUMENT_BUDGET_CEILING,
         "note": "Korpus manbasidan faqat mos parcha va cheklangan kontekst ko‘rsatiladi; "
-                "to‘liq korpus matni berilmaydi.",
+                "to‘liq korpus matni berilmaydi. Har bir korpus hujjati bo‘yicha "
+                "ko‘rsatilgan matn umumiy hajmi foydalanuvchi uchun cheklangan.",
     }
+    if user_id is not None:
+        result["_excerpt_debits"] = debits
     return result

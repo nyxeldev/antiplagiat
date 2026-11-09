@@ -17,7 +17,7 @@ from python_multipart.multipart import parse_options_header
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import ClientDisconnect
 
-from backend import auth, corpus
+from backend import auth, corpus, rate_limit
 from backend.comparison.policy import ComparisonError, MAX_FILE_BYTES, UPLOAD_SECONDS
 from backend.comparison.runner import run_worker
 from backend.persistence import ServiceError
@@ -193,6 +193,7 @@ async def _accept_upload(request, uploaded_by, review_status, status_label):
 @router.post("/corpus/documents")
 async def add(request: Request):
     manager = await run_in_threadpool(auth.require_corpus_manager, request)
+    await run_in_threadpool(rate_limit.enforce, manager["id"], "corpus")
     return await _accept_upload(request, manager["id"], "approved", "added")
 
 
@@ -203,6 +204,7 @@ async def submit(request: Request):
     corpus_manager/admin approves it below.
     """
     teacher = await run_in_threadpool(auth.require_teacher, request)
+    await run_in_threadpool(rate_limit.enforce, teacher["id"], "corpus")
     return await _accept_upload(request, teacher["id"], "pending", "pending")
 
 
@@ -212,30 +214,35 @@ def my_submissions(request: Request, page: int = 1):
     approved, rejected, withdrawn) and never another teacher's.
     """
     teacher = auth.require_teacher(request)
+    rate_limit.enforce(teacher["id"], "corpus")
     return JSONResponse(corpus.list_documents(page, "all", uploaded_by=teacher["id"]), headers=HEADERS)
 
 
 @router.get("/corpus/documents")
 def listing(request: Request, page: int = 1, status: str = "active", review_status: str | None = None):
-    auth.require_corpus_manager(request)
+    manager = auth.require_corpus_manager(request)
+    rate_limit.enforce(manager["id"], "corpus")
     return JSONResponse(corpus.list_documents(page, status, review_status=review_status), headers=HEADERS)
 
 
 @router.get("/corpus/documents/{document_id}")
 def detail(request: Request, document_id: str):
-    auth.require_corpus_manager(request)
+    manager = auth.require_corpus_manager(request)
+    rate_limit.enforce(manager["id"], "corpus")
     return JSONResponse(corpus.get_document(document_id), headers=HEADERS)
 
 
 @router.post("/corpus/documents/{document_id}/withdraw")
 def withdraw(request: Request, document_id: str):
-    auth.require_corpus_manager(request)
+    manager = auth.require_corpus_manager(request)
+    rate_limit.enforce(manager["id"], "corpus")
     return JSONResponse(corpus.withdraw(document_id), headers=HEADERS)
 
 
 @router.post("/corpus/documents/{document_id}/approve")
 def approve(request: Request, document_id: str):
-    auth.require_corpus_manager(request)
+    manager = auth.require_corpus_manager(request)
+    rate_limit.enforce(manager["id"], "corpus")
     return JSONResponse(corpus.approve(document_id), headers=HEADERS)
 
 
@@ -245,7 +252,8 @@ async def set_submission_access(request: Request, user_id: str):
     the corpus moderation queue (backend/auth.py's can_submit_to_corpus flag,
     see docs/decisions.md §12). Body: {"enabled": true|false}.
     """
-    auth.require_admin(request)
+    admin = await run_in_threadpool(auth.require_admin, request)
+    await run_in_threadpool(rate_limit.enforce, admin["id"], "corpus")
     body = bytearray()
     try:
         async with asyncio.timeout(10):
@@ -266,7 +274,8 @@ async def set_submission_access(request: Request, user_id: str):
 
 @router.post("/corpus/documents/{document_id}/reject")
 async def reject(request: Request, document_id: str):
-    auth.require_corpus_manager(request)
+    manager = await run_in_threadpool(auth.require_corpus_manager, request)
+    await run_in_threadpool(rate_limit.enforce, manager["id"], "corpus")
     body = bytearray()
     try:
         async with asyncio.timeout(10):

@@ -11,6 +11,7 @@ type Location = { kind: "page" | "paragraph"; from: number; to: number };
 type Span = {
   start: number; end: number; text: string; location: Location;
   excerpt?: { before: string; after: string }; match_truncated?: boolean;
+  budget_exhausted?: boolean; budget_exhausted_reason?: string;
 };
 type Match = { method: "exact" | "shingle"; document: Span; source: Span };
 type Document = { name: string; text?: string; format: string };
@@ -55,6 +56,8 @@ function CorpusExcerpt({ source, span }: { source: Source; span: Span }) {
       <p className={pageStyles.muted}>{place(span.location)}</p>
       {source.restricted
         ? <Alert variant="warning" onLight>{source.restriction_reason || "Muallif matn ko‘rsatilishini cheklagan."}</Alert>
+        : span.budget_exhausted
+        ? <Alert variant="warning" onLight>{span.budget_exhausted_reason || "Bu hujjat uchun ko‘rsatish byudjeti tugadi."}</Alert>
         : <>
           <p className={reportStyles.text}>
             {span.excerpt?.before ? "…" : ""}{span.excerpt?.before ?? ""}
