@@ -19,9 +19,10 @@ from psycopg.errors import UniqueViolation
 
 from backend.persistence import ServiceError, database
 
-# Local development setting, lowered on the owner's instruction. A pilot
-# deployment must raise this again before real accounts are created.
-MIN_PASSWORD_CHARS = 4
+# Restored for production (2026-11-09, FAZA 4; see docs/decisions.md Sect.13
+# for why 12 and not the more common 8). The 2026-10 value of 4 was a local
+# development-only convenience and is no longer in effect for new accounts.
+MIN_PASSWORD_CHARS = 12
 MAX_PASSWORD_CHARS = 256
 
 
@@ -223,11 +224,26 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
     return len(files)
 
 
+def weak_password_reason(password, username):
+    """Rejects the two simplest, most guessable password shapes -- a fixed
+    dictionary/external service is explicitly out of scope (docs/decisions.md
+    Sect.13). Message text never includes the password itself.
+    """
+    if password.isdigit():
+        return "parol faqat raqamlardan iborat bo‘lmasligi kerak"
+    if password.casefold() == username.casefold():
+        return "parol login bilan bir xil bo‘lmasligi kerak"
+    return None
+
+
 def create_user(config, username, password, role="user"):
     from backend.auth import password_hash, valid_username
     if not valid_username(username) or not MIN_PASSWORD_CHARS <= len(password) <= MAX_PASSWORD_CHARS:
         raise ValueError(f"Login: 3–64 kichik lotin harfi/son/_.-; "
                          f"parol: {MIN_PASSWORD_CHARS}–{MAX_PASSWORD_CHARS} belgi.")
+    weak = weak_password_reason(password, username)
+    if weak:
+        raise ValueError(f"Juda sodda parol: {weak}.")
     user_id = uuid.uuid4()
     hashed = password_hash(password)
     with database(config) as conn:
@@ -394,6 +410,9 @@ def main():
     show_corpus.add_argument("--status", choices=["active", "withdrawn", "all"], default="active")
     drop_corpus = sub.add_parser("corpus-withdraw")
     drop_corpus.add_argument("document_id")
+    audit_cleanup = sub.add_parser("audit-cleanup",
+        help="corpus_excerpt_audit jadvalidan saqlash muddatidan eski yozuvlarni o‘chiradi (qo‘l bilan ishga tushiriladi).")
+    audit_cleanup.add_argument("--older-than-days", type=int, default=365)
     args = parser.parse_args()
     diagnostic = MigrationDiagnostics() if args.command == "migrate" and args.diagnostic else None
     driver_logger = logging.getLogger("psycopg")
@@ -438,6 +457,10 @@ def main():
             from backend import corpus
             removed = corpus.withdraw(args.document_id, config)
             print(f"Korpusdan chiqarildi va matni o‘chirildi: {removed['id']}.")
+        elif args.command == "audit-cleanup":
+            from backend import corpus
+            removed = corpus.purge_excerpt_audit(config, args.older_than_days)
+            print(f"O‘chirildi: {removed} ta audit yozuvi ({args.older_than_days} kundan eski).")
         else:
             password = hidden_password(f"Yangi akkaunt paroli (kamida {MIN_PASSWORD_CHARS} belgi): ")
             if password != hidden_password("Parolni takrorlang: "):

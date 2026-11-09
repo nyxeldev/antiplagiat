@@ -1,6 +1,7 @@
 import secrets
 import json
 import getpass
+import uuid
 import warnings
 import unittest
 from unittest.mock import MagicMock, patch
@@ -49,6 +50,33 @@ class AuthTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 manage.create_user({}, "BAD NAME", "x" * low)
             never.assert_not_called()
+
+    def test_create_user_rejects_trivially_simple_passwords(self):
+        with patch.object(manage, "database") as never:
+            with self.assertRaises(ValueError) as digits:
+                manage.create_user({}, "digits.test", "1" * manage.MIN_PASSWORD_CHARS)
+            self.assertIn("raqam", str(digits.exception))
+            username = "samepassword123"
+            with self.assertRaises(ValueError) as same:
+                manage.create_user({}, username, username.upper())
+            self.assertIn("login", str(same.exception))
+            never.assert_not_called()
+
+    def test_legacy_short_password_is_not_rejected_by_login(self):
+        """The restored MIN_PASSWORD_CHARS only gates NEW passwords
+        (manage.create_user); auth.login() itself never checks length, so an
+        account created before this policy existed keeps working.
+        """
+        conn = MagicMock()
+        conn.execute.return_value.fetchone.return_value = {
+            "id": uuid.uuid4(), "username": "legacy", "password_hash": auth.password_hash("abcd"),
+            "role": "user", "enabled": True, "can_submit_to_corpus": False,
+        }
+        with patch.object(auth, "database") as db:
+            db.return_value.__enter__.return_value = conn
+            token, user = auth.login("legacy", "abcd")
+        self.assertEqual(user["username"], "legacy")
+        self.assertTrue(token)
 
     def test_argon2_real_hash_verify(self):
         password = secrets.token_urlsafe(20)
