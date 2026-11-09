@@ -138,6 +138,10 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
              "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
              "AND table_name='users' AND column_name='can_submit_to_corpus') AS present"),
         ],
+        "007_corpus_excerpt_defenses": [
+            ("corpus_excerpt_audit", "SELECT to_regclass('antiplagiat.corpus_excerpt_audit') IS NOT NULL AS present"),
+            ("rate_limit_counters", "SELECT to_regclass('antiplagiat.rate_limit_counters') IS NOT NULL AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:
@@ -203,6 +207,10 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                 ("corpus_documents_moderate", "GRANT UPDATE(review_status, rejection_reason) ON antiplagiat.corpus_documents TO {}"),
                 ("corpus_chunks_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_chunks TO {}"),
                 ("corpus_chunks_purge", "GRANT UPDATE(chunk_text, chunk_text_uz_latin_v3) ON antiplagiat.corpus_chunks TO {}"),
+                # Append-only: the running application reads its own cumulative
+                # spend and adds a new row per disclosure, never edits or deletes one.
+                ("corpus_excerpt_audit_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_excerpt_audit TO {}"),
+                ("rate_limit_counters_access", "GRANT SELECT, INSERT, UPDATE(count) ON antiplagiat.rate_limit_counters TO {}"),
             ]:
                 migration_step(conn, diagnostic, "migration", step, sql.SQL(statement).format(ident))
             for step, statement in [

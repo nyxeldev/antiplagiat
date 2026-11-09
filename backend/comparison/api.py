@@ -9,7 +9,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import ClientDisconnect
-from backend import auth, corpus, reports
+from backend import auth, corpus, rate_limit, reports
 from backend.persistence import ServiceError
 
 from .matching import tokenize
@@ -21,11 +21,17 @@ router = APIRouter()
 gate = threading.Lock()  # One comparison/upload per backend process; no unbounded queue.
 
 
-def with_corpus(folder, items, normalization="v2"):
+def with_corpus(folder, items, normalization="v2", user_id=None):
     """Extract once, retrieve candidates, then compare uploads and corpus together.
 
     The parser stays in the sandboxed worker and the database stays in this
     process, so the worker never receives credentials.
+
+    Rate limited here (scope="compare"), not at the top of compare_uploads(),
+    because this is the only /compare path that can ever expose corpus
+    excerpts -- a plain two-upload comparison touches no corpus text and is
+    already serialized by this module's single-flight `gate` lock. Checked
+    before any extraction work starts.
 
     normalization is one of three modes (docs/decisions.md Sect.5), chosen
     by a reader explicitly ticking an experimental checkbox -- old requests
@@ -45,6 +51,7 @@ def with_corpus(folder, items, normalization="v2"):
     See backend/comparison/uz_latin_v3.py and docs/benchmarks/uz-morph-v3*.md
     for what the stripper does and its measured, known limitations.
     """
+    rate_limit.enforce(user_id, "compare")
     extracted = run_worker(folder, {"mode": "extract", "items": items})["documents"]
     document, sources = extracted[0], extracted[1:]
     tokens = tokenize(document["text"])
@@ -81,7 +88,7 @@ def with_corpus(folder, items, normalization="v2"):
         "to‘liq so‘zni (qo‘shimchasi bilan) qamraydi; faqat qaysi so‘zlar mos deb topilishi o‘zgaradi. "
         "Ushbu rejim yolg‘on musbatlar bo‘yicha o‘lchangan, ammo hamon tajriba xususiyatga ega.",
     ] if normalization == "v3-matching" else []) + result.get("limitations", [])
-    return corpus.redact(result)
+    return corpus.redact(result, user_id)
 
 
 @router.post("/compare")
@@ -123,7 +130,7 @@ async def compare_uploads(request: Request, include_corpus: bool = False, normal
             if previous:
                 return JSONResponse(previous, headers=headers)
             # Shield cleanup from client/task cancellation until the owned worker stops.
-            work = (lambda f, i: with_corpus(f, i, normalization)) if include_corpus else run_worker
+            work = (lambda f, i: with_corpus(f, i, normalization, owner)) if include_corpus else run_worker
             task = asyncio.create_task(run_in_threadpool(work, folder, items))
             try:
                 result = await asyncio.shield(task)
@@ -136,7 +143,13 @@ async def compare_uploads(request: Request, include_corpus: bool = False, normal
         # Recheck session after expensive work: logout/expiry cannot save a report.
         if (await run_in_threadpool(auth.require_user, request))["id"] != owner:
             raise ServiceError("unauthenticated", "Qayta kiring.", 401)
+        debits = result.pop("_excerpt_debits", None)
         result = await run_in_threadpool(reports.save, owner, key, digest, result)
+        # Only after save() exists do we have a report_id to attach the audit
+        # rows to -- redact() ran before the report row existed and could only
+        # decide what to debit, not write it (see corpus.py's redact()).
+        if debits:
+            await run_in_threadpool(corpus.record_excerpt_disclosures, owner, result["report_id"], debits)
         return JSONResponse(result, headers=headers)
     except ServiceError:
         raise
