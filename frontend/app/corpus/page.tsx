@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../lib/client-api";
 import { useSessionExpired, useUser } from "../account-shell";
-import { IconCloud, IconDatabase, IconPlus, IconTrash, IconUpload } from "../icons";
+import { IconCheck, IconCloud, IconDatabase, IconPlus, IconTrash, IconUpload, IconX } from "../icons";
 import { Pop, Rise } from "../motion";
 import { Alert, Badge, Button, Card, EmptyState, Field, IconButton, Input, Pagination, Select, Skeleton } from "../ui/primitives";
 import { ConfirmDialog, Dialog } from "../ui/Dialog";
@@ -15,12 +15,15 @@ const DOC_TYPE_LABEL: Record<string, string> = {
   bmi: "BMI", dissertatsiya: "Dissertatsiya", kurs_ishi: "Kurs ishi", maqola: "Maqola", boshqa: "Boshqa",
 };
 const STATUS_LABEL: Record<string, string> = { active: "Faol", withdrawn: "Chiqarilgan" };
+const VISIBILITY_LABEL: Record<string, string> = { excerpt: "Parcha ko‘rinadi", metadata_only: "Faqat ma’lumot (matn yashirin)" };
+const REVIEW_STATUS_LABEL: Record<string, string> = { pending: "Kutilmoqda", approved: "Tasdiqlangan", rejected: "Rad etilgan" };
 const MIB = 1024 * 1024;
 
 type Item = {
   id: string; title: string; author_display: string; doc_type: string; year: number | null;
   language_hint: string; source_note: string; permission_basis: string; original_filename: string;
   content_sha256: string; char_count: number; token_count: number; status: string;
+  review_status: string; rejection_reason: string | null; uploaded_by_user_id: string;
   created_at: string; withdrawn_at: string | null;
 };
 
@@ -37,6 +40,7 @@ export default function CorpusAdmin() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("active");
+  const [reviewStatus, setReviewStatus] = useState("");
   const [version, setVersion] = useState(0);
   const [data, setData] = useState<{ items: Item[]; has_next: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,20 +48,26 @@ export default function CorpusAdmin() {
   const [confirming, setConfirming] = useState<Item | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [moderating, setModerating] = useState(false);
+  const [rejecting, setRejecting] = useState<Item | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectReasonError, setRejectReasonError] = useState<string | null>(null);
+  const [confirmingReject, setConfirmingReject] = useState<Item | null>(null);
 
   const allowed = !!user && (user.role === "admin" || user.role === "corpus_manager");
 
   useEffect(() => {
     if (!allowed) return;
     const controller = new AbortController();
-    api(`/corpus/documents?page=${page}&status=${status}`, { signal: controller.signal })
+    const reviewParam = reviewStatus ? `&review_status=${reviewStatus}` : "";
+    api(`/corpus/documents?page=${page}&status=${status}${reviewParam}`, { signal: controller.signal })
       .then(result => { setData(result); setError(null); })
       .catch(e => {
         if (controller.signal.aborted) return;
         if (e instanceof ApiError && e.status === 401) expired(); else setError(e instanceof Error ? e.message : "Korpus ro‘yxati olinmadi.");
       });
     return () => controller.abort();
-  }, [allowed, page, status, version, expired]);
+  }, [allowed, page, status, reviewStatus, version, expired]);
 
   async function withdraw(item: Item) {
     setWithdrawing(true); setError(null);
@@ -67,6 +77,37 @@ export default function CorpusAdmin() {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) expired(); else setError(e instanceof Error ? e.message : "Chiqarib bo‘lmadi.");
     } finally { setWithdrawing(false); }
+  }
+
+  async function approve(item: Item) {
+    setModerating(true); setError(null);
+    try {
+      await api(`/corpus/documents/${item.id}/approve`, { method: "POST" });
+      setDetail(null); setData(null); setVersion(v => v + 1);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) expired(); else setError(e instanceof Error ? e.message : "Tasdiqlab bo‘lmadi.");
+    } finally { setModerating(false); }
+  }
+
+  function openReject(item: Item) { setRejecting(item); setRejectReason(""); setRejectReasonError(null); }
+
+  function proceedToConfirmReject() {
+    if (!rejectReason.trim()) { setRejectReasonError("Rad etish sababi majburiy."); return; }
+    setConfirmingReject(rejecting); setRejecting(null);
+  }
+
+  async function rejectConfirmed() {
+    if (!confirmingReject) return;
+    setModerating(true); setError(null);
+    try {
+      await api(`/corpus/documents/${confirmingReject.id}/reject`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: rejectReason.trim() }),
+      });
+      setConfirmingReject(null); setDetail(null); setData(null); setVersion(v => v + 1);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) expired(); else setError(e instanceof Error ? e.message : "Rad etib bo‘lmadi.");
+    } finally { setModerating(false); }
   }
 
   if (!user) return null;
@@ -98,6 +139,13 @@ export default function CorpusAdmin() {
           <option value="withdrawn">Chiqarilgan</option>
           <option value="all">Barchasi</option>
         </Select>
+        <Select className={styles.select} value={reviewStatus} aria-label="Ko‘rib chiqish holati bo‘yicha filtr"
+          onChange={e => { setData(null); setReviewStatus(e.target.value); setPage(1); }}>
+          <option value="">Ko‘rib chiqish: barchasi</option>
+          <option value="pending">Moderatsiya navbati (kutilmoqda)</option>
+          <option value="approved">Tasdiqlangan</option>
+          <option value="rejected">Rad etilgan</option>
+        </Select>
       </div>
       {search.trim() && <p className={pageStyles.muted} style={{ marginTop: "calc(-1 * var(--sp-3))", marginBottom: "var(--sp-4)" }}>
         Qidiruv faqat joriy sahifadagi hujjatlar orasida ishlaydi.
@@ -128,9 +176,23 @@ export default function CorpusAdmin() {
                   </div>
                   <span>{DOC_TYPE_LABEL[item.doc_type] ?? item.doc_type}</span>
                   <span className={styles.year}>{item.year ?? "—"}</span>
-                  <Badge variant={item.status === "active" ? "accent" : "neutral"}>{STATUS_LABEL[item.status] ?? item.status}</Badge>
+                  <span style={{ display: "flex", flexDirection: "column", gap: "var(--sp-1)", alignItems: "flex-start" }}>
+                    <Badge variant={item.status === "active" ? "accent" : "neutral"}>{STATUS_LABEL[item.status] ?? item.status}</Badge>
+                    {item.review_status !== "approved" && (
+                      <Badge variant={item.review_status === "rejected" ? "danger" : "cyan"}>
+                        {REVIEW_STATUS_LABEL[item.review_status] ?? item.review_status}
+                      </Badge>
+                    )}
+                  </span>
                   <span className={styles.actions} onClick={e => e.stopPropagation()}>
-                    {item.status === "active" && (
+                    {item.status === "active" && item.review_status === "pending" ? (
+                      <>
+                        <IconButton label={`“${item.title}”ni tasdiqlash`} icon={<IconCheck />}
+                          disabled={moderating} onClick={() => approve(item)} />
+                        <IconButton label={`“${item.title}”ni rad etish`} icon={<IconX />}
+                          disabled={moderating} onClick={() => openReject(item)} />
+                      </>
+                    ) : item.status === "active" && (
                       <IconButton label={`“${item.title}”ni chiqarish`} icon={<IconTrash />} onClick={() => setConfirming(item)} />
                     )}
                   </span>
@@ -157,10 +219,24 @@ export default function CorpusAdmin() {
           <dt>Hajmi</dt><dd>{detail.char_count.toLocaleString("uz-UZ")} belgi, {detail.token_count.toLocaleString("uz-UZ")} token</dd>
           <dt>Qo‘shilgan</dt><dd>{new Date(detail.created_at).toLocaleString("uz-UZ")}</dd>
           <dt>Holat</dt><dd><Badge variant={detail.status === "active" ? "accent" : "neutral"}>{STATUS_LABEL[detail.status] ?? detail.status}</Badge></dd>
+          <dt>Ko‘rib chiqish</dt><dd>
+            <Badge variant={detail.review_status === "rejected" ? "danger" : detail.review_status === "pending" ? "cyan" : "accent"}>
+              {REVIEW_STATUS_LABEL[detail.review_status] ?? detail.review_status}
+            </Badge>
+          </dd>
+          {detail.review_status === "rejected" && detail.rejection_reason && (
+            <><dt>Rad etish sababi</dt><dd>{detail.rejection_reason}</dd></>
+          )}
         </dl>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--sp-3)" }}>
           <Button variant="secondary" onClick={() => setDetail(null)}>Yopish</Button>
-          {detail.status === "active" && <Button variant="destructive" onClick={() => setConfirming(detail)}>Korpusdan chiqarish</Button>}
+          {detail.status === "active" && detail.review_status === "pending" && (
+            <>
+              <Button variant="destructive" onClick={() => openReject(detail)}>Rad etish</Button>
+              <Button onClick={() => approve(detail)} loading={moderating}>Tasdiqlash</Button>
+            </>
+          )}
+          {detail.status === "active" && detail.review_status !== "pending" && <Button variant="destructive" onClick={() => setConfirming(detail)}>Korpusdan chiqarish</Button>}
         </div>
       </>}
     </Dialog>
@@ -168,6 +244,23 @@ export default function CorpusAdmin() {
     <ConfirmDialog open={!!confirming} onClose={() => setConfirming(null)} onConfirm={() => confirming && withdraw(confirming)}
       title="Korpusdan chiqarish" confirmLabel="Chiqarish" busy={withdrawing}
       description={confirming && <>“{confirming.title}” korpusdan chiqariladi va uning matni butunlay o‘chiriladi. Bu amalni qaytarib bo‘lmaydi.</>} />
+
+    <Dialog open={!!rejecting} onClose={() => setRejecting(null)} title="Rad etish sababi">
+      {rejecting && <div className={styles.formGrid}>
+        <Field label="Rad etish sababi (majburiy)" htmlFor="reject-reason" error={rejectReasonError ?? undefined}>
+          <Input id="reject-reason" required value={rejectReason}
+            onChange={e => { setRejectReason(e.target.value); setRejectReasonError(null); }} />
+        </Field>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--sp-3)" }}>
+          <Button type="button" variant="secondary" onClick={() => setRejecting(null)}>Bekor qilish</Button>
+          <Button type="button" variant="destructive" onClick={proceedToConfirmReject}>Davom etish</Button>
+        </div>
+      </div>}
+    </Dialog>
+
+    <ConfirmDialog open={!!confirmingReject} onClose={() => setConfirmingReject(null)} onConfirm={rejectConfirmed}
+      title="Hujjatni rad etish" confirmLabel="Rad etish" busy={moderating}
+      description={confirmingReject && <>“{confirmingReject.title}” rad etiladi. Rad etilsa hujjat matni butunlay o‘chiriladi va qaytarib bo‘lmaydi.</>} />
   </Rise>;
 }
 
@@ -181,6 +274,7 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
   const [language, setLanguage] = useState("uz");
   const [sourceNote, setSourceNote] = useState("");
   const [permissionBasis, setPermissionBasis] = useState("");
+  const [visibility, setVisibility] = useState("excerpt");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -188,7 +282,7 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
 
   function reset() {
     setFile(null); setTitle(""); setAuthor(""); setDocType("bmi"); setYear("");
-    setLanguage("uz"); setSourceNote(""); setPermissionBasis(""); setError(null);
+    setLanguage("uz"); setSourceNote(""); setPermissionBasis(""); setVisibility("excerpt"); setError(null);
     setConfirmDiscard(false);
   }
   const hasProgress = !!file || !!title.trim() || !!author.trim() || !!year
@@ -218,6 +312,7 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
     data.append("file", file); data.append("title", title); data.append("author_display", author);
     data.append("doc_type", docType); data.append("language_hint", language);
     data.append("source_note", sourceNote); data.append("permission_basis", permissionBasis);
+    data.append("visibility", visibility);
     if (year) data.append("year", year);
     try {
       await api("/corpus/documents", { method: "POST", body: data, signal: AbortSignal.timeout(60_000) });
@@ -286,6 +381,12 @@ function AddDocumentDialog({ open, onClose, onAdded }: { open: boolean; onClose:
             hint="Bu hujjatni korpusga qo‘shish huquqi qayerdan kelganini qisqacha yozing." onLight>
             <Input id="corpus-permission" required maxLength={2000} value={permissionBasis} disabled={busy} onLight
               onChange={e => setPermissionBasis(e.target.value)} />
+          </Field>
+          <Field label="Ko‘rinish darajasi" htmlFor="corpus-visibility"
+            hint="Faqat ma’lumot: moslik va foiz hisoblanadi, lekin hech qanday matn parchasi ko‘rsatilmaydi." onLight>
+            <Select id="corpus-visibility" value={visibility} disabled={busy} onLight onChange={e => setVisibility(e.target.value)}>
+              {Object.entries(VISIBILITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </Select>
           </Field>
         </div>
       </div>

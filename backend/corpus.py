@@ -48,6 +48,22 @@ CORPUS_EXCERPT_BUDGET = 20_000
 # stays hidden even when the flat cap alone would not have limited it.
 CORPUS_CONTEXT_FRACTION = 0.5
 DOC_TYPES = ("bmi", "dissertatsiya", "kurs_ishi", "maqola", "boshqa")
+# "excerpt" (default): a reader may see the matched passage plus bounded
+# context for this corpus source, as redact() already does today.
+# "metadata_only": the author has restricted text display. The document still
+# participates in retrieval and its coverage still counts toward the overall
+# percentage (compare() never looks at visibility), but redact() withholds
+# every excerpt and matched passage for it -- only metadata (title, author,
+# year, coverage percent, match count) ever reaches a reader.
+VISIBILITIES = ("excerpt", "metadata_only")
+RESTRICTED_REASON = "Muallif matn ko‘rsatilishini cheklagan."
+# "approved" (default): participates in retrieval, same as every document
+# added before this existed. "pending": a teacher's submission, fully stored
+# but excluded from candidates() until a corpus_manager/admin reviews it --
+# see migration 005. "rejected": reviewed and declined; reject() also moves
+# status to "withdrawn" and purges the text, reusing withdraw()'s mechanics
+# rather than a second purge path.
+REVIEW_STATUSES = ("pending", "approved", "rejected")
 PAGE_SIZE = 20
 
 
@@ -118,6 +134,8 @@ def metadata_errors(metadata):
         problems.append("Ruxsat asosi majburiy; usiz hujjat korpusga kirmaydi.")
     if metadata.get("doc_type") not in DOC_TYPES:
         problems.append("Hujjat turi noto‘g‘ri: " + "/".join(DOC_TYPES) + ".")
+    if (metadata.get("visibility") or "excerpt") not in VISIBILITIES:
+        problems.append("Ko‘rinish darajasi noto‘g‘ri: " + "/".join(VISIBILITIES) + ".")
     year = metadata.get("year")
     if year is not None and not (isinstance(year, int) and 1900 <= year <= 2300):
         problems.append("Yil 1900–2300 oralig‘ida bo‘lishi kerak.")
@@ -129,7 +147,8 @@ def metadata_errors(metadata):
 
 
 def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
-                 chunk_tokens=CHUNK_TOKENS, overlap_tokens=CHUNK_OVERLAP_TOKENS, document_id=None):
+                 chunk_tokens=CHUNK_TOKENS, overlap_tokens=CHUNK_OVERLAP_TOKENS, document_id=None,
+                 review_status="approved"):
     """Store one already extracted document together with its retrieval chunks.
 
     document_id defaults to a fresh random uuid4, as before. The retrieval
@@ -137,6 +156,12 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
     from the benchmark manifest's own document id), so that the ranking tie
     break on corpus_document_id in candidates() is reproducible across runs,
     not dependent on a freshly randomised id each time.
+
+    review_status is never taken from metadata (client-supplied, multipart
+    text fields): it is a keyword the calling endpoint sets itself, "approved"
+    for the existing admin/corpus_manager upload path (unchanged default) and
+    "pending" for a teacher's submission -- a client can never approve its
+    own upload by sending a form field.
     """
     problems = metadata_errors(metadata)
     if problems:
@@ -151,7 +176,8 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
            str(metadata.get("source_note", "") or ""), str(metadata["permission_basis"]).strip(),
            uploaded_by, str(metadata.get("original_filename", "") or extracted.get("name", "")),
            digest_text(raw_bytes), extracted["text"], NORMALIZATION_VERSION,
-           len(extracted["text"]), len(tokens), Jsonb(extracted["segments"]))
+           len(extracted["text"]), len(tokens), Jsonb(extracted["segments"]),
+           metadata.get("visibility") or "excerpt", review_status)
     with database(config) as conn:
         # Handled inside the transaction: database() turns any psycopg.Error into a
         # generic 503, so a duplicate must be classified before it escapes.
@@ -159,8 +185,9 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
             conn.execute(
                 "INSERT INTO antiplagiat.corpus_documents(id,title,author_display,doc_type,year,"
                 "language_hint,source_note,permission_basis,uploaded_by_user_id,original_filename,"
-                "content_sha256,extracted_text,extraction_policy,char_count,token_count,segments)"
-                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", row)
+                "content_sha256,extracted_text,extraction_policy,char_count,token_count,segments,"
+                "visibility,review_status)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", row)
             conn.cursor().executemany(
                 "INSERT INTO antiplagiat.corpus_chunks(id,corpus_document_id,chunk_index,char_start,"
                 "char_end,token_start,token_end,chunk_text,chunk_text_uz_latin_v3)"
@@ -173,13 +200,21 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
                 raise CorpusError("corpus_duplicate", "Bu fayl korpusda allaqachon mavjud.", 409) from None
             raise
     return {"id": str(document_id), "chunk_count": len(chunks), "token_count": len(tokens),
-            "char_count": len(extracted["text"])}
+            "char_count": len(extracted["text"]), "review_status": review_status}
 
 
-def list_documents(page=1, status="active", config=None):
+def list_documents(page=1, status="active", config=None, *, review_status=None, uploaded_by=None):
+    """review_status and uploaded_by are additional, optional filters (None =
+    unfiltered, backward compatible with every existing positional call).
+    The moderation queue passes review_status="pending"; a teacher's own
+    submissions view passes uploaded_by=<their id> so they never see another
+    teacher's submissions.
+    """
     # Validated here so a direct call behaves the same as one routed by FastAPI.
     if status not in ("active", "withdrawn", "all"):
         raise CorpusError("corpus_filter", "Holat filtri noto‘g‘ri.", 400)
+    if review_status is not None and review_status not in REVIEW_STATUSES:
+        raise CorpusError("corpus_filter", "Ko‘rib chiqish holati filtri noto‘g‘ri.", 400)
     try:
         page = min(max(int(page), 1), 100_000)
     except (TypeError, ValueError):
@@ -188,12 +223,16 @@ def list_documents(page=1, status="active", config=None):
     with database(config) as conn:
         rows = conn.execute(
             "SELECT id,title,author_display,doc_type,year,language_hint,source_note,permission_basis,"
-            "original_filename,content_sha256,char_count,token_count,status,created_at,withdrawn_at"
+            "original_filename,content_sha256,char_count,token_count,status,review_status,"
+            "rejection_reason,uploaded_by_user_id,created_at,withdrawn_at"
             " FROM antiplagiat.corpus_documents WHERE (%s='all' OR status=%s)"
+            " AND (%s::text IS NULL OR review_status=%s) AND (%s::uuid IS NULL OR uploaded_by_user_id=%s)"
             " ORDER BY created_at DESC,id DESC LIMIT %s OFFSET %s",
-            (status, status, PAGE_SIZE + 1, offset)).fetchall()
+            (status, status, review_status, review_status, uploaded_by, uploaded_by,
+             PAGE_SIZE + 1, offset)).fetchall()
     return {"page": page, "has_next": len(rows) > PAGE_SIZE,
-            "items": [{**r, "id": str(r["id"]), "created_at": r["created_at"].isoformat(),
+            "items": [{**r, "id": str(r["id"]), "uploaded_by_user_id": str(r["uploaded_by_user_id"]),
+                       "created_at": r["created_at"].isoformat(),
                        "withdrawn_at": r["withdrawn_at"].isoformat() if r["withdrawn_at"] else None}
                       for r in rows[:PAGE_SIZE]]}
 
@@ -214,6 +253,78 @@ def withdraw(document_id, config=None):
         conn.execute("UPDATE antiplagiat.corpus_chunks SET chunk_text='',chunk_text_uz_latin_v3=''"
                      " WHERE corpus_document_id=%s", (document_id,))
     return {"id": str(row["id"]), "title": row["title"], "status": "withdrawn"}
+
+
+def get_document(document_id, config=None):
+    """Full record for one document, any status/review_status -- for a
+    moderator to actually read before approving or rejecting it, and for a
+    teacher to check their own submission. Never exposed to a plain reader:
+    gated the same way as the rest of this module's write-side functions,
+    by the caller (corpus_api.py's role checks).
+    """
+    try:
+        document_id = str(uuid.UUID(str(document_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise CorpusError("corpus_not_found", "Korpus hujjati topilmadi.", 404) from None
+    with database(config) as conn:
+        row = conn.execute(
+            "SELECT id,title,author_display,doc_type,year,language_hint,source_note,permission_basis,"
+            "visibility,original_filename,content_sha256,extracted_text,char_count,token_count,"
+            "status,review_status,rejection_reason,uploaded_by_user_id,created_at,withdrawn_at"
+            " FROM antiplagiat.corpus_documents WHERE id=%s", (document_id,)).fetchone()
+    if not row:
+        raise CorpusError("corpus_not_found", "Korpus hujjati topilmadi.", 404)
+    return {**row, "id": str(row["id"]), "uploaded_by_user_id": str(row["uploaded_by_user_id"]),
+            "created_at": row["created_at"].isoformat(),
+            "withdrawn_at": row["withdrawn_at"].isoformat() if row["withdrawn_at"] else None}
+
+
+def approve(document_id, config=None):
+    """Admit a teacher's pending submission into retrieval. Does not touch
+    status/extracted_text: the document was already fully stored, just
+    excluded from candidates() by review_status -- approving only flips
+    that one gate.
+    """
+    try:
+        document_id = str(uuid.UUID(str(document_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise CorpusError("corpus_not_found", "Korpus hujjati topilmadi.", 404) from None
+    with database(config) as conn:
+        row = conn.execute(
+            "UPDATE antiplagiat.corpus_documents SET review_status='approved'"
+            " WHERE id=%s AND status='active' AND review_status='pending' RETURNING id,title",
+            (document_id,)).fetchone()
+    if not row:
+        raise CorpusError("corpus_not_found",
+                          "Korpus hujjati topilmadi yoki allaqachon ko‘rib chiqilgan.", 404)
+    return {"id": str(row["id"]), "title": row["title"], "review_status": "approved"}
+
+
+def reject(document_id, reason, config=None):
+    """Decline a teacher's pending submission. A reason is mandatory and
+    recorded; the text is purged the same way withdraw() purges it (reusing
+    its exact mechanics -- status becomes "withdrawn" too, so the migration
+    002 CHECK invariant and immutability trigger need no change), so no
+    rejected document's text survives anywhere.
+    """
+    if not str(reason or "").strip():
+        raise CorpusError("corpus_metadata", "Rad etish sababi majburiy.", 400)
+    try:
+        document_id = str(uuid.UUID(str(document_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise CorpusError("corpus_not_found", "Korpus hujjati topilmadi.", 404) from None
+    with database(config) as conn:
+        row = conn.execute(
+            "UPDATE antiplagiat.corpus_documents SET status='withdrawn',withdrawn_at=now(),"
+            "updated_at=now(),extracted_text=NULL,review_status='rejected',rejection_reason=%s"
+            " WHERE id=%s AND status='active' AND review_status='pending' RETURNING id,title",
+            (str(reason).strip(), document_id)).fetchone()
+        if not row:
+            raise CorpusError("corpus_not_found",
+                              "Korpus hujjati topilmadi yoki allaqachon ko‘rib chiqilgan.", 404)
+        conn.execute("UPDATE antiplagiat.corpus_chunks SET chunk_text='',chunk_text_uz_latin_v3=''"
+                     " WHERE corpus_document_id=%s", (document_id,))
+    return {"id": str(row["id"]), "title": row["title"], "review_status": "rejected"}
 
 
 def candidates(tokens, limit=DEFAULT_CANDIDATES, operator="OR", normalization="v2", text=None):
@@ -260,7 +371,8 @@ def candidates(tokens, limit=DEFAULT_CANDIDATES, operator="OR", normalization="v
             f"       sum(ts_rank(c.{fts_column}, q.query)) AS total_rank, "
             "       count(DISTINCT c.id) AS matched_chunks "
             f"FROM q JOIN antiplagiat.corpus_chunks c ON c.{fts_column} @@ q.query "
-            "JOIN antiplagiat.corpus_documents d ON d.id = c.corpus_document_id AND d.status='active' "
+            "JOIN antiplagiat.corpus_documents d ON d.id = c.corpus_document_id "
+            "AND d.status='active' AND d.review_status='approved' "
             "GROUP BY c.corpus_document_id "
             "ORDER BY total_rank DESC, matched_chunks DESC, c.corpus_document_id "
             "LIMIT %s", (phrases, limit)).fetchall()
@@ -269,12 +381,18 @@ def candidates(tokens, limit=DEFAULT_CANDIDATES, operator="OR", normalization="v
 
 
 def load_for_comparison(document_id):
-    """Shape a stored corpus document like an extracted upload for compare()."""
+    """Shape a stored corpus document like an extracted upload for compare().
+
+    Every id this is ever called with already came from candidates(), which
+    already filters to status='active' AND review_status='approved' -- the
+    same filter is repeated here as defense in depth, not because any caller
+    is known to need it.
+    """
     with database() as conn:
         row = conn.execute(
             "SELECT id,title,author_display,doc_type,year,source_note,original_filename,"
-            "extracted_text,segments,token_count FROM antiplagiat.corpus_documents"
-            " WHERE id=%s AND status='active'", (document_id,)).fetchone()
+            "extracted_text,segments,token_count,visibility FROM antiplagiat.corpus_documents"
+            " WHERE id=%s AND status='active' AND review_status='approved'", (document_id,)).fetchone()
     if not row or row["extracted_text"] is None:
         return None
     return {"name": row["title"], "format": "corpus", "text": row["extracted_text"],
@@ -282,7 +400,8 @@ def load_for_comparison(document_id):
             "corpus": {"id": str(row["id"]), "title": row["title"],
                        "author_display": row["author_display"], "doc_type": row["doc_type"],
                        "year": row["year"], "source_note": row["source_note"],
-                       "original_filename": row["original_filename"]}}
+                       "original_filename": row["original_filename"],
+                       "visibility": row["visibility"]}}
 
 
 def redact(result):
@@ -302,8 +421,19 @@ def redact(result):
         text = source.pop("text", "")
         source.pop("segments", None)
         source["text_withheld"] = True
+        restricted = source["corpus"].get("visibility") == "metadata_only"
+        if restricted:
+            source["restricted"] = True
+            source["restriction_reason"] = RESTRICTED_REASON
         for match in source.get("matches", []):
             side = match["source"]
+            if restricted:
+                # No fragment of corpus text reaches the reader at all, not even
+                # the matched passage itself -- only that a match exists and how
+                # it counted toward coverage_percent (computed upstream in
+                # matching.py, untouched here).
+                side.pop("text", None)
+                continue
             start, end = side["start"], side["end"]
             truncated = len(side["text"]) > CORPUS_MATCH_CHARS
             flat_room = max(0, min(CORPUS_CONTEXT_CHARS, budget // 2))

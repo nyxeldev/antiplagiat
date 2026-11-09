@@ -123,6 +123,21 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
              "AND table_name='corpus_chunks' AND column_name='chunk_text_uz_latin_v3') AS present"),
             ("corpus_chunks_fts_v3_index", "SELECT to_regclass('antiplagiat.corpus_chunks_fts_v3') IS NOT NULL AS present"),
         ],
+        "004_corpus_visibility": [
+            ("corpus_documents_visibility_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='corpus_documents' AND column_name='visibility') AS present"),
+        ],
+        "005_corpus_moderation": [
+            ("corpus_documents_review_status_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='corpus_documents' AND column_name='review_status') AS present"),
+        ],
+        "006_corpus_submission_access": [
+            ("users_can_submit_to_corpus_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='users' AND column_name='can_submit_to_corpus') AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:
@@ -179,11 +194,13 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                 ("tables_revoke", "REVOKE ALL ON ALL TABLES IN SCHEMA antiplagiat FROM PUBLIC, {}"),
                 ("schema_usage", "GRANT USAGE ON SCHEMA antiplagiat TO {}"),
                 ("users_select", "GRANT SELECT ON antiplagiat.users TO {}"),
+                ("users_submission_access", "GRANT UPDATE(can_submit_to_corpus) ON antiplagiat.users TO {}"),
                 ("sessions_access", "GRANT SELECT, INSERT, DELETE ON antiplagiat.sessions TO {}"),
                 ("reports_access", "GRANT SELECT, INSERT ON antiplagiat.reports TO {}"),
                 ("reports_purge", "GRANT UPDATE(snapshot, deleted_at) ON antiplagiat.reports TO {}"),
                 ("corpus_documents_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_documents TO {}"),
                 ("corpus_documents_withdraw", "GRANT UPDATE(status, withdrawn_at, updated_at, extracted_text) ON antiplagiat.corpus_documents TO {}"),
+                ("corpus_documents_moderate", "GRANT UPDATE(review_status, rejection_reason) ON antiplagiat.corpus_documents TO {}"),
                 ("corpus_chunks_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_chunks TO {}"),
                 ("corpus_chunks_purge", "GRANT UPDATE(chunk_text, chunk_text_uz_latin_v3) ON antiplagiat.corpus_chunks TO {}"),
             ]:
@@ -250,7 +267,8 @@ def _ingest_one(config, source, metadata, uploaded_by):
         extracted = run_worker(folder, {"mode": "extract",
                                         "items": [{"path": "corpus-upload", "name": source.name}]})
         raw = (folder / "corpus-upload").read_bytes()
-        return corpus.add_document(metadata, extracted["documents"][0], uploaded_by, raw, config)
+        return corpus.add_document(metadata, extracted["documents"][0], uploaded_by, raw, config,
+                                   review_status="approved")
 
 
 def corpus_add(config, path, username):
@@ -268,6 +286,7 @@ def corpus_add(config, path, username):
         "language_hint": input("Til belgisi [uz]: ").strip() or "uz",
         "source_note": input("Manba izohi (ixtiyoriy): ").strip(),
         "permission_basis": input("Ruxsat asosi (majburiy): ").strip(),
+        "visibility": input("Ko‘rinish (excerpt/metadata_only) [excerpt]: ").strip() or "excerpt",
         "original_filename": source.name,
     }
     year = input("Yil (ixtiyoriy): ").strip()
@@ -313,6 +332,7 @@ def corpus_add_batch(config, paths, username):
         "language_hint": input("Til belgisi [uz]: ").strip() or "uz",
         "source_note": input("Manba izohi (ixtiyoriy, butun partiya uchun): ").strip(),
         "permission_basis": input("Ruxsat asosi (majburiy, butun partiya uchun): ").strip(),
+        "visibility": input("Ko‘rinish (excerpt/metadata_only, butun partiya uchun) [excerpt]: ").strip() or "excerpt",
     }
     if not shared["permission_basis"]:
         raise ValueError("Ruxsat asosi majburiy; usiz hech bir hujjat korpusga kirmaydi.")

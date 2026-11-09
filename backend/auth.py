@@ -4,6 +4,7 @@ import re
 import secrets
 import threading
 import time
+import uuid
 from collections import deque
 from datetime import timedelta
 from urllib.parse import urlsplit
@@ -85,7 +86,8 @@ def login(username, password, old_token=None):
         raise ServiceError("login_limit", "Kirish urinishlari ko‘p. Keyinroq urinib ko‘ring.", 429)
     try:
         with database() as conn:
-            row = conn.execute("SELECT id,username,password_hash,role,enabled FROM antiplagiat.users WHERE username=%s", (username,)).fetchone()
+            row = conn.execute("SELECT id,username,password_hash,role,enabled,can_submit_to_corpus"
+                               " FROM antiplagiat.users WHERE username=%s", (username,)).fetchone()
         try:
             HASHER.verify(row["password_hash"] if row else DUMMY_HASH, password)
             valid = bool(row and row["enabled"])
@@ -105,7 +107,8 @@ def login(username, password, old_token=None):
                 conn.execute("DELETE FROM antiplagiat.sessions WHERE token_hash=%s", (token_hash(old_token),))
             conn.execute("INSERT INTO antiplagiat.sessions(token_hash,user_id,expires_at) VALUES (%s,%s,now()+%s)",
                          (token_hash(token), row["id"], timedelta(seconds=SESSION_SECONDS)))
-        return token, {"id": str(row["id"]), "username": row["username"], "role": row["role"]}
+        return token, {"id": str(row["id"]), "username": row["username"], "role": row["role"],
+                       "can_submit_to_corpus": row["can_submit_to_corpus"]}
     finally:
         login_gate.release()
 
@@ -116,13 +119,22 @@ def require_user(request):
     if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
         raise ServiceError("unauthenticated", "Avval hisobingizga kiring.", 401)
     with database() as conn:
-        row = conn.execute("SELECT u.id,u.username,u.role FROM antiplagiat.sessions s JOIN antiplagiat.users u ON u.id=s.user_id WHERE s.token_hash=%s AND s.expires_at>now() AND u.enabled", (token_hash(token),)).fetchone()
+        row = conn.execute("SELECT u.id,u.username,u.role,u.can_submit_to_corpus FROM antiplagiat.sessions s"
+                           " JOIN antiplagiat.users u ON u.id=s.user_id"
+                           " WHERE s.token_hash=%s AND s.expires_at>now() AND u.enabled", (token_hash(token),)).fetchone()
     if not row:
         raise ServiceError("unauthenticated", "Session tugagan. Qayta kiring.", 401)
     return {**row, "id": str(row["id"])}
 
 
 CORPUS_MANAGEMENT_ROLES = {"admin", "corpus_manager"}
+# A teacher is not a separate database role: every ordinary signed-in account
+# COULD be a department teacher, since that is this whole platform's audience
+# (see docs/decisions.md §12). But submission access is not every "user"
+# account's right by default -- an admin grants it per account via the
+# can_submit_to_corpus flag (migration 006) -- so this constant only says
+# which role is ELIGIBLE to be granted it, not who currently has it.
+TEACHER_SUBMISSION_ROLE = "user"
 
 
 def require_corpus_manager(request):
@@ -131,6 +143,53 @@ def require_corpus_manager(request):
     if user.get("role") not in CORPUS_MANAGEMENT_ROLES:
         raise ServiceError("forbidden", "Bu amal uchun administrator yoki korpus boshqaruvchisi roli kerak.", 403)
     return user
+
+
+def require_admin(request):
+    # Granting/revoking another account's corpus submission access: admin
+    # only, narrower than require_corpus_manager -- a corpus_manager curates
+    # the corpus itself, not who may propose additions to it.
+    user = require_user(request)
+    if user.get("role") != "admin":
+        raise ServiceError("forbidden", "Bu amal uchun administrator roli kerak.", 403)
+    return user
+
+
+def require_teacher(request):
+    # The corpus submission queue only; never widens access to corpus
+    # administration or another user's personal reports. admin/corpus_manager
+    # pass unconditionally -- they already have their own direct, unmoderated
+    # upload path and have no need for the flag. A "user" account needs the
+    # admin-granted can_submit_to_corpus flag; every other role is refused.
+    user = require_user(request)
+    role = user.get("role")
+    if role in CORPUS_MANAGEMENT_ROLES:
+        return user
+    if role == TEACHER_SUBMISSION_ROLE and user.get("can_submit_to_corpus"):
+        return user
+    raise ServiceError("forbidden", "Bu amal uchun korpusga taklif qilish huquqi kerak.", 403)
+
+
+def set_corpus_submission_access(user_id, enabled, config=None):
+    """Admin-only grant/revoke of can_submit_to_corpus; see corpus_api.py's
+    two endpoints that call this. Only ever touches a "user"-role account --
+    admin/corpus_manager do not need the flag (require_teacher lets them
+    through regardless), and flipping it on a reviewer account would be
+    silently meaningless, so it is refused instead.
+    """
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404) from None
+    with database(config) as conn:
+        row = conn.execute(
+            "UPDATE antiplagiat.users SET can_submit_to_corpus=%s"
+            " WHERE id=%s AND role=%s RETURNING id,username,can_submit_to_corpus",
+            (bool(enabled), user_id, TEACHER_SUBMISSION_ROLE)).fetchone()
+    if not row:
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi yoki oddiy foydalanuvchi emas.", 404)
+    return {"id": str(row["id"]), "username": row["username"],
+           "can_submit_to_corpus": row["can_submit_to_corpus"]}
 
 
 def logout(request):

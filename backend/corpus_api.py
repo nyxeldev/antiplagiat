@@ -27,7 +27,7 @@ HEADERS = {"Cache-Control": "no-store"}
 gate = threading.Lock()  # One corpus ingest at a time; the worker is single use.
 MAX_CORPUS_BODY_BYTES = MAX_FILE_BYTES + 64 * 1024
 TEXT_FIELDS = ("title", "author_display", "doc_type", "year", "language_hint",
-               "source_note", "permission_basis")
+               "source_note", "permission_basis", "visibility")
 
 
 class CorpusUpload:
@@ -142,17 +142,20 @@ class CorpusUpload:
             self.stream = None
 
 
-def ingest(folder, name, metadata, uploaded_by):
+def ingest(folder, name, metadata, uploaded_by, review_status="approved"):
     """Parse in the sandboxed worker, then store the extracted text."""
     extracted = run_worker(folder, {"mode": "extract", "items": [{"path": "corpus-upload", "name": name}]})
     document = extracted["documents"][0]
     raw = (folder / "corpus-upload").read_bytes()
-    return corpus.add_document(metadata, document, uploaded_by, raw)
+    return corpus.add_document(metadata, document, uploaded_by, raw, review_status=review_status)
 
 
-@router.post("/corpus/documents")
-async def add(request: Request):
-    manager = await run_in_threadpool(auth.require_corpus_manager, request)
+async def _accept_upload(request, uploaded_by, review_status, status_label):
+    """Shared by the admin/corpus_manager direct-add path and the teacher
+    submission path below -- identical streaming, parsing and error
+    handling; only who is storing it and what review_status/status label
+    the result gets differ.
+    """
     if not gate.acquire(blocking=False):
         return JSONResponse(ComparisonError("busy", "Boshqa korpus yuklash davom etmoqda.", 429).payload(), 429, headers=HEADERS)
     try:
@@ -173,8 +176,8 @@ async def add(request: Request):
                 raise ComparisonError("upload_format", "Yuklash formati buzilgan.", 400) from None
             finally:
                 upload.close()
-            stored = await run_in_threadpool(ingest, folder, upload.name, metadata, manager["id"])
-        return JSONResponse({"status": "added", **stored}, headers=HEADERS)
+            stored = await run_in_threadpool(ingest, folder, upload.name, metadata, uploaded_by, review_status)
+        return JSONResponse({"status": status_label, **stored}, headers=HEADERS)
     except (ServiceError, ComparisonError) as error:
         if isinstance(error, ServiceError):
             raise
@@ -187,13 +190,94 @@ async def add(request: Request):
         gate.release()
 
 
+@router.post("/corpus/documents")
+async def add(request: Request):
+    manager = await run_in_threadpool(auth.require_corpus_manager, request)
+    return await _accept_upload(request, manager["id"], "approved", "added")
+
+
+@router.post("/corpus/submissions")
+async def submit(request: Request):
+    """A teacher's own moderated upload: stored immediately, like the admin
+    path, but excluded from retrieval (review_status="pending") until a
+    corpus_manager/admin approves it below.
+    """
+    teacher = await run_in_threadpool(auth.require_teacher, request)
+    return await _accept_upload(request, teacher["id"], "pending", "pending")
+
+
+@router.get("/corpus/submissions")
+def my_submissions(request: Request, page: int = 1):
+    """A teacher sees every status of their own submissions (pending,
+    approved, rejected, withdrawn) and never another teacher's.
+    """
+    teacher = auth.require_teacher(request)
+    return JSONResponse(corpus.list_documents(page, "all", uploaded_by=teacher["id"]), headers=HEADERS)
+
+
 @router.get("/corpus/documents")
-def listing(request: Request, page: int = 1, status: str = "active"):
+def listing(request: Request, page: int = 1, status: str = "active", review_status: str | None = None):
     auth.require_corpus_manager(request)
-    return JSONResponse(corpus.list_documents(page, status), headers=HEADERS)
+    return JSONResponse(corpus.list_documents(page, status, review_status=review_status), headers=HEADERS)
+
+
+@router.get("/corpus/documents/{document_id}")
+def detail(request: Request, document_id: str):
+    auth.require_corpus_manager(request)
+    return JSONResponse(corpus.get_document(document_id), headers=HEADERS)
 
 
 @router.post("/corpus/documents/{document_id}/withdraw")
 def withdraw(request: Request, document_id: str):
     auth.require_corpus_manager(request)
     return JSONResponse(corpus.withdraw(document_id), headers=HEADERS)
+
+
+@router.post("/corpus/documents/{document_id}/approve")
+def approve(request: Request, document_id: str):
+    auth.require_corpus_manager(request)
+    return JSONResponse(corpus.approve(document_id), headers=HEADERS)
+
+
+@router.post("/users/{user_id}/corpus-submission-access")
+async def set_submission_access(request: Request, user_id: str):
+    """Admin-only grant/revoke of a "user"-role account's right to submit to
+    the corpus moderation queue (backend/auth.py's can_submit_to_corpus flag,
+    see docs/decisions.md §12). Body: {"enabled": true|false}.
+    """
+    auth.require_admin(request)
+    body = bytearray()
+    try:
+        async with asyncio.timeout(10):
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > 4096:
+                    raise corpus.CorpusError("corpus_metadata", "So‘rov tanasi juda uzun.", 400)
+                body.extend(chunk)
+    except TimeoutError:
+        raise corpus.CorpusError("upload_interrupted", "So‘rov vaqti tugadi.", 408) from None
+    try:
+        enabled = json.loads(body).get("enabled")
+    except (ValueError, AttributeError, UnicodeError):
+        enabled = None
+    if not isinstance(enabled, bool):
+        raise corpus.CorpusError("corpus_metadata", "'enabled' maydoni true/false bo‘lishi kerak.", 400)
+    return JSONResponse(auth.set_corpus_submission_access(user_id, enabled), headers=HEADERS)
+
+
+@router.post("/corpus/documents/{document_id}/reject")
+async def reject(request: Request, document_id: str):
+    auth.require_corpus_manager(request)
+    body = bytearray()
+    try:
+        async with asyncio.timeout(10):
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > 4096:
+                    raise corpus.CorpusError("corpus_metadata", "So‘rov tanasi juda uzun.", 400)
+                body.extend(chunk)
+    except TimeoutError:
+        raise corpus.CorpusError("upload_interrupted", "So‘rov vaqti tugadi.", 408) from None
+    try:
+        reason = json.loads(body).get("reason") if body else None
+    except (ValueError, AttributeError, UnicodeError):
+        reason = None
+    return JSONResponse(corpus.reject(document_id, reason), headers=HEADERS)

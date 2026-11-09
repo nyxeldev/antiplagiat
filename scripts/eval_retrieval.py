@@ -113,7 +113,7 @@ def ingest_corpus(manifest, admin_user_id, cfg):
                     "segments": [{"kind": "paragraph", "number": 1, "start": 0, "end": len(entry["_text"])}]}
         corpus.add_document(metadata, extracted, admin_user_id, entry["_text"].encode("utf-8"),
                            chunk_tokens=cfg["chunk_tokens"], overlap_tokens=cfg["overlap_tokens"],
-                           document_id=document_id)
+                           document_id=document_id, review_status="approved")
         id_map[entry["id"]] = str(document_id)
     return id_map
 

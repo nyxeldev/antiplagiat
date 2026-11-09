@@ -6,7 +6,7 @@ import Login from "./login/Login";
 import AppShell from "./shell/AppShell";
 const SessionContext = createContext<() => void>(() => {});
 export const useSessionExpired = () => useContext(SessionContext);
-type User = { id: string; username: string; role: string };
+type User = { id: string; username: string; role: string; can_submit_to_corpus?: boolean };
 const UserContext = createContext<User | null>(null);
 export const useUser = () => useContext(UserContext);
 export default function AccountShell({ children }: { children: ReactNode }) {
