@@ -183,6 +183,17 @@ Ehtiyoj paydo bo'lsa (masalan, kirill yozuvidagi hujjatlar korpusga haqiqatan ki
 
 **Testlar (real PostgreSQL, `backend/tests/test_corpus_integration.py`dagi `AuditRetentionTests`):** eski yozuv o'chirilishi va yangisi saqlanib qolishi, runtime rolining bu amalni bajara OLMASLIGI (append-only invariant), va noto'g'ri (manfiy/satr) parametrning rad etilishi.
 
+## 17. FAZA 4dan keyin — qabul qilingan cheklov va keyingi muhandislik bosqichining ikki sharti
+
+**Qaror (2026-11-10):** FAZA 4 (§13–§16) yakunlangach, kod tomondan boshqa kutilayotgan ish yo'q. Ikki ochiq nuqta ataylab **hozir hal qilinmaydi**, backlog sifatida qayd etiladi:
+
+- **`--workers 1` cheklovi** ([docs/operations.md](operations.md) §5): backend gorizontal kengaymaydi, chunki ichki qulflar (`comparison/api.py`dagi `gate`, `corpus_api.py`dagi `gate`, `auth.py`dagi `login_gate`) BITTA Python protsessi doirasida ishlaydi — bir nechta uvicorn worker ularni baham ko'rmaydi. Kafedra miqyosi uchun yetarli; butun akademiyaga ochilganda solishtirish navbatini protsessdan tashqariga (masalan DB-navbat yoki tashqi queue) chiqarish kerak bo'ladi.
+- **Testlardagi asyncio diagnostika qatori** (`backend.tests.test_review_regressions.ApiContractTests`ni ishga tushirishda ba'zan ko'rinadigan "Executing ... took N seconds" qatori): natija hamon `OK`, bloker emas — odatda yopilmagan event loop/tugallanmagan taskdan chiqadi. Hozir kuzatiladi, amalga oshirilmaydi; agar qator ko'payib borsa yoki test to'plami sekinlashsa, o'shanda tekshiriladi.
+
+**Keyingi muhandislik bosqichi quyidagi ikki shartdan BIRI yuzaga kelganda boshlanadi, oldin emas:**
+1. Korpus 100 hujjatdan oshganda — nomzod limiti (`corpus.py`dagi `DEFAULT_CANDIDATES`/`MAX_CANDIDATES`) qayta o'lchanadi.
+2. Server aniqlanganda — HTTPS va haqiqiy joylashtirish topshirig'i (`docs/operations.md`dagi muhitdan mustaqil ko'rsatmalar o'rniga aniq muhitga moslashtirilgan reja).
+
 ---
 
 *Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`). Operatsion tartiblar (zaxira/tiklash, loglar, production ishga tushirish) uchun [docs/operations.md](operations.md) qarang.*
