@@ -22,7 +22,7 @@ Bu `backend/auth.py`dagi `require_corpus_manager()` funksiyasida majburlanadi (`
 - **Qisqa hujjatlar — atayin qoldirilgan cheklov:** ~8000 belgidan qisqa hujjat uchun (15% < pastki chegara) pastki chegara ustunlik qiladi — demak qisqa hujjat NISBATAN ko'proq ochiladi (hatto butunlay ham bo'lishi mumkin bir necha mos parchada). Bu formula buni YECHMAYDI, ataylab — pastki chegara o'chirilsa birinchi moslik kafolati buziladi (yuqoridagi band). Hujjat sifatida qayd etilgan, yopiq emas.
 - **Byudjet qoidalari:** byudjet HISOBOT YARATILGANDA sarflanadi (`with_corpus()` ichida, hisobot saqlanishidan oldin hisoblanadi, saqlangandan keyin yoziladi). Saqlangan hisobotni tarixdan qayta ochish (`backend/reports.py`dagi `get()`) saqlangan, ALLAQACHON qayta ishlangan snapshotni qaytaradi — `redact()` qayta chaqirilmaydi, demak qayta ochish byudjetni HECH QACHON qayta sarflamaydi. Byudjet tuganda moslik, foiz, manba nomi va joylashuvi ko'rinishda qoladi (`compare()`ning coverage hisob-kitobi `redact()`dan mustaqil) — faqat matn parchasi o'rniga `budget_exhausted`/`budget_exhausted_reason` beriladi (frontend: `frontend/app/report-view.tsx`dagi `CorpusExcerpt`, mavjud hisobot ekranida, yangi ekran emas). `metadata_only` hujjat umuman excerpt bermaydi — demak byudjet unga taalluqli emas (hech narsa sarflanmaydi, hech narsa yozilmaydi).
 - **admin/corpus_manager — qaror:** bu byudjet ULARGA HAM, boshqa har qanday rolga o'xshab, aynan bir xil tartibda qo'llaniladi — `redact()` chaqiruvchining rolini bilmaydi, faqat `user_id`ni biladi. Sabab: korpusni BOSHQARISH huquqi uni CHEKSIZ KO'RISH huquqini avtomatik berishi shart emas — admin/corpus_manager allaqachon alohida, rol bilan cheklangan, redaksiyalanmagan yo'lga ega (`GET /corpus/documents/{id}`, moderatsiya uchun, `require_corpus_manager()`). Shu reader-facing, byudjet bilan himoyalangan solishtirish yo'lini ularga cheksiz qilish ortiqcha va keraksiz imtiyoz bo'lardi.
-- **Saqlash muddati:** audit yozuvlari uchun ~12 oy tavsiya etiladi (bu hali avtomatik tozalash sifatida amalga oshirilmagan — faqat tavsiya; kerak bo'lsa alohida CLI buyrug'i/vazifa sifatida qo'shiladi).
+- **Saqlash muddati:** audit yozuvlari uchun ~12 oy tavsiya etiladi. **2026-11-09 (FAZA 4) yangilandi:** endi qo'lda ishga tushiriladigan `manage.py audit-cleanup` buyrug'i orqali amalga oshiriladi — [§16] va [docs/operations.md](operations.md) §4ga qarang (hamon avtomatik/cron emas, ataylab).
 
 **2026-11-09 (FAZA 3) — qo'shildi: so'rov tezligi cheklovi.** `backend/rate_limit.py`dagi `enforce()` — foydalanuvchi boshiga, DATABASE'da saqlangan (migratsiya 007, `antiplagiat.rate_limit_counters`; server qayta ishga tushganda yo'qolmaydi), 1 daqiqalik qattiq oyna:
 - `"compare"` doirasi (chegarasi 30/daqiqa): faqat `POST /compare?include_corpus=true` — `with_corpus()`ning birinchi qatorida tekshiriladi, chunki faqat shu yo'l korpus excerpt'ini ochishi mumkin; qo'lda ikkita fayl bilan oddiy solishtirish korpus matniga umuman tegmaydi va allaqachon `comparison/api.py`ning yagona-oqimli `gate` qulfi bilan serializatsiya qilingan.
@@ -32,7 +32,7 @@ Bu `backend/auth.py`dagi `require_corpus_manager()` funksiyasida majburlanadi (`
 **Hali ham ochiq qolgan holatlar (ataylab, hujjatlashtirilgan):**
 - Qisqa hujjatlar (yuqoridagi pastki chegara bandi) — nisbatan ko'proq ochiladi.
 - Byudjet "butunlay ko'rinadi yoki umuman ko'rinmaydi" tartibida ishlaydi (bitta hisobotda bir nechta moslik bo'lsa, ulardan ayrimlari ko'rinishi, ayrimlari ko'rinmasligi mumkin — lekin HECH BIR moslik qisman kesilmaydi).
-- Audit jurnali saqlash muddati hali avtomatik amalga oshirilmagan (faqat tavsiya va qo'l bilan tozalash imkoniyati).
+- Audit jurnali saqlash muddati avtomatik (cron) emas — faqat qo'lda ishga tushiriladigan buyruq ([§16]) sifatida amalga oshirilgan; operator uni unutib qo'yishi mumkin.
 
 ## 3. Benchmark metodologiyasi — ikkita qoida
 
@@ -145,6 +145,44 @@ Ehtiyoj paydo bo'lsa (masalan, kirill yozuvidagi hujjatlar korpusga haqiqatan ki
 
 **Oqibat:** admin/corpus_manager o'zining to'g'ridan-to'g'ri (`/corpus/documents`, moderatsiyasiz, `review_status='approved'`) yo'lini saqlab qoladi va `require_teacher()`da bayroqdan mustaqil ravishda o'tadi. Oddiy `user` esa faqat `can_submit_to_corpus=true` bo'lgandagina `/corpus/submissions` orqali, har doim `review_status='pending'` bilan, taklif qila oladi; bayroqsiz `user` va `reviewer` — 403. Bayroqni yoqish/o'chirish faqat `admin` uchun ochiq (`require_admin()`, `POST /users/{user_id}/corpus-submission-access`, `backend/auth.py`dagi `set_corpus_submission_access()`). Kelajakda haqiqiy ikkinchi populyatsiya (masalan, talabalar) paydo bo'lsa, bu qaror qayta ko'rib chiqiladi.
 
+## 13. Parol siyosati — production uchun qaytarildi (12 belgi + sodda parollar taqiqi)
+
+**Qaror (2026-11-09, FAZA 4):** `backend/manage.py`dagi `MIN_PASSWORD_CHARS` 2026-10dagi lokal sinov yengilligi (4) dan **12**ga qaytarildi, va ikki eng oddiy, taxmin qilinishi eng oson parol shakli taqiqlandi: faqat raqamlardan iborat parol, va login bilan bir xil (katta-kichik harfga sezgir bo'lmagan) parol (`backend/manage.py`dagi `weak_password_reason()`).
+
+**Nega 12, nega 8 emas:** NIST 800-63B kabi umumiy tavsiyalar 8 belgini minimal chegara deb oladi, lekin bu loyihada (a) parol murakkabligi qoidalari (katta harf/belgi talabi) YO'Q — faqat uzunlik va ikki sodda shaklni rad etish bilan cheklanadi, va (b) lug'at/tashqi xizmat tekshiruvi ATAYLAB qo'shilmadi (topshiriq shartiga ko'ra). Shu ikki yengillikni qoplash uchun minimal uzunlik 8dan yuqoriroq tanlandi: 12 belgi, murakkablik qoidasisiz ham, brute-force qiyinligini sezilarli oshiradi (argon2id xeshlash bilan birga — `backend/auth.py`dagi `HASHER`, `time_cost=3, memory_cost=65536`) va parafraza/qo'shma so'z uslubidagi uzun-lekin-sodda parollarga imkon qoldiradi.
+
+**Lug'at/tashqi xizmat ATAYLAB yo'q:** topshiriq shartiga ko'ra qo'shilmadi; faqat ikkita ARIFMETIK/TO'G'RIDAN-TO'G'RI tekshiriladigan shakl (faqat raqam, login bilan bir xil) rad etiladi — bular tashqi ma'lumotga ehtiyoj sezmaydi.
+
+**Mavjud akkauntlar buzilmagan:** yangi qoida FAQAT `manage.py`dagi `create_user()` (yagona parol o'rnatish yo'li — hozircha o'z-o'zidan ro'yxatdan o'tish yoki parol o'zgartirish API endpointi yo'q) orqali yangi parol yaratishda tekshiriladi. `backend/auth.py`dagi `login()` o'zi parol uzunligini UMUMAN tekshirmaydi — demak 2026-10dagi yengil qoida ostida yaratilgan har qanday mavjud, 4 belgili parolli akkaunt eski parol bilan kirishda davom etadi (sinov: `backend/tests/test_auth.py`dagi `test_legacy_short_password_is_not_rejected_by_login`). Kelajakda o'z-o'zidan parol o'zgartirish funksiyasi qo'shilsa, u ayni shu `create_user()`dagi tekshiruvni (`MIN_PASSWORD_CHARS`/`weak_password_reason()`) qayta ishlatishi kerak, alohida nusxa emas.
+
+**Testlar:** `backend/tests/test_auth.py`dagi `test_password_length_policy_is_enforced_before_any_connection` (mavjud, chegaralar), `test_create_user_rejects_trivially_simple_passwords` (yangi, ikki sodda shakl), `test_legacy_short_password_is_not_rejected_by_login` (yangi, orqaga moslik).
+
+## 14. Ishga tushirishda majburiy konfiguratsiya tekshiruvi — fail-fast
+
+**Qaror (2026-11-09, FAZA 4):** `backend/main.py`ga FastAPI `lifespan` qo'shildi — `require_startup_configuration()` server ISHGA TUSHISHDAN OLDIN `ANTIPLAGIAT_DB_*` besh o'zgaruvchisi (`persistence.settings()`) va `ANTIPLAGIAT_PUBLIC_ORIGIN` (`auth.public_origin()`) ni tekshiradi; birortasi yo'q/noto'g'ri bo'lsa, `uvicorn` butunlay ishga TUSHMAYDI (aniq, mavjud Uzbek xato xabari bilan — yangi xabar emas, so'rov vaqtida ko'rsatiladigan xabarning o'zi).
+
+**Avvalgi holat bilan farq:** avval protsess bu o'zgaruvchilarsiz ham MUVAFFAQIYATLI ishga tushardi (`/health` 200 qaytarardi), faqat DB kerak bo'lgan har bir so'rov alohida 503 bilan muvaffaqiyatsiz bo'lardi. Bu "xavfsiz bo'lmagan default" emas edi (hech qanday default yo'q — `settings()` bo'sh qiymatda doim xato qaytaradi), lekin "noto'g'ri sozlangan holatda sukut bilan qabul so'rovlarni kutib turish" production uchun yetarli emas: endi noto'g'ri sozlangan protsess UMUMAN ishga tushmaydi, monitoring/orchestration darajasida darhol ko'rinadi.
+
+**Test ta'siri yo'qligi tasdiqlandi:** `backend/tests/test_review_regressions.py`dagi `ApiContractTests` `app(scope, receive, send)`ni to'g'ridan-to'g'ri, ASGI `"lifespan"` scope'isiz chaqiradi — demak bu test hech qachon `lifespan`ni ishga tushirmaydi; `backend/tests/test_readiness.py` esa `main.ready()`/`main.health()`ni oddiy funksiya sifatida chaqiradi, ASGI orqali emas. Ikkisi ham o'zgarishsiz o'tadi (barcha 224 test, shu jumladan FAZA 4ning yangi 5 testi, o'tadi).
+
+**Kodda qolgan boshqa defaultlar auditi:** `ANTIPLAGIAT_PUBLIC_ORIGIN` (`backend/auth.py`) va `ANTIPLAGIAT_API_URL` (`frontend/lib/proxy.ts`) — ikkisi ham yo'q bo'lganda faqat `127.0.0.1` manziliga tushadi, **xavfsiz** deb baholandi (tizim arxitektura bo'yicha allaqachon faqat lokal interfeysga cheklangan — `auth.guard()`, `proxy.ts`). Boshqa hech qanday `os.environ.get(..., "...")`/`process.env.X ?? "..."` shaklidagi default butun repo bo'yicha topilmadi, `MIN_PASSWORD_CHARS`dan tashqari (§13da tuzatildi).
+
+**`.env.example`:** mavjud, lekin ushbu agent sessiyasining o'z xavfsizlik sozlamalari `.env*` naqshiga mos har qanday faylni o'qish YOKI yozishni butunlay rad etadi (vosita darajasida, loyiha qoidasi emas) — shuning uchun uning to'liqligini men o'zim tasdiqlay yoki tahrirlay olmadim. To'liq tavsiya etilgan tarkib [docs/operations.md](operations.md) §1da — operator buni qo'lda solishtiradi/joylashtiradi.
+
+## 15. Sessiya cookie — Secure bayrog'i allaqachon konfiguratsiyaga bog'liq edi; muddat/uzaytirish qoidasi endi hujjatlashtirildi
+
+**Tekshirildi (2026-11-09, FAZA 4):** `backend/accounts_api.py`dagi `login()`/`logout()` cookie o'rnatishda `secure=auth.public_origin().startswith("https://")` ALLAQACHON ishlatadi — ya'ni lokal HTTP origin uchun `Secure` o'chiq, HTTPS origin uchun yoqiq, **kod o'zgarishi talab qilinmadi**. `HttpOnly`/`SameSite=strict`/`Path=/` o'zgarmas. Bu `backend/tests/test_auth.py`dagi `CookieTests.test_https_secure_cookie_and_no_token_in_body` bilan allaqachon sinalgan edi.
+
+**Muddat va uzaytirish qoidasi (endi hujjatlashtirildi, kod o'zgarmadi):** `backend/auth.py`dagi `SESSION_SECONDS = 8 * 60 * 60` — sessiya **qattiq 8 soat**dan keyin tugaydi (`sessions.expires_at`, bazada). **Uzaytirish (sliding renewal) YO'Q** — foydalanuvchi faol bo'lsa ham, sessiya yaratilgan vaqtdan aniq 8 soatdan keyin qayta kirish talab qilinadi; yagona uzaytirish yo'li — yangi `login()` chaqiruvi (`old_token` orqali eski sessiya o'chiriladi, yangisi yaratiladi). Bu ataylab qoldirilgan: sliding renewal qo'shish `require_user()`ning HAR bir chaqiruvida qo'shimcha UPDATE talab qilardi (performance) va "token qancha uzoq amal qiladi" chegarasini noaniqlashtirardi; qattiq 8 soat soddaroq va auditga qulayroq.
+
+## 16. Audit jurnali saqlash muddati — endi qo'lda ishga tushiriladigan buyruq bilan amalga oshirildi
+
+**Qaror (2026-11-09, FAZA 4):** [§2]da tavsiya etilgan ~12 oylik saqlash muddati endi `backend/manage.py audit-cleanup --older-than-days 365` orqali amalga oshiriladi (`backend/corpus.py`dagi `purge_excerpt_audit()`). **Cron/Task Scheduler talab qilinmaydi** — topshiriq shartiga ko'ra, buyruq operator tomonidan ongli ravishda, qo'lda ishga tushiriladi.
+
+**Nega privilegiyali hisob bilan:** runtime roli (`antiplagiat_app`) bu jadvalda ATAYLAB faqat SELECT+INSERT huquqiga ega (append-only — [§2]), DELETE huquqi yo'q. Shuning uchun `purge_excerpt_audit()` `manage.py`ning migratsiya uchun ishlatiladigan xuddi shu interaktiv, privilegiyali hisob oqimidan (`prompt_database()`) foydalanadi — ilova o'z-o'zidan audit tarixini o'chira olmasligi ataylab saqlanadi.
+
+**Testlar (real PostgreSQL, `backend/tests/test_corpus_integration.py`dagi `AuditRetentionTests`):** eski yozuv o'chirilishi va yangisi saqlanib qolishi, runtime rolining bu amalni bajara OLMASLIGI (append-only invariant), va noto'g'ri (manfiy/satr) parametrning rad etilishi.
+
 ---
 
-*Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`).*
+*Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`). Operatsion tartiblar (zaxira/tiklash, loglar, production ishga tushirish) uchun [docs/operations.md](operations.md) qarang.*

@@ -811,6 +811,52 @@ class CorpusExcerptDefenseTests(CorpusFixture, unittest.TestCase):
                                    "chars_shown", "created_at"})
 
 
+class AuditRetentionTests(CorpusFixture, unittest.TestCase):
+    """FAZA 4: manual, privileged-only retention cleanup for
+    corpus_excerpt_audit -- docs/decisions.md Sect.13.
+    """
+
+    def seed_row(self, age_days):
+        stored = self.add(self.unique("Saqlash muddati sinovi uchun alohida jumla"),
+                          "retention-" + uuid.uuid4().hex[:8])
+        saved = reports.save(str(self.user_id), str(uuid.uuid4()), "a" * 64,
+            {"status": "completed", "parameters": {"algorithm_version": "lexical-shingle-v1",
+             "normalization_version": "uz-latin-v2"}, "document": {"name": "retention.txt"}})
+        row_id = uuid.uuid4()
+        with persistence.database(self.admin) as conn:
+            conn.execute(
+                "INSERT INTO antiplagiat.corpus_excerpt_audit"
+                "(id,user_id,corpus_document_id,report_id,chars_shown,created_at)"
+                " VALUES (%s,%s,%s,%s,%s,now()-%s::interval)",
+                (row_id, self.user_id, stored["id"], saved["report_id"], 42, f"{age_days} days"))
+        return row_id
+
+    def test_purge_removes_only_rows_past_the_retention_window(self):
+        old_row = self.seed_row(400)
+        recent_row = self.seed_row(10)
+        removed = corpus.purge_excerpt_audit(self.admin, older_than_days=365)
+        self.assertGreaterEqual(removed, 1)
+        with persistence.database(self.admin) as conn:
+            remaining = {r["id"] for r in conn.execute(
+                "SELECT id FROM antiplagiat.corpus_excerpt_audit WHERE id IN (%s,%s)",
+                (old_row, recent_row)).fetchall()}
+        self.assertEqual(remaining, {recent_row})
+
+    def test_runtime_role_cannot_purge_append_only_table(self):
+        # The running application's own account is deliberately SELECT+INSERT
+        # only on this table (manage.py's migrate()); only the privileged,
+        # interactively-entered account used for "manage.py audit-cleanup" can
+        # delete from it.
+        with self.assertRaises(persistence.ServiceError) as raised:
+            corpus.purge_excerpt_audit(self.runtime, older_than_days=365)
+        self.assertEqual(raised.exception.code, "database_unavailable")
+
+    def test_rejects_a_non_positive_window(self):
+        for invalid in (0, -1, "365"):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                corpus.purge_excerpt_audit(self.admin, older_than_days=invalid)
+
+
 class RateLimitTests(CorpusFixture, unittest.TestCase):
     def fresh_user(self, label):
         # A dedicated account per assertion, never one of CorpusFixture's

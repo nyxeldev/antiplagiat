@@ -478,6 +478,26 @@ def record_excerpt_disclosures(user_id, report_id, debits, config=None):
             [(uuid.uuid4(), user_id, document_id, report_id, chars) for document_id, chars in debits.items()])
 
 
+AUDIT_RETENTION_DAYS = 365
+
+
+def purge_excerpt_audit(config, older_than_days=AUDIT_RETENTION_DAYS):
+    """Deletes audit rows older than the retention window (docs/decisions.md
+    Sect.13). A manual CLI operation (backend/manage.py's "audit-cleanup"),
+    never a cron job, by the owner's instruction -- so it is run with the
+    privileged migration-style account, since the runtime role is deliberately
+    append-only on this table (SELECT+INSERT only, no DELETE grant; see
+    manage.py's migrate()) and cannot do this itself.
+    """
+    if not isinstance(older_than_days, int) or older_than_days < 1:
+        raise ValueError("older_than_days musbat butun son bo‘lishi kerak.")
+    with database(config) as conn:
+        rows = conn.execute(
+            "DELETE FROM antiplagiat.corpus_excerpt_audit WHERE created_at <= now() - %s::interval"
+            " RETURNING id", (f"{older_than_days} days",)).fetchall()
+    return len(rows)
+
+
 def redact(result, user_id=None, config=None):
     """Replace full corpus text with bounded excerpts before the report is saved.
 
