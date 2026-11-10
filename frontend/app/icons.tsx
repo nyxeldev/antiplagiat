@@ -32,3 +32,5 @@ export const IconDatabase = (p: IconProps) => <svg {...base} {...p}><ellipse cx=
 export const IconFlask = (p: IconProps) => <svg {...base} {...p}><path d="M9 2h6" /><path d="M10 2v6.5L4.5 19a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L14 8.5V2" /><path d="M7.5 15h9" /></svg>;
 export const IconLoader = (p: IconProps) => <svg {...base} {...p}><path d="M12 3a9 9 0 1 0 9 9" /></svg>;
 export const IconSparkle = (p: IconProps) => <svg {...base} {...p}><path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z" /></svg>;
+export const IconPlus = (p: IconProps) => <svg {...base} {...p}><path d="M12 5v14M5 12h14" /></svg>;
+export const IconCloud = (p: IconProps) => <svg {...base} {...p}><path d="M7 18h11a4 4 0 0 0 .5-7.97A6 6 0 0 0 7.1 11.1 4.5 4.5 0 0 0 7 18Z" /></svg>;

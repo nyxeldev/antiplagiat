@@ -54,6 +54,16 @@
   --mark-ink: #1a1304;
   --mark-bg-cyan: #bfeaff;
 
+  /* --- source palette: tells N report sources apart in the reading view and
+     the sources table. Purely categorical -- assigned by position, never by
+     coverage percent, so it never implies risk/severity. --------------------- */
+  --src-1: var(--accent-strong);    --src-soft-1: var(--accent-soft-on-light);
+  --src-2: #0f7fad;                 --src-soft-2: var(--cyan-soft-on-light);
+  --src-3: #7c3aed;                 --src-soft-3: #f1e9fe;
+  --src-4: #b7791f;                 --src-soft-4: #faf1de;
+  --src-5: #be4677;                 --src-soft-5: #fbe8f1;
+  --src-6: #3b6fd1;                 --src-soft-6: #e7eefc;
+
   /* --- gold removed; kept as alias so nothing silently breaks ------------- */
   --gold: var(--warning);
 
