@@ -54,7 +54,7 @@ export default function CorpusAdmin() {
   const [rejectReasonError, setRejectReasonError] = useState<string | null>(null);
   const [confirmingReject, setConfirmingReject] = useState<Item | null>(null);
 
-  const allowed = !!user && (user.role === "admin" || user.role === "corpus_manager");
+  const allowed = !!user && (user.role === "admin" || user.role === "super_admin" || user.role === "kafedra_mudiri");
 
   useEffect(() => {
     if (!allowed) return;

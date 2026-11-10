@@ -4,6 +4,8 @@ Bu fayl koddan ko'rinmaydigan yoki tarqoq joylashgan, lekin ataylab qabul qiling
 
 ## 1. Korpus rol matritsasi
 
+**2026-11-10 (roles-phase1) bilan eskirdi — [§18]ga qarang.** Quyida tasvirlangan 4 rolli model (`user`/`reviewer`/`corpus_manager`/`admin`) yangi 5 rolli modelga (`talaba`/`ustoz`/`kafedra_mudiri`/`admin`/`super_admin`) ko'chirildi; mantiq (kim nimani boshqaradi) o'zgarmadi, faqat nomlar va `super_admin` qo'shildi. Tarixiy band sifatida saqlanadi.
+
 Korpus boshqaruvi (`/corpus/documents` va unga bog'liq yozish amallari) faqat `admin` va `corpus_manager` rollariga ochiq. Boshqa har qanday rol (`user`, `reviewer` — shu jumladan autentifikatsiyadan o'tgan, lekin bu ikki rolga tegishli bo'lmagan foydalanuvchi) uchun **403** qaytariladi.
 
 Bu `backend/auth.py`dagi `require_corpus_manager()` funksiyasida majburlanadi (`CORPUS_MANAGEMENT_ROLES = {"admin", "corpus_manager"}`). Shaxsiy hisobotlarni solishtirish (`include_corpus` bayrog'i) esa bundan mustasno — u barcha autentifikatsiyadan o'tgan foydalanuvchilarga ochiq, chunki korpus bilan *solishtirish* korpusni *boshqarish* emas.
@@ -137,6 +139,8 @@ Ehtiyoj paydo bo'lsa (masalan, kirill yozuvidagi hujjatlar korpusga haqiqatan ki
 
 ## 12. Ustoz uchun yangi rol yaratilmadi — mavjud `user` roli, endi admin bergan bayroq bilan
 
+**2026-11-10 (roles-phase1) bilan qisman eskirdi — [§18]ga qarang.** `user` roli endi mavjud emas: ustozlar uchun ishlatilgan "user + `can_submit_to_corpus` bayrog'i" naqshi endi **alohida `ustoz` roli** (yangi, kengroq emas, 5 rolli modelning bir qismi) + O'SHA BAYROQNING O'ZI (o'zgarmagan, hamon `admin`ga tegishli) ko'rinishida davom etadi. Quyidagi bahs (nega alohida bayroq kerak edi) **hamon kuchda** — faqat "`user`" o'rniga "`ustoz`" o'qing; bayroq endi ham ortiqcha emas, chunki `ustoz` roliga eski `reviewer` roli ham ko'chirilgan (taklif huquqisiz) — [§18]da batafsil.
+
 **Qaror (2026-11-08, FAZA 2da qabul qilingan, 2026-11-08da bayroq bilan qattiqlashtirilgan):** FAZA 2 (korpusga hujjat taklif qilish va moderatsiya) uchun bazada yangi `teacher` roli **qo'shilmadi**. O'rniga mavjud `user` roli "ustoz" vazifasini bajarishga **nomzod** hisoblanadi, lekin bu avtomatik huquq EMAS: `antiplagiat.users.can_submit_to_corpus` bayrog'i (migratsiya 006, default `false`) har bir `user`-rolidagi akkaunt uchun alohida, admin tomonidan yoqiladi.
 
 **Sabab (rol tanlovi uchun, FAZA 2):** loyihaning MAQSADi — tizimni "kafedra ustozlariga" ochish — shuni ko'rsatadiki, bu platformaning oddiy (admin/corpus_manager/reviewer bo'lmagan) foydalanuvchilari **aynan** ustozlarning o'zi, alohida ikkinchi populyatsiya emas. Yangi rol qo'shish `migration 001`dagi `users.role` CHECK cheklovini (checksummli, o'zgartirib bo'lmaydigan) kengaytiruvchi yangi migratsiya talab qilardi — bazaviy jadvalga tegish, faqat nomlash aniqligi uchun. Mavjud `user` rolidan foydalanish bu xavfni butunlay olib tashlaydi.
@@ -193,6 +197,37 @@ Ehtiyoj paydo bo'lsa (masalan, kirill yozuvidagi hujjatlar korpusga haqiqatan ki
 **Keyingi muhandislik bosqichi quyidagi ikki shartdan BIRI yuzaga kelganda boshlanadi, oldin emas:**
 1. Korpus 100 hujjatdan oshganda — nomzod limiti (`corpus.py`dagi `DEFAULT_CANDIDATES`/`MAX_CANDIDATES`) qayta o'lchanadi.
 2. Server aniqlanganda — HTTPS va haqiqiy joylashtirish topshirig'i (`docs/operations.md`dagi muhitdan mustaqil ko'rsatmalar o'rniga aniq muhitga moslashtirilgan reja).
+
+## 18. roles-phase1 — 5 rolli model, kafedra skeleti va `can_submit_to_corpus` qoldi
+
+**Qaror (2026-11-10):** eski 4 rolli model (`user`, `reviewer`, `corpus_manager`, `admin`) **5 rolli modelga** ko'chirildi: `talaba`, `ustoz`, `kafedra_mudiri`, `admin`, `super_admin` (`backend/auth.py`dagi `ROLES`). Bu **faqat nomlash va bir yangi rolning (`super_admin`) qo'shilishi** — birorta ham mavjud ruxsat mantig'i o'zgartirilmadi (pastdagi jadvalga qarang).
+
+**Migratsiya (`backend/migrations/008_role_model_v1.sql`) — aniq xaritalash, qaytarib bo'lmaydigan ravishda qo'llanildi:**
+
+| Eski holat | Yangi rol | Izoh |
+| --- | --- | --- |
+| `role='admin'` | `admin` | o'zgarmadi |
+| `role='corpus_manager'` | `kafedra_mudiri` | nomlash o'zgardi, huquq o'zgarmadi |
+| `role='reviewer'` | `ustoz` | nomlash o'zgardi; `can_submit_to_corpus` bayrog'i **false** holicha qoladi (reviewer hech qachon taklif huquqiga ega bo'lmagan) |
+| `role='user'`, `can_submit_to_corpus=true` | `ustoz` | bayrog'i **true** holicha qoladi |
+| `role='user'`, `can_submit_to_corpus=false` | `talaba` | yangi standart rol |
+| — (hech qachon avtomatik) | `super_admin` | faqat `manage.py assign-role <login> super_admin` orqali, qo'lda |
+
+Bu xaritalash haqiqiy legacy-shakldagi qatorlar ustida `backend/tests/test_role_migration.py`da (yangi, 4 test) tasdiqlangan: besh sintetik akkaunt (har bir eski rol/bayroq kombinatsiyasi uchun bittadan) migratsiyadan **oldin** xom SQL bilan kiritiladi, so'ng migratsiya 008 haqiqatan ishga tushiriladi va (a) xaritalash aniq yuqoridagi jadvalga mos kelishi, (b) `super_admin`ning hech qachon o'zi paydo bo'lmasligi, (c) barcha besh akkaunt eski parol bilan kira olishi, (d) eski imtiyozlarning saqlanib qolgani (masalan eski `corpus_manager` — endi `kafedra_mudiri` — hamon `require_corpus_manager()`dan o'tadi) tekshiriladi.
+
+**Haqiqiy dev bazadagi natija (2026-11-10, shu sessiyada qo'lda ishga tushirilgan `migrate` orqali tasdiqlangan):** `korpus_admin` (`corpus_manager` → `kafedra_mudiri`) va `teacher_test` (`user`+bayrog'i true → `ustoz`, bayrog'i true) brauzerda haligacha o'zining avvalgi ekranlari bilan kira oldi — pastdagi "Brauzer tekshiruvi" bandiga qarang.
+
+**Yangi 5 ta rolning har biri uchun endpoint × rol ruxsat matritsasi:** `backend/tests/test_role_permissions.py` (yangi) — kod ichidan (xotiradan emas) chiqarilgan **15 ta** himoyalangan endpoint (`accounts_api.py`, `corpus_api.py`, `comparison/api.py`), har biri o'zining `backend.auth` guard funksiyasi bilan belgilangan. Har bir endpoint × har bir rol (15 × 5 = 75) + `ustoz` roli uchun ikkita `can_submit_to_corpus` holati har bir endpointda qayta tekshiriladi (bayrogning uchta bayroqqa e'tibor bermaydigan guard uchun ahamiyatsizligini ham tasdiqlash uchun, faqat `require_teacher` uchun emas) — jami **90** kombinatsiya — plyus har bir endpoint uchun anonim chaqiruvning 401 bilan rad etilishi (**15** ta alohida tekshiruv). Fayl ichidagi izoh kelajakda yangi endpoint qo'shilganda bu ro'yxatni ham kengaytirish zarurligini eslatadi.
+
+**Kafedra (department) — faqat skelet, FAZA 2 emas:** yangi `antiplagiat.kafedra` jadvali va `users.kafedra_id` (nullable FK) + CLI (`manage.py kafedra-add/kafedra-list/kafedra-assign`) qo'shildi, lekin **kafedra darajasida ko'rinish cheklovi hali ishlamaydi** — `kafedra_mudiri` hamon BARCHA korpusni ko'radi, faqat o'z kafedrasinikini emas. Bu ataylab, topshiriq shartiga ko'ra: departament bo'yicha skoplash **keyingi bosqich** (phase 2) ishi, bu PR doirasiga kirmaydi.
+
+**`can_submit_to_corpus` ortiqchami? — YO'Q, saqlab qolindi.** Bayroq rol bilan bir xil narsani takrorlamaydi: `ustoz` roli endi ikkita sifat jihatidan har xil kelib chiqishli kichik populyatsiyani birlashtiradi — (a) eski haqiqiy `user`+bayrog'i-true akkauntlar (taklif huquqi bor) va (b) eski `reviewer` akkauntlar, endi `ustoz`ga ko'chirilgan, lekin bayrog'i **false** (taklif huquqi yo'q, hech qachon bo'lmagan). Agar bayroq olib tashlanib, faqat `role == "ustoz"` tekshirilganda, barcha eski `reviewer` akkauntlar birdaniga korpusga taklif huquqiga ega bo'lib qolardi — bu migratsiyaning o'zi ataylab oldini olgan narsa. Demak bayroq `ustoz` rolidan **mustaqil, admin tomonidan alohida boshqariladigan** ruxsat qatlami bo'lib qolaveradi (`require_teacher()`: `role in CORPUS_MANAGEMENT_ROLES OR (role == TEACHER_SUBMISSION_ROLE AND can_submit_to_corpus)`); yangi yaratilgan `ustoz` akkaunt ham standart holatda bayrog'i `false` bilan boshlanadi (`manage.py create-user`, migratsiya 006dagi ustun defaulti o'zgarmagan) — "ustoz" bo'lish o'zi avtomatik taklif huquqi bermaydi, buni `admin` alohida yoqishi kerak.
+
+**Frontend:** faqat nom almashtirish, yangi ekran yo'q — `frontend/app/shell/AppShell.tsx` (`CORPUS_MANAGEMENT_ROLES`, nav-item sharti), `frontend/app/corpus/page.tsx` (`allowed` sharti) va `frontend/app/corpus/submit/page.tsx` (`allowed` sharti) yangilandi.
+
+**Brauzer tekshiruvi (2026-11-10, Claude Browser orqali, haqiqiy ishga tushirilgan frontend+backend ustida):** `talaba` (`roles_phase1_talaba`) — faqat "Yangi tekshiruv"/"Tekshiruvlar tarixi" ko'rinadi; `ustoz` (`teacher_test`) — qo'shimcha "Korpusga hujjat taklif qilish" ko'rinadi, korpus boshqaruvi yo'q; `kafedra_mudiri` (`korpus_admin`) — "Korpus boshqaruvi" ko'rinadi, taklif-qilish yo'q; `admin` (`roles_phase1_admin`) — xuddi `kafedra_mudiri` kabi "Korpus boshqaruvi" ko'rinadi. `super_admin` brauzerda alohida tekshirilmadi — kod yo'lida `admin` bilan farqsiz (`ADMIN_ROLES = {"admin", "super_admin"}`), bu `test_role_permissions.py`da avtomatik qoplangan.
+
+**Testlar:** to'liq to'plam `224 → 230` ga o'sdi (2 yangi fayl: `test_role_permissions.py` — 2 test/90+15 tekshiruv, `test_role_migration.py` — 4 test); barcha 230 test o'tadi.
 
 ---
 

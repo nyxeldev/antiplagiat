@@ -52,9 +52,13 @@ def setUpModule():
     CLUSTER["user_id"] = manage.create_user(CLUSTER["admin"], "corpus.reader",
                                             secrets.token_urlsafe(24))
     CLUSTER["manager_id"] = manage.create_user(CLUSTER["admin"], "corpus.manager",
-                                               secrets.token_urlsafe(24), role="corpus_manager")
+                                               secrets.token_urlsafe(24), role="kafedra_mudiri")
+    # Old "reviewer" role mapped to "ustoz" by migration 008, but as a plain
+    # account it never had corpus access or flag eligibility either way --
+    # "talaba" is the exact functional equivalent for this suite's purposes
+    # (a role never eligible for the can_submit_to_corpus flag at all).
     CLUSTER["reviewer_id"] = manage.create_user(CLUSTER["admin"], "corpus.reviewer",
-                                                secrets.token_urlsafe(24), role="reviewer")
+                                                secrets.token_urlsafe(24), role="talaba")
 
 
 def tearDownModule():
@@ -300,7 +304,7 @@ class CorpusUploadFormatTests(CorpusFixture, unittest.TestCase):
                  "query_string": b"", "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
                  "headers": [(b"content-type", kind.encode()), (b"content-length", str(len(body)).encode())]}
         with patch.object(corpus_api.auth, "require_corpus_manager",
-                          return_value={"id": str(self.manager_id), "role": "corpus_manager"}):
+                          return_value={"id": str(self.manager_id), "role": "kafedra_mudiri"}):
             return asyncio.run(corpus_api.add(Request(scope, receive)))
 
     def payload(self, response):
@@ -460,7 +464,7 @@ class CorpusBatchIngestTests(CorpusFixture, unittest.TestCase):
 class CorpusComparisonTests(CorpusFixture, unittest.TestCase):
     """The compare endpoint with the corpus flag off and on."""
 
-    def request(self, body, content_type, include_corpus=False, role="user", normalization="v2",
+    def request(self, body, content_type, include_corpus=False, role="talaba", normalization="v2",
                 idempotency_key=None):
         sent = False
         async def receive():
@@ -715,7 +719,7 @@ class CorpusExcerptDefenseTests(CorpusFixture, unittest.TestCase):
                  "headers": [(b"content-type", content_type.encode()), (b"x-antiplagiat-local", b"1"),
                              (b"idempotency-key", (idempotency_key or str(uuid.uuid4())).encode())]}
         owner = str(user_id or self.user_id)
-        with patch.object(api.auth, "require_user", return_value={"id": owner, "role": "user"}):
+        with patch.object(api.auth, "require_user", return_value={"id": owner, "role": "talaba"}):
             return asyncio.run(api.compare_uploads(Request(scope, receive), include_corpus=include_corpus))
 
     def payload(self, response):
@@ -924,7 +928,7 @@ class CorpusAccessTests(CorpusFixture, unittest.TestCase):
 
     def test_listing_requires_an_admin_session(self):
         with patch.object(corpus_api.auth, "require_user",
-                          return_value={"id": str(self.user_id), "role": "user"}):
+                          return_value={"id": str(self.user_id), "role": "talaba"}):
             with self.assertRaises(persistence.ServiceError) as raised:
                 corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
         self.assertEqual(raised.exception.status, 403)
@@ -936,7 +940,7 @@ class CorpusAccessTests(CorpusFixture, unittest.TestCase):
     def test_withdraw_requires_an_admin_session(self):
         stored = self.add(self.unique(EN + " ruxsat"), "acl-" + uuid.uuid4().hex[:8])
         with patch.object(corpus_api.auth, "require_user",
-                          return_value={"id": str(self.user_id), "role": "user"}):
+                          return_value={"id": str(self.user_id), "role": "talaba"}):
             with self.assertRaises(persistence.ServiceError) as raised:
                 corpus_api.withdraw(Request(self.scope("POST", "/corpus/documents")), stored["id"])
         self.assertEqual(raised.exception.status, 403)
@@ -955,28 +959,29 @@ class CorpusAccessTests(CorpusFixture, unittest.TestCase):
                     corpus_api.withdraw(Request(self.scope("POST", "/corpus/documents")), identifier)
                 self.assertEqual(raised.exception.status, 404)
 
-    def test_corpus_manager_role_has_the_same_access_as_admin(self):
+    def test_kafedra_mudiri_role_has_the_same_access_as_admin(self):
         with patch.object(corpus_api.auth, "require_user",
-                          return_value={"id": str(self.manager_id), "role": "corpus_manager"}):
+                          return_value={"id": str(self.manager_id), "role": "kafedra_mudiri"}):
             response = corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
             self.assertEqual(response.status_code, 200)
             stored = self.add(self.unique(UZ + " manager"), "mgr-" + uuid.uuid4().hex[:8])
             removed = corpus_api.withdraw(Request(self.scope("POST", "/corpus/documents")), stored["id"])
         self.assertEqual(json.loads(bytes(removed.body))["status"], "withdrawn")
 
-    def test_reviewer_role_is_refused_like_an_ordinary_user(self):
+    def test_talaba_role_is_refused_like_an_ordinary_user(self):
         with patch.object(corpus_api.auth, "require_user",
-                          return_value={"id": str(self.reviewer_id), "role": "reviewer"}):
+                          return_value={"id": str(self.reviewer_id), "role": "talaba"}):
             with self.assertRaises(persistence.ServiceError) as raised:
                 corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
         self.assertEqual(raised.exception.status, 403)
 
 
 class CorpusModerationTests(CorpusFixture, unittest.TestCase):
-    """FAZA 2: a teacher's (role="user") moderated submission queue --
-    corpus_api.submit/my_submissions for the teacher, corpus_api.detail/
-    approve/reject for admin/corpus_manager. "user" has no direct, unmoderated
-    path; admin/corpus_manager keep theirs (CorpusUploadFormatTests) unchanged.
+    """FAZA 2 / roles-phase1: a teacher's (role="ustoz") moderated submission
+    queue -- corpus_api.submit/my_submissions for the teacher, corpus_api.
+    detail/approve/reject for admin/kafedra_mudiri. "ustoz" has no direct,
+    unmoderated path; admin/kafedra_mudiri keep theirs (CorpusUploadFormatTests)
+    unchanged.
     """
 
     def scope(self, method, path, query=b""):
@@ -988,10 +993,10 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
         return json.loads(bytes(response.body))
 
     def submit_as(self, role, user_id, text, can_submit_to_corpus=True, **field_overrides):
-        # can_submit_to_corpus defaults to True so every existing "user"-role
+        # can_submit_to_corpus defaults to True so every existing "ustoz"-role
         # caller in this suite keeps exercising the happy submission path;
         # the flag-enforcement test below passes False explicitly to cover
-        # the 403 case. admin/corpus_manager ignore the flag either way
+        # the 403 case. admin/kafedra_mudiri ignore the flag either way
         # (require_teacher lets them through unconditionally).
         fields = {"title": "sub-" + uuid.uuid4().hex[:8], "author_display": "Sinov Ustoz",
                   "doc_type": "bmi", "permission_basis": "Sinov uchun akademiya ruxsati", **field_overrides}
@@ -1031,35 +1036,36 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
             return asyncio.run(corpus_api.reject(Request(scope, receive), document_id))
 
     def test_role_matrix_for_submission_and_moderation(self):
-        # A flagged "user" (admin-granted can_submit_to_corpus) may submit for review.
-        response = self.submit_as("user", self.user_id, self.unique(
+        # A flagged "ustoz" (admin-granted can_submit_to_corpus) may submit for review.
+        response = self.submit_as("ustoz", self.user_id, self.unique(
             "Rol matritsasi sinovi uchun alohida mustaqil matn namunasi"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.payload(response)["status"], "pending")
-        # admin/corpus_manager may ALSO use this path (not just their own direct,
+        # admin/kafedra_mudiri may ALSO use this path (not just their own direct,
         # unmoderated /corpus/documents upload) -- require_teacher lets them
         # through unconditionally, regardless of can_submit_to_corpus.
-        for role, user_id in (("admin", self.admin_id), ("corpus_manager", self.manager_id)):
+        for role, user_id in (("admin", self.admin_id), ("kafedra_mudiri", self.manager_id)):
             with self.subTest(role=role):
                 response = self.submit_as(role, user_id, self.unique("Admin yoki manager sinov matni"))
                 self.assertEqual(response.status_code, 200)
-        # A flagless "user" (the default, can_submit_to_corpus=false) is refused.
+        # A flagless "ustoz" (the default, can_submit_to_corpus=false) is refused.
         with self.assertRaises(persistence.ServiceError) as raised:
-            self.submit_as("user", self.user_id, self.unique("Bayroqsiz foydalanuvchi sinov matni"),
+            self.submit_as("ustoz", self.user_id, self.unique("Bayroqsiz foydalanuvchi sinov matni"),
                            can_submit_to_corpus=False)
         self.assertEqual(raised.exception.status, 403)
-        # reviewer has no corpus access at all and is refused regardless of the flag.
+        # talaba has no corpus access at all and is refused regardless of the flag
+        # (require_teacher only ever grants the flag's effect to TEACHER_SUBMISSION_ROLE).
         with self.assertRaises(persistence.ServiceError) as raised:
-            self.submit_as("reviewer", self.reviewer_id, self.unique("Reviewer sinov matni"))
+            self.submit_as("talaba", self.reviewer_id, self.unique("Talaba sinov matni"))
         self.assertEqual(raised.exception.status, 403)
-        # Only admin/corpus_manager may read or act on the moderation queue.
-        for role, user_id in (("user", self.user_id), ("reviewer", self.reviewer_id)):
+        # Only admin/kafedra_mudiri may read or act on the moderation queue.
+        for role, user_id in (("ustoz", self.user_id), ("talaba", self.reviewer_id)):
             with self.subTest(role=role), patch.object(
                     corpus_api.auth, "require_user", return_value={"id": str(user_id), "role": role}):
                 with self.assertRaises(persistence.ServiceError) as raised:
                     corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
                 self.assertEqual(raised.exception.status, 403)
-        for role, user_id in (("admin", self.admin_id), ("corpus_manager", self.manager_id)):
+        for role, user_id in (("admin", self.admin_id), ("kafedra_mudiri", self.manager_id)):
             with self.subTest(role=role), patch.object(
                     corpus_api.auth, "require_user", return_value={"id": str(user_id), "role": role}):
                 response = corpus_api.listing(Request(self.scope("GET", "/corpus/documents")),
@@ -1086,17 +1092,17 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
 
     def test_can_submit_to_corpus_flag_is_admin_only_and_gates_submission(self):
         newcomer = manage.create_user(self.admin, "corpus.newcomer." + uuid.uuid4().hex[:8],
-                                      secrets.token_urlsafe(24))
-        # Flagless by default -> refused, even though the account is "user"-role.
+                                      secrets.token_urlsafe(24), role="ustoz")
+        # Flagless by default -> refused, even though the account is "ustoz"-role.
         with self.assertRaises(persistence.ServiceError) as raised:
-            self.submit_as("user", newcomer, self.unique("Yangi foydalanuvchi sinov matni"),
+            self.submit_as("ustoz", newcomer, self.unique("Yangi foydalanuvchi sinov matni"),
                            can_submit_to_corpus=False)
         self.assertEqual(raised.exception.status, 403)
 
-        # Only admin may grant/revoke -- corpus_manager is refused, even though
+        # Only admin may grant/revoke -- kafedra_mudiri is refused, even though
         # it already manages the corpus itself.
         with self.assertRaises(persistence.ServiceError) as raised:
-            self.set_access_as("corpus_manager", self.manager_id, newcomer, True)
+            self.set_access_as("kafedra_mudiri", self.manager_id, newcomer, True)
         self.assertEqual(raised.exception.status, 403)
 
         granted = self.payload(self.set_access_as("admin", self.admin_id, newcomer, True))
@@ -1114,9 +1120,9 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
             self.set_access_as("admin", self.admin_id, newcomer, None)
         self.assertEqual(raised.exception.status, 400)
 
-        # Granting it on a non-"user" account is refused: the flag is only
+        # Granting it on a non-"ustoz" account is refused: the flag is only
         # meaningful for the role require_teacher actually checks it on --
-        # admin/corpus_manager already pass unconditionally, reviewer has no
+        # admin/kafedra_mudiri already pass unconditionally, talaba has no
         # corpus access at all either way.
         with self.assertRaises(persistence.ServiceError) as raised:
             self.set_access_as("admin", self.admin_id, self.reviewer_id, True)
@@ -1127,7 +1133,7 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
 
         base = self.unique("Dasturiy taminot sinash metodologiyasi va test holatlari "
                            "tahlili ushbu bobda keng yoritiladi")
-        stored = self.payload(self.submit_as("user", self.user_id, base + " qoshimcha jumla."))
+        stored = self.payload(self.submit_as("ustoz", self.user_id, base + " qoshimcha jumla."))
         self.assertEqual(stored["review_status"], "pending")
         tokens = tokenize(base)
         found, _ = corpus.candidates(tokens)
@@ -1142,14 +1148,14 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
 
         # Already approved: approving again finds nothing left pending.
         with patch.object(corpus_api.auth, "require_user",
-                          return_value={"id": str(self.manager_id), "role": "corpus_manager"}):
+                          return_value={"id": str(self.manager_id), "role": "kafedra_mudiri"}):
             with self.assertRaises(corpus.CorpusError) as raised:
                 corpus_api.approve(Request(self.scope("POST", "/corpus/documents")), stored["id"])
         self.assertEqual(raised.exception.status, 404)
 
     def test_rejected_submission_requires_a_reason_and_purges_its_text(self):
         text = self.unique("Alohida boshqa mavzudagi uslubiy qollanma matni tahlili")
-        stored = self.payload(self.submit_as("user", self.user_id, text))
+        stored = self.payload(self.submit_as("ustoz", self.user_id, text))
 
         with self.assertRaises(corpus.CorpusError) as raised:
             self.reject_as("admin", self.admin_id, stored["id"], None)
@@ -1158,7 +1164,7 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
             self.reject_as("admin", self.admin_id, stored["id"], "   ")
         self.assertEqual(raised_blank.exception.status, 400)
 
-        rejected = self.payload(self.reject_as("corpus_manager", self.manager_id, stored["id"],
+        rejected = self.payload(self.reject_as("kafedra_mudiri", self.manager_id, stored["id"],
                                                "Ruxsat asosi yetarli emas"))
         self.assertEqual(rejected["review_status"], "rejected")
         with persistence.database(self.admin) as conn:
@@ -1180,12 +1186,12 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
     def test_teacher_sees_only_own_submissions(self):
         other_id = manage.create_user(self.admin, "corpus.other." + uuid.uuid4().hex[:8],
                                       secrets.token_urlsafe(24))
-        mine = self.payload(self.submit_as("user", self.user_id,
+        mine = self.payload(self.submit_as("ustoz", self.user_id,
             self.unique("Mening ozim yuklagan maqola matni namunasi")))
-        theirs = self.payload(self.submit_as("user", other_id,
+        theirs = self.payload(self.submit_as("ustoz", other_id,
             self.unique("Boshqa foydalanuvchi yuklagan maqola matni namunasi")))
         with patch.object(corpus_api.auth, "require_user",
-                          return_value={"id": str(self.user_id), "role": "user",
+                          return_value={"id": str(self.user_id), "role": "ustoz",
                                        "can_submit_to_corpus": True}):
             response = corpus_api.my_submissions(Request(self.scope("GET", "/corpus/submissions")))
         ids = [item["id"] for item in self.payload(response)["items"]]
@@ -1194,7 +1200,7 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
 
     def test_admin_can_view_submission_detail_including_text_teacher_cannot(self):
         text = self.unique("Yana boshqa mustaqil matn moderatsiya korinishi uchun")
-        stored = self.payload(self.submit_as("user", self.user_id, text))
+        stored = self.payload(self.submit_as("ustoz", self.user_id, text))
         with patch.object(corpus_api.auth, "require_user",
                           return_value={"id": str(self.admin_id), "role": "admin"}):
             response = corpus_api.detail(Request(self.scope("GET", f"/corpus/documents/{stored['id']}")),
@@ -1203,7 +1209,7 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
         self.assertEqual(detail["review_status"], "pending")
         self.assertEqual(detail["extracted_text"], text)
         with patch.object(corpus_api.auth, "require_user",
-                          return_value={"id": str(self.user_id), "role": "user"}):
+                          return_value={"id": str(self.user_id), "role": "ustoz"}):
             with self.assertRaises(persistence.ServiceError) as raised:
                 corpus_api.detail(Request(self.scope("GET", f"/corpus/documents/{stored['id']}")), stored["id"])
         self.assertEqual(raised.exception.status, 403)

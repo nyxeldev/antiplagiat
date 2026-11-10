@@ -33,10 +33,10 @@ function fileError(file: File) {
 export default function SubmitCorpusDocument() {
   const user = useUser();
   const expired = useSessionExpired();
-  // Defense in depth: the nav entry is already hidden from a flagless "user"
+  // Defense in depth: the nav entry is already hidden from a flagless "ustoz"
   // (see shell/AppShell.tsx), but a direct visit to this URL must refuse the
   // same way, not just not be linked to.
-  const allowed = !!user && user.role === "user" && !!user.can_submit_to_corpus;
+  const allowed = !!user && user.role === "ustoz" && !!user.can_submit_to_corpus;
 
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");

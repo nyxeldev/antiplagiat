@@ -70,7 +70,7 @@ class AuthTests(unittest.TestCase):
         conn = MagicMock()
         conn.execute.return_value.fetchone.return_value = {
             "id": uuid.uuid4(), "username": "legacy", "password_hash": auth.password_hash("abcd"),
-            "role": "user", "enabled": True, "can_submit_to_corpus": False,
+            "role": "talaba", "enabled": True, "can_submit_to_corpus": False,
         }
         with patch.object(auth, "database") as db:
             db.return_value.__enter__.return_value = conn
@@ -153,7 +153,7 @@ class AuthTests(unittest.TestCase):
 class CookieTests(unittest.IsolatedAsyncioTestCase):
     async def test_https_secure_cookie_and_no_token_in_body(self):
         token = secrets.token_urlsafe(32)
-        user = {"id": "test", "username": "test-user", "role": "user"}
+        user = {"id": "test", "username": "test-user", "role": "talaba"}
         body = json.dumps({"username": "test-user", "password": "synthetic-password"}).encode()
         req = request("POST", {"origin": "https://localhost:3000"})
         async def receive():

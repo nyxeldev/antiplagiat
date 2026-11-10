@@ -127,14 +127,26 @@ def require_user(request):
     return {**row, "id": str(row["id"])}
 
 
-CORPUS_MANAGEMENT_ROLES = {"admin", "corpus_manager"}
-# A teacher is not a separate database role: every ordinary signed-in account
-# COULD be a department teacher, since that is this whole platform's audience
-# (see docs/decisions.md §12). But submission access is not every "user"
-# account's right by default -- an admin grants it per account via the
-# can_submit_to_corpus flag (migration 006) -- so this constant only says
-# which role is ELIGIBLE to be granted it, not who currently has it.
-TEACHER_SUBMISSION_ROLE = "user"
+# roles-phase1 (docs/decisions.md Sect.18): besh rolli model. Kafedra bo'yicha
+# QAMROV bu bosqichda YO'Q -- kafedra_mudiri hamon HAMMA narsani ko'radi,
+# avvalgidek; cheklash 2-fazada. Eski to'rt rolli model (user/reviewer/
+# corpus_manager/admin) migratsiya 008 orqali shu beshtaga aniq ko'chirildi.
+ROLES = ("talaba", "ustoz", "kafedra_mudiri", "admin", "super_admin")
+
+# kafedra_mudiri eski corpus_manager'ning o'rniga keldi; admin/super_admin
+# ikkisi ham korpusni to'liq boshqaradi (super_admin faqat CLI orqali
+# tayinlanadi, lekin tayinlangandan keyin admin bilan bir xil huquqga ega).
+CORPUS_MANAGEMENT_ROLES = {"admin", "super_admin", "kafedra_mudiri"}
+# require_admin esa shundan ham torroq -- kafedra_mudiri korpusni boshqaradi,
+# lekin boshqa akkauntning taklif huquqini bera olmaydi (shu quyidagi
+# ADMIN_ROLES bilan ajratiladi).
+ADMIN_ROLES = {"admin", "super_admin"}
+# "ustoz" roli endi alohida database roli -- eski modelda bu "user" + flag
+# edi. Lekin submission huquqi hamon har bir "ustoz" akkauntining avtomatik
+# huquqi EMAS -- admin uni can_submit_to_corpus flag orqali (migratsiya 006)
+# alohida yoqadi/o'chiradi -- shu sababli bu konstant faqat qaysi ROL bu
+# flagga ERISHISHI mumkinligini bildiradi, kim hozir unga ega ekanini emas.
+TEACHER_SUBMISSION_ROLE = "ustoz"
 
 
 def require_corpus_manager(request):
@@ -147,20 +159,22 @@ def require_corpus_manager(request):
 
 def require_admin(request):
     # Granting/revoking another account's corpus submission access: admin
-    # only, narrower than require_corpus_manager -- a corpus_manager curates
-    # the corpus itself, not who may propose additions to it.
+    # (yoki super_admin) only, narrower than require_corpus_manager --
+    # kafedra_mudiri korpusning o'zini kuratsiya qiladi, lekin unga kimning
+    # taklif kiritishini belgilay olmaydi.
     user = require_user(request)
-    if user.get("role") != "admin":
+    if user.get("role") not in ADMIN_ROLES:
         raise ServiceError("forbidden", "Bu amal uchun administrator roli kerak.", 403)
     return user
 
 
 def require_teacher(request):
     # The corpus submission queue only; never widens access to corpus
-    # administration or another user's personal reports. admin/corpus_manager
-    # pass unconditionally -- they already have their own direct, unmoderated
-    # upload path and have no need for the flag. A "user" account needs the
-    # admin-granted can_submit_to_corpus flag; every other role is refused.
+    # administration or another user's personal reports. admin/super_admin/
+    # kafedra_mudiri pass unconditionally -- they already have their own
+    # direct, unmoderated upload path and have no need for the flag. An
+    # "ustoz" account needs the admin-granted can_submit_to_corpus flag;
+    # every other role (talaba included) is refused.
     user = require_user(request)
     role = user.get("role")
     if role in CORPUS_MANAGEMENT_ROLES:
@@ -172,10 +186,10 @@ def require_teacher(request):
 
 def set_corpus_submission_access(user_id, enabled, config=None):
     """Admin-only grant/revoke of can_submit_to_corpus; see corpus_api.py's
-    two endpoints that call this. Only ever touches a "user"-role account --
-    admin/corpus_manager do not need the flag (require_teacher lets them
-    through regardless), and flipping it on a reviewer account would be
-    silently meaningless, so it is refused instead.
+    two endpoints that call this. Only ever touches an "ustoz"-role account --
+    admin/super_admin/kafedra_mudiri do not need the flag (require_teacher
+    lets them through regardless), and flipping it on a talaba account would
+    be silently meaningless, so it is refused instead.
     """
     try:
         user_id = str(uuid.UUID(str(user_id)))
@@ -187,7 +201,7 @@ def set_corpus_submission_access(user_id, enabled, config=None):
             " WHERE id=%s AND role=%s RETURNING id,username,can_submit_to_corpus",
             (bool(enabled), user_id, TEACHER_SUBMISSION_ROLE)).fetchone()
     if not row:
-        raise ServiceError("not_found", "Foydalanuvchi topilmadi yoki oddiy foydalanuvchi emas.", 404)
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi yoki ustoz emas.", 404)
     return {"id": str(row["id"]), "username": row["username"],
            "can_submit_to_corpus": row["can_submit_to_corpus"]}
 

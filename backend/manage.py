@@ -143,6 +143,12 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
             ("corpus_excerpt_audit", "SELECT to_regclass('antiplagiat.corpus_excerpt_audit') IS NOT NULL AS present"),
             ("rate_limit_counters", "SELECT to_regclass('antiplagiat.rate_limit_counters') IS NOT NULL AS present"),
         ],
+        "008_role_model_v1": [
+            ("kafedra_table", "SELECT to_regclass('antiplagiat.kafedra') IS NOT NULL AS present"),
+            ("users_kafedra_id_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='users' AND column_name='kafedra_id') AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:
@@ -236,7 +242,7 @@ def weak_password_reason(password, username):
     return None
 
 
-def create_user(config, username, password, role="user"):
+def create_user(config, username, password, role="talaba"):
     from backend.auth import password_hash, valid_username
     if not valid_username(username) or not MIN_PASSWORD_CHARS <= len(password) <= MAX_PASSWORD_CHARS:
         raise ValueError(f"Login: 3–64 kichik lotin harfi/son/_.-; "
@@ -266,7 +272,22 @@ def corpus_manager_user_id(config, username):
     if not row:
         raise ValueError("Bunday faol akkaunt topilmadi.")
     if row["role"] not in CORPUS_MANAGEMENT_ROLES:
-        raise ValueError("Korpusni faqat admin yoki corpus_manager roli boshqaradi.")
+        raise ValueError("Korpusni faqat admin, super_admin yoki kafedra_mudiri roli boshqaradi.")
+    return row["id"]
+
+
+def assign_role(config, username, role):
+    """CLI-only role reassignment (docs/decisions.md Sect.18) -- the only way
+    to grant super_admin, since it is never auto-assigned by migration 008.
+    """
+    from backend import auth
+    if role not in auth.ROLES:
+        raise ValueError(f"Noma'lum rol: {role}. Ruxsat etilgan: {', '.join(auth.ROLES)}.")
+    with database(config) as conn:
+        row = conn.execute("UPDATE antiplagiat.users SET role=%s WHERE username=%s RETURNING id",
+                           (role, username)).fetchone()
+    if not row:
+        raise ValueError("Bunday akkaunt topilmadi.")
     return row["id"]
 
 
@@ -396,7 +417,19 @@ def main():
     migration.add_argument("--diagnostic", action="store_true", help="Faqat xavfsiz bosqich/exception klassi/SQLSTATE/qadamni chiqarish.")
     account = sub.add_parser("create-user")
     account.add_argument("username")
-    account.add_argument("--role", choices=["user", "reviewer", "corpus_manager", "admin"], default="user")
+    account.add_argument("--role", choices=["talaba", "ustoz", "kafedra_mudiri", "admin", "super_admin"],
+                         default="talaba")
+    assign = sub.add_parser("assign-role",
+        help="Mavjud akkauntning rolini o‘zgartiradi -- super_admin faqat shu orqali beriladi.")
+    assign.add_argument("username")
+    assign.add_argument("role", choices=["talaba", "ustoz", "kafedra_mudiri", "admin", "super_admin"])
+    kafedra_add = sub.add_parser("kafedra-add", help="Yangi kafedra qo‘shadi.")
+    kafedra_add.add_argument("nomi")
+    kafedra_add.add_argument("qisqa_kodi")
+    kafedra_list = sub.add_parser("kafedra-list", help="Barcha kafedralarni ro‘yxatlaydi.")
+    kafedra_assign = sub.add_parser("kafedra-assign", help="Akkauntni kafedraga biriktiradi.")
+    kafedra_assign.add_argument("username")
+    kafedra_assign.add_argument("qisqa_kodi")
     add_corpus = sub.add_parser("corpus-add")
     add_corpus.add_argument("path", help="Lokal TXT/DOCX/matnli PDF fayl yo‘li.")
     add_corpus.add_argument("--as-user", required=True, help="Korpusni boshqaradigan admin yoki corpus_manager login.")
@@ -461,6 +494,21 @@ def main():
             from backend import corpus
             removed = corpus.purge_excerpt_audit(config, args.older_than_days)
             print(f"O‘chirildi: {removed} ta audit yozuvi ({args.older_than_days} kundan eski).")
+        elif args.command == "assign-role":
+            assign_role(config, args.username, args.role)
+            print(f"Rol o‘zgartirildi: {args.username} -> {args.role}.")
+        elif args.command == "kafedra-add":
+            from backend import departments
+            kafedra_id = departments.add(config, args.nomi, args.qisqa_kodi)
+            print(f"Kafedra qo‘shildi: {kafedra_id}.")
+        elif args.command == "kafedra-list":
+            from backend import departments
+            for row in departments.listing(config):
+                print(f"{row['id']}  {row['qisqa_kodi']:8} {row['nomi']}")
+        elif args.command == "kafedra-assign":
+            from backend import departments
+            departments.assign_user(config, args.username, args.qisqa_kodi)
+            print(f"Biriktirildi: {args.username} -> {args.qisqa_kodi}.")
         else:
             password = hidden_password(f"Yangi akkaunt paroli (kamida {MIN_PASSWORD_CHARS} belgi): ")
             if password != hidden_password("Parolni takrorlang: "):

@@ -14,7 +14,7 @@ const NAV = [
 ];
 const CORPUS_NAV = { href: "/corpus", label: "Korpus boshqaruvi", icon: <IconDatabase /> };
 const SUBMIT_NAV = { href: "/corpus/submit", label: "Korpusga hujjat taklif qilish", icon: <IconUpload /> };
-export const CORPUS_MANAGEMENT_ROLES = new Set(["admin", "corpus_manager"]);
+export const CORPUS_MANAGEMENT_ROLES = new Set(["admin", "super_admin", "kafedra_mudiri"]);
 
 function titleFor(pathname: string) {
   if (pathname === "/") return "Yangi tekshiruv";
@@ -30,11 +30,11 @@ export default function AppShell({ user, onLogout, busy, error, children }: { us
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerPathname, setDrawerPathname] = useState(pathname);
   if (pathname !== drawerPathname) { setDrawerPathname(pathname); setDrawerOpen(false); }
-  // A flagless "user" account never sees the submission entry, in the nav or
+  // A flagless "ustoz" account never sees the submission entry, in the nav or
   // otherwise -- corpus/submit/page.tsx enforces the same check again itself,
   // since a hidden nav link is not an access control.
   const items = CORPUS_MANAGEMENT_ROLES.has(user.role) ? [...NAV, CORPUS_NAV]
-    : user.role === "user" && user.can_submit_to_corpus ? [...NAV, SUBMIT_NAV] : NAV;
+    : user.role === "ustoz" && user.can_submit_to_corpus ? [...NAV, SUBMIT_NAV] : NAV;
 
   const nav = (
     <>
