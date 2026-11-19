@@ -196,7 +196,7 @@ def checks(admin, runtime, password):
                      (b"x" * (10 * 1024 * 1024 + 1), "large.txt", "file_limit", 413)]
             for data, name, code, status in cases:
                 upload([("document", name, data), ("sources", "source.txt", TEXT.encode())], status, code)
-            upload([target], 400, "file_count")
+            upload([target], 400, "no_sources")
             upload([target, ("sources", "source.txt", TEXT.encode())], 403, extra_headers={"Origin": "https://example.invalid"})
             body, kind = multipart([target, ("sources", "source.txt", TEXT.encode())])
             assert request(backend + "/compare", body, kind)[0] == 403
@@ -261,6 +261,46 @@ def checks(admin, runtime, password):
             upload([target, ("sources", "s.txt", TEXT.encode())], 410, "report_deleted", extra_headers={"Idempotency-Key": fixed_key})
             with database(admin) as conn:
                 assert conn.execute("SELECT snapshot FROM antiplagiat.reports WHERE id=%s", (report_id,)).fetchone()["snapshot"] is None
+
+            # Corpus flow: admin adds a document, a plain user compares against
+            # it (no manual sources -- include_corpus alone is enough, Sect.1),
+            # then admin withdraws it and the same text no longer matches.
+            corpus_text = ("E2E ishga tushirish sinovi faqat avtomatik tekshiruv uchun yaratilgan "
+                          "noyob jumlalar toplamidir va bu matn boshqa hech qanday joyda ishlatilmaydi "
+                          "chunki u faqat shu sinov uchun maxsus yozilgan")
+            corpus_files = [("file", "e2e-corpus.txt", corpus_text.encode()),
+                           ("title", "x", "E2E korpus hujjati".encode()),
+                           ("author_display", "x", "E2E sinovchi".encode()),
+                           ("doc_type", "x", b"bmi"), ("language_hint", "x", b"uz"),
+                           ("source_note", "x", "e2e sinov uchun".encode()),
+                           ("permission_basis", "x", "E2E sinov uchun ruxsat asosi".encode()),
+                           ("visibility", "x", b"excerpt")]
+            body, kind = multipart(corpus_files)
+            status, added = request(frontend + "/api/corpus/documents", body, kind, common, "POST", client_b)
+            assert status == 200, (status, added)
+            checks += 1
+            document_id = added["id"]
+
+            body, kind = multipart([("document", "e2e-check.txt", corpus_text.encode())])
+            status, compared = request(frontend + "/api/compare?include_corpus=true", body, kind,
+                                       {**common, "Idempotency-Key": str(uuid.uuid4())}, "POST", client_a)
+            assert status == 200, (status, compared.get("error"))
+            assert compared["corpus"]["included"] is True
+            assert compared["coverage_percent"] > 0, compared["coverage_percent"]
+            checks += 2
+
+            status, withdrawn = request(frontend + "/api/corpus/documents/" + document_id + "/withdraw",
+                                        b"", None, common, "POST", client_b)
+            assert status == 200, (status, withdrawn)
+            checks += 1
+
+            body, kind = multipart([("document", "e2e-check-again.txt", corpus_text.encode())])
+            status, after = request(frontend + "/api/compare?include_corpus=true", body, kind,
+                                    {**common, "Idempotency-Key": str(uuid.uuid4())}, "POST", client_a)
+            assert status == 200, (status, after.get("error"))
+            assert after["coverage_percent"] == 0, after["coverage_percent"]
+            checks += 2
+
             stale, stale_jar = new_client()
             import copy
             stale_jar.set_cookie(copy.copy(cookie_a))

@@ -106,6 +106,26 @@ class MetadataTests(unittest.TestCase):
             never.assert_not_called()
 
 
+class PerDocumentBudgetTests(unittest.TestCase):
+    """Pure math, no database -- corpus.redact()'s own DB-backed tests
+    (backend/tests/test_corpus_integration.py) cover the enforcement."""
+
+    def test_short_document_is_floored_not_fractioned(self):
+        # 15% of a 1000-char document is 150, below the floor.
+        self.assertEqual(corpus.per_document_budget(1000), corpus.CORPUS_DOCUMENT_BUDGET_FLOOR)
+        self.assertEqual(corpus.CORPUS_DOCUMENT_BUDGET_FLOOR, corpus.CORPUS_MATCH_CHARS)
+
+    def test_mid_size_document_uses_the_fraction(self):
+        char_count = 20_000
+        expected = int(char_count * corpus.CORPUS_DOCUMENT_BUDGET_FRACTION)
+        self.assertEqual(corpus.per_document_budget(char_count), expected)
+        self.assertGreater(expected, corpus.CORPUS_DOCUMENT_BUDGET_FLOOR)
+        self.assertLess(expected, corpus.CORPUS_DOCUMENT_BUDGET_CEILING)
+
+    def test_long_document_is_capped_at_the_ceiling(self):
+        self.assertEqual(corpus.per_document_budget(5_000_000), corpus.CORPUS_DOCUMENT_BUDGET_CEILING)
+
+
 class RedactionTests(unittest.TestCase):
     def report(self, corpus_text, match_text, start):
         return {"sources": [
@@ -179,15 +199,17 @@ class RoleTests(unittest.TestCase):
     def test_admin_passes_and_non_management_roles_are_refused(self):
         with self.signed_in("admin"):
             self.assertEqual(auth.require_corpus_manager(request())["role"], "admin")
-        for role in ("user", "reviewer"):
+        for role in ("talaba", "ustoz"):
             with self.subTest(role=role), self.signed_in(role):
                 with self.assertRaises(ServiceError) as raised:
                     auth.require_corpus_manager(request())
                 self.assertEqual(raised.exception.status, 403)
 
-    def test_corpus_manager_role_is_also_accepted(self):
-        with self.signed_in("corpus_manager"):
-            self.assertEqual(auth.require_corpus_manager(request())["role"], "corpus_manager")
+    def test_kafedra_mudiri_and_super_admin_roles_are_also_accepted(self):
+        with self.signed_in("kafedra_mudiri"):
+            self.assertEqual(auth.require_corpus_manager(request())["role"], "kafedra_mudiri")
+        with self.signed_in("super_admin"):
+            self.assertEqual(auth.require_corpus_manager(request())["role"], "super_admin")
 
     def test_anonymous_request_is_unauthenticated_not_forbidden(self):
         with self.assertRaises(ServiceError) as raised:

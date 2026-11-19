@@ -4,7 +4,7 @@ O‘zbekiston xalqaro islom akademiyasining ruxsat bilan to‘plangan ilmiy hujj
 
 **Holat:** lokal autentifikatsiya va shaxsiy tekshiruvlar tarixi mavjud. CLI orqali yaratilgan hisob login/parol bilan kiradi, TXT/DOCX/PDF solishtiradi, PostgreSQL’da saqlangan hisobotni tarixdan ochadi yoki tasdiqlab o‘chiradi va logout qiladi. Har bir backend so‘rovi session va egalikni tekshiradi. `GET /health` va `GET /ready` saqlangan. Bu lokal ishlab chiqish bosqichi; akademiya piloti uchun tayyor tizim emas.
 
-**Hujjat versiyasi:** 0.3 · **Sana:** 2026-10-13.
+**Hujjat versiyasi:** 0.4 · **Sana:** 2026-11-05.
 
 ## Maqsad va chegaralar
 
@@ -151,7 +151,7 @@ Ixtiyoriy browser testi uchun `.venv`ga `pip install -r scripts/test-requirement
 
 ## Ichki ilmiy korpus
 
-Ruxsat asosida saqlanadigan ichki korpus. Korpusni **`admin` yoki `corpus_manager` roli** boshqaradi; oddiy foydalanuvchi korpus manbasidan to‘liq matnni olmaydi — faqat metama’lumot, mos parcha va har tomondan 200 belgigacha kontekst. Korpus tekshiruvi ixtiyoriy: solishtirish formasidagi «Ichki korpus bo‘yicha ham tekshirish» belgisi, default o‘chiq. Belgilanmasa mavjud oqim va natijalar o‘zgarmaydi.
+Ruxsat asosida saqlanadigan ichki korpus. Korpusni **`admin` yoki `corpus_manager` roli** boshqaradi; oddiy foydalanuvchi korpus manbasidan to‘liq matnni olmaydi — faqat metama’lumot, mos parcha va har tomondan 200 belgigacha kontekst. **Korpus bo‘yicha tekshirish endi birlamchi oqim**: solishtirish formasidagi «Ichki korpus bo‘yicha tekshirish» belgisi default **yoqilgan**. Qo‘lda manba fayl yuklash olib tashlanmadi — u «Qo‘shimcha manba qo‘shish (qo‘lda yuklash)» nomi bilan yig‘ilgan (collapsed) bo‘limda qoladi, kerak bo‘lsa ochiladi va korpus bilan bir vaqtda ham ishlatilishi mumkin. Ikkalasi ham o‘chirilgan bo‘lsa (korpus belgisi olib tashlansa va qo‘lda manba yo‘q bo‘lsa) — mavjud `no_sources` mantig‘i bo‘yicha solishtirish faol bo‘lmaydi; bu xulq va unga oid backend testlari o‘zgarmadi (qaror va sabab: [docs/decisions.md, 10-band](docs/decisions.md)).
 
 **Rol matritsasi** (koddagidek, [backend/auth.py](backend/auth.py)dagi `CORPUS_MANAGEMENT_ROLES`):
 
@@ -195,6 +195,14 @@ Mavjud hisobga rolni berish uchun alohida CLI buyrug‘i yo‘q. Buni vakolatli 
 
 `corpus-add` sarlavha, muallif, tur (`bmi/dissertatsiya/kurs_ishi/maqola/boshqa`), til belgisi, manba izohi, **ruxsat asosi** va yilni so‘raydi. Ruxsat asosi bo‘sh bo‘lsa hujjat saqlanmaydi. Fayl mavjud sandboxlangan parser orqali o‘qiladi; binar fayl saqlanmaydi, faqat ajratilgan matn, uning chunklari va `content_sha256` qoladi. Bir xil fayl faol holatda ikki marta kirmaydi. `corpus-withdraw` hujjatni qidiruvdan chiqaradi va uning matni hamda chunk matnlarini o‘chiradi; dalil uchun minimal yozuv qoladi (bu zaxira/WAL izlarini yo‘qotmaydi).
 
+**Ommaviy (batch) kiritish.** Bir nechta faylni yoki papkani (ichidagi faqat `.txt`/`.docx`/`.pdf` fayllar, boshqa kengaytmalar jim o‘tkazib yuboriladi) bitta buyruq bilan kiritish uchun:
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.manage corpus-add-batch D:\korpus\papka D:\yana-bitta-hujjat.pdf --as-user korpus_admin
+```
+
+Muallif, tur, til belgisi, manba izohi, **ruxsat asosi** va yil — bitta so‘rovda, **butun partiya uchun bir marta** so‘raladi (sarlavha har bir fayl nomidan avtomatik olinadi). Ruxsat asosi bo‘sh bo‘lsa, birorta ham fayl korpusga kirmasdan buyruq to‘xtaydi. Har bir fayl mustaqil ishlanadi — bittasi (noto‘g‘ri format, bo‘sh matn, skanerlangan PDF, dublikat va h.k.) bilan xato chiqsa, qolgan fayllar baribir davom etadi. Yakunda har bir fayl uchun natija qatordan-qator chiqadi (`QO‘SHILDI` / `DUBLIKAT` / `XATO`, sabab bilan) va umumiy son; birorta xato bo‘lsa buyruq exit code 1 bilan tugaydi (muvaffaqiyatli qo‘shilganlar baribir saqlangan bo‘ladi).
+
 **Korpus boshqaruv HTTP endpointlari** (login bo‘lmaganda 401, `admin`/`corpus_manager` bo‘lmaganda 403):
 
 | Endpoint | Vazifasi |
@@ -203,7 +211,7 @@ Mavjud hisobga rolni berish uchun alohida CLI buyrug‘i yo‘q. Buni vakolatli 
 | `GET /corpus/documents?page=&status=` | `active`/`withdrawn`/`all` ro‘yxati |
 | `POST /corpus/documents/{id}/withdraw` | Korpusdan chiqarish va matnni o‘chirish |
 
-Korpus uchun admin UI sahifasi **qilinmadi**; boshqaruv CLI va yuqoridagi endpointlar orqali. Nomzodlar PostgreSQL full-text qidiruvi bilan tanlanadi (`simple` konfiguratsiyasi, sababi [arxitekturada](docs/architecture.md)); bu reyting o‘xshashlik ko‘rsatkichi emas. Har tekshiruvda nomzodlar soni limit bilan cheklangan, shuning uchun hisobotda «limit tufayli korpusdagi barcha hujjatlar solishtirilmagan» izohi beriladi. Metama’lumot bilan amalda o‘qilgan to‘liq matn farqlanadi: korpus faqat ajratilgan to‘liq matn ustida ishlaydi va «butun internet» yoki to‘liq qamrov da’vosi yo‘q.
+**Korpus boshqaruv UI sahifasi** (`/corpus`, faqat `admin`/`corpus_manager` uchun — `frontend/app/shell/AppShell.tsx`dagi navigatsiyada ham, sahifaning o‘zida ham boshqa rollarga ko‘rinmaydi): sahifalangan va holat bo‘yicha filtrlanadigan ro‘yxat, «Hujjat qo‘shish» dialogidagi forma (fayl + sarlavha/muallif/tur/yil/til/manba izohi/ruxsat asosi), hujjat tafsiloti va `ConfirmDialog` bilan korpusdan chiqarish. Yangi backend endpoint yoki kutubxona qo‘shilmadi — mavjud `/corpus/documents` endpointlari va mavjud design-system komponentlari (`Dialog`, `Dropzone`, `FileItem`, `Pagination` va h.k.) ishlatildi. CLI orqali boshqarish ham to‘liq saqlanadi — ikkisi bir xil endpointlardan foydalanadi. Nomzodlar PostgreSQL full-text qidiruvi bilan tanlanadi (`simple` konfiguratsiyasi, sababi [arxitekturada](docs/architecture.md)); bu reyting o‘xshashlik ko‘rsatkichi emas. Har tekshiruvda nomzodlar soni limit bilan cheklangan, shuning uchun hisobotda «limit tufayli korpusdagi barcha hujjatlar solishtirilmagan» izohi beriladi. Metama’lumot bilan amalda o‘qilgan to‘liq matn farqlanadi: korpus faqat ajratilgan to‘liq matn ustida ishlaydi va «butun internet» yoki to‘liq qamrov da’vosi yo‘q.
 
 ## Frontendni ishga tushirish va tekshirish
 

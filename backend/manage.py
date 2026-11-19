@@ -19,9 +19,10 @@ from psycopg.errors import UniqueViolation
 
 from backend.persistence import ServiceError, database
 
-# Local development setting, lowered on the owner's instruction. A pilot
-# deployment must raise this again before real accounts are created.
-MIN_PASSWORD_CHARS = 4
+# Restored for production (2026-11-09, FAZA 4; see docs/decisions.md Sect.13
+# for why 12 and not the more common 8). The 2026-10 value of 4 was a local
+# development-only convenience and is no longer in effect for new accounts.
+MIN_PASSWORD_CHARS = 12
 MAX_PASSWORD_CHARS = 256
 
 
@@ -123,6 +124,31 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
              "AND table_name='corpus_chunks' AND column_name='chunk_text_uz_latin_v3') AS present"),
             ("corpus_chunks_fts_v3_index", "SELECT to_regclass('antiplagiat.corpus_chunks_fts_v3') IS NOT NULL AS present"),
         ],
+        "004_corpus_visibility": [
+            ("corpus_documents_visibility_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='corpus_documents' AND column_name='visibility') AS present"),
+        ],
+        "005_corpus_moderation": [
+            ("corpus_documents_review_status_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='corpus_documents' AND column_name='review_status') AS present"),
+        ],
+        "006_corpus_submission_access": [
+            ("users_can_submit_to_corpus_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='users' AND column_name='can_submit_to_corpus') AS present"),
+        ],
+        "007_corpus_excerpt_defenses": [
+            ("corpus_excerpt_audit", "SELECT to_regclass('antiplagiat.corpus_excerpt_audit') IS NOT NULL AS present"),
+            ("rate_limit_counters", "SELECT to_regclass('antiplagiat.rate_limit_counters') IS NOT NULL AS present"),
+        ],
+        "008_role_model_v1": [
+            ("kafedra_table", "SELECT to_regclass('antiplagiat.kafedra') IS NOT NULL AS present"),
+            ("users_kafedra_id_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='users' AND column_name='kafedra_id') AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:
@@ -179,13 +205,19 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                 ("tables_revoke", "REVOKE ALL ON ALL TABLES IN SCHEMA antiplagiat FROM PUBLIC, {}"),
                 ("schema_usage", "GRANT USAGE ON SCHEMA antiplagiat TO {}"),
                 ("users_select", "GRANT SELECT ON antiplagiat.users TO {}"),
+                ("users_submission_access", "GRANT UPDATE(can_submit_to_corpus) ON antiplagiat.users TO {}"),
                 ("sessions_access", "GRANT SELECT, INSERT, DELETE ON antiplagiat.sessions TO {}"),
                 ("reports_access", "GRANT SELECT, INSERT ON antiplagiat.reports TO {}"),
                 ("reports_purge", "GRANT UPDATE(snapshot, deleted_at) ON antiplagiat.reports TO {}"),
                 ("corpus_documents_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_documents TO {}"),
                 ("corpus_documents_withdraw", "GRANT UPDATE(status, withdrawn_at, updated_at, extracted_text) ON antiplagiat.corpus_documents TO {}"),
+                ("corpus_documents_moderate", "GRANT UPDATE(review_status, rejection_reason) ON antiplagiat.corpus_documents TO {}"),
                 ("corpus_chunks_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_chunks TO {}"),
                 ("corpus_chunks_purge", "GRANT UPDATE(chunk_text, chunk_text_uz_latin_v3) ON antiplagiat.corpus_chunks TO {}"),
+                # Append-only: the running application reads its own cumulative
+                # spend and adds a new row per disclosure, never edits or deletes one.
+                ("corpus_excerpt_audit_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_excerpt_audit TO {}"),
+                ("rate_limit_counters_access", "GRANT SELECT, INSERT, UPDATE(count) ON antiplagiat.rate_limit_counters TO {}"),
             ]:
                 migration_step(conn, diagnostic, "migration", step, sql.SQL(statement).format(ident))
             for step, statement in [
@@ -198,11 +230,26 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
     return len(files)
 
 
-def create_user(config, username, password, role="user"):
+def weak_password_reason(password, username):
+    """Rejects the two simplest, most guessable password shapes -- a fixed
+    dictionary/external service is explicitly out of scope (docs/decisions.md
+    Sect.13). Message text never includes the password itself.
+    """
+    if password.isdigit():
+        return "parol faqat raqamlardan iborat bo‘lmasligi kerak"
+    if password.casefold() == username.casefold():
+        return "parol login bilan bir xil bo‘lmasligi kerak"
+    return None
+
+
+def create_user(config, username, password, role="talaba"):
     from backend.auth import password_hash, valid_username
     if not valid_username(username) or not MIN_PASSWORD_CHARS <= len(password) <= MAX_PASSWORD_CHARS:
         raise ValueError(f"Login: 3–64 kichik lotin harfi/son/_.-; "
                          f"parol: {MIN_PASSWORD_CHARS}–{MAX_PASSWORD_CHARS} belgi.")
+    weak = weak_password_reason(password, username)
+    if weak:
+        raise ValueError(f"Juda sodda parol: {weak}.")
     user_id = uuid.uuid4()
     hashed = password_hash(password)
     with database(config) as conn:
@@ -225,16 +272,53 @@ def corpus_manager_user_id(config, username):
     if not row:
         raise ValueError("Bunday faol akkaunt topilmadi.")
     if row["role"] not in CORPUS_MANAGEMENT_ROLES:
-        raise ValueError("Korpusni faqat admin yoki corpus_manager roli boshqaradi.")
+        raise ValueError("Korpusni faqat admin, super_admin yoki kafedra_mudiri roli boshqaradi.")
     return row["id"]
 
 
-def corpus_add(config, path, username):
-    """Parse the file in the sandboxed worker, then store it with its permission basis."""
+def assign_role(config, username, role):
+    """CLI-only role reassignment (docs/decisions.md Sect.18) -- the only way
+    to grant super_admin, since it is never auto-assigned by migration 008.
+    """
+    from backend import auth
+    if role not in auth.ROLES:
+        raise ValueError(f"Noma'lum rol: {role}. Ruxsat etilgan: {', '.join(auth.ROLES)}.")
+    with database(config) as conn:
+        row = conn.execute("UPDATE antiplagiat.users SET role=%s WHERE username=%s RETURNING id",
+                           (role, username)).fetchone()
+    if not row:
+        raise ValueError("Bunday akkaunt topilmadi.")
+    return row["id"]
+
+
+CORPUS_UPLOAD_SUFFIXES = (".txt", ".docx", ".pdf")
+
+
+def _ingest_one(config, source, metadata, uploaded_by):
+    """Extract one already-validated file in the sandboxed worker, then store it.
+
+    Shared by corpus_add (single file, interactive) and corpus_add_batch (many
+    files, one failure must not stop the rest) so both go through the exact
+    same extraction/storage path -- never a separate, untested shortcut.
+    """
     import shutil
     import tempfile
     from backend import corpus
     from backend.comparison.runner import run_worker
+
+    with tempfile.TemporaryDirectory(prefix="antiplagiat-corpus-cli-") as directory:
+        folder = Path(directory)
+        shutil.copyfile(source, folder / "corpus-upload")
+        extracted = run_worker(folder, {"mode": "extract",
+                                        "items": [{"path": "corpus-upload", "name": source.name}]})
+        raw = (folder / "corpus-upload").read_bytes()
+        return corpus.add_document(metadata, extracted["documents"][0], uploaded_by, raw, config,
+                                   review_status="approved")
+
+
+def corpus_add(config, path, username):
+    """Parse the file in the sandboxed worker, then store it with its permission basis."""
+    from backend import corpus
 
     source = Path(path)
     if not source.is_file():
@@ -247,6 +331,7 @@ def corpus_add(config, path, username):
         "language_hint": input("Til belgisi [uz]: ").strip() or "uz",
         "source_note": input("Manba izohi (ixtiyoriy): ").strip(),
         "permission_basis": input("Ruxsat asosi (majburiy): ").strip(),
+        "visibility": input("Ko‘rinish (excerpt/metadata_only) [excerpt]: ").strip() or "excerpt",
         "original_filename": source.name,
     }
     year = input("Yil (ixtiyoriy): ").strip()
@@ -254,13 +339,73 @@ def corpus_add(config, path, username):
     problems = corpus.metadata_errors(metadata)
     if problems:
         raise ValueError(" ".join(problems))
-    with tempfile.TemporaryDirectory(prefix="antiplagiat-corpus-cli-") as directory:
-        folder = Path(directory)
-        shutil.copyfile(source, folder / "corpus-upload")
-        extracted = run_worker(folder, {"mode": "extract",
-                                        "items": [{"path": "corpus-upload", "name": source.name}]})
-        raw = (folder / "corpus-upload").read_bytes()
-        return corpus.add_document(metadata, extracted["documents"][0], uploaded_by, raw, config)
+    return _ingest_one(config, source, metadata, uploaded_by)
+
+
+def _expand_batch_paths(paths):
+    """Each entry may be a file or a directory (non-recursive: only files
+    directly inside it, sorted for a deterministic, reproducible order).
+    A directory contributes only its TXT/DOCX/PDF files silently (mixed
+    directories are normal); a FILE path the caller named explicitly is kept
+    as-is even with an unsupported suffix, so it surfaces as a per-file error
+    below rather than being silently dropped.
+    """
+    files = []
+    for raw in paths:
+        candidate = Path(raw)
+        if candidate.is_dir():
+            files.extend(sorted(p for p in candidate.iterdir()
+                               if p.is_file() and p.suffix.lower() in CORPUS_UPLOAD_SUFFIXES))
+        else:
+            files.append(candidate)
+    return files
+
+
+def corpus_add_batch(config, paths, username):
+    """Ingest many files/folders in one run: shared metadata, one result per
+    file (added / duplicate / error), one bad file never stops the rest.
+    """
+    from backend import corpus
+
+    uploaded_by = corpus_manager_user_id(config, username)
+    files = _expand_batch_paths(paths)
+    if not files:
+        raise ValueError("Birorta ham fayl topilmadi.")
+    shared = {
+        "author_display": input("Muallif (ko‘rsatiladigan nom, butun partiya uchun): ").strip(),
+        "doc_type": input(f"Turi ({'/'.join(corpus.DOC_TYPES)}, butun partiya uchun): ").strip(),
+        "language_hint": input("Til belgisi [uz]: ").strip() or "uz",
+        "source_note": input("Manba izohi (ixtiyoriy, butun partiya uchun): ").strip(),
+        "permission_basis": input("Ruxsat asosi (majburiy, butun partiya uchun): ").strip(),
+        "visibility": input("Ko‘rinish (excerpt/metadata_only, butun partiya uchun) [excerpt]: ").strip() or "excerpt",
+    }
+    if not shared["permission_basis"]:
+        raise ValueError("Ruxsat asosi majburiy; usiz hech bir hujjat korpusga kirmaydi.")
+    year_input = input("Yil (ixtiyoriy, butun partiya uchun): ").strip()
+    shared["year"] = int(year_input) if year_input.isdecimal() else None
+
+    results = []
+    for source in files:
+        result = {"path": str(source)}
+        try:
+            if not source.is_file():
+                raise ValueError("Fayl topilmadi.")
+            if source.suffix.lower() not in CORPUS_UPLOAD_SUFFIXES:
+                raise ValueError("Faqat TXT, DOCX va PDF qabul qilinadi: " + source.suffix)
+            metadata = {**shared, "title": source.stem, "original_filename": source.name}
+            problems = corpus.metadata_errors(metadata)
+            if problems:
+                raise ValueError(" ".join(problems))
+            stored = _ingest_one(config, source, metadata, uploaded_by)
+            result.update(status="added", id=stored["id"], chunk_count=stored["chunk_count"])
+        except ServiceError as error:
+            result.update(status="duplicate" if error.code == "corpus_duplicate" else "error",
+                          code=error.code, message=error.message)
+        except Exception as error:
+            result.update(status="error", code=getattr(error, "code", None),
+                          message=getattr(error, "message", str(error)))
+        results.append(result)
+    return results
 
 
 def main():
@@ -272,15 +417,35 @@ def main():
     migration.add_argument("--diagnostic", action="store_true", help="Faqat xavfsiz bosqich/exception klassi/SQLSTATE/qadamni chiqarish.")
     account = sub.add_parser("create-user")
     account.add_argument("username")
-    account.add_argument("--role", choices=["user", "reviewer", "corpus_manager", "admin"], default="user")
+    account.add_argument("--role", choices=["talaba", "ustoz", "kafedra_mudiri", "admin", "super_admin"],
+                         default="talaba")
+    assign = sub.add_parser("assign-role",
+        help="Mavjud akkauntning rolini o‘zgartiradi -- super_admin faqat shu orqali beriladi.")
+    assign.add_argument("username")
+    assign.add_argument("role", choices=["talaba", "ustoz", "kafedra_mudiri", "admin", "super_admin"])
+    kafedra_add = sub.add_parser("kafedra-add", help="Yangi kafedra qo‘shadi.")
+    kafedra_add.add_argument("nomi")
+    kafedra_add.add_argument("qisqa_kodi")
+    kafedra_list = sub.add_parser("kafedra-list", help="Barcha kafedralarni ro‘yxatlaydi.")
+    kafedra_assign = sub.add_parser("kafedra-assign", help="Akkauntni kafedraga biriktiradi.")
+    kafedra_assign.add_argument("username")
+    kafedra_assign.add_argument("qisqa_kodi")
     add_corpus = sub.add_parser("corpus-add")
     add_corpus.add_argument("path", help="Lokal TXT/DOCX/matnli PDF fayl yo‘li.")
     add_corpus.add_argument("--as-user", required=True, help="Korpusni boshqaradigan admin yoki corpus_manager login.")
+    add_corpus_batch = sub.add_parser("corpus-add-batch")
+    add_corpus_batch.add_argument("paths", nargs="+",
+                                  help="Bir yoki bir nechta lokal TXT/DOCX/PDF fayl yoki papka yo‘li.")
+    add_corpus_batch.add_argument("--as-user", required=True,
+                                  help="Korpusni boshqaradigan admin yoki corpus_manager login.")
     show_corpus = sub.add_parser("corpus-list")
     show_corpus.add_argument("--page", type=int, default=1)
     show_corpus.add_argument("--status", choices=["active", "withdrawn", "all"], default="active")
     drop_corpus = sub.add_parser("corpus-withdraw")
     drop_corpus.add_argument("document_id")
+    audit_cleanup = sub.add_parser("audit-cleanup",
+        help="corpus_excerpt_audit jadvalidan saqlash muddatidan eski yozuvlarni o‘chiradi (qo‘l bilan ishga tushiriladi).")
+    audit_cleanup.add_argument("--older-than-days", type=int, default=365)
     args = parser.parse_args()
     diagnostic = MigrationDiagnostics() if args.command == "migrate" and args.diagnostic else None
     driver_logger = logging.getLogger("psycopg")
@@ -298,6 +463,21 @@ def main():
         elif args.command == "corpus-add":
             stored = corpus_add(config, args.path, getattr(args, "as_user"))
             print(f"Korpusga qo‘shildi: {stored['id']}; chunk: {stored['chunk_count']}, token: {stored['token_count']}.")
+        elif args.command == "corpus-add-batch":
+            results = corpus_add_batch(config, args.paths, getattr(args, "as_user"))
+            for result in results:
+                if result["status"] == "added":
+                    print(f"QO‘SHILDI   {result['path']}  ({result['id']}, {result['chunk_count']} chunk)")
+                elif result["status"] == "duplicate":
+                    print(f"DUBLIKAT    {result['path']}  {result['message']}")
+                else:
+                    print(f"XATO        {result['path']}  {result['message']}")
+            counts = {status: sum(1 for r in results if r["status"] == status)
+                     for status in ("added", "duplicate", "error")}
+            print(f"Jami: {len(results)}; qo‘shildi {counts['added']}, dublikat {counts['duplicate']}, "
+                  f"xato {counts['error']}.")
+            if counts["error"]:
+                sys.exit(1)
         elif args.command == "corpus-list":
             from backend import corpus
             page = corpus.list_documents(args.page, args.status, config)
@@ -310,6 +490,25 @@ def main():
             from backend import corpus
             removed = corpus.withdraw(args.document_id, config)
             print(f"Korpusdan chiqarildi va matni o‘chirildi: {removed['id']}.")
+        elif args.command == "audit-cleanup":
+            from backend import corpus
+            removed = corpus.purge_excerpt_audit(config, args.older_than_days)
+            print(f"O‘chirildi: {removed} ta audit yozuvi ({args.older_than_days} kundan eski).")
+        elif args.command == "assign-role":
+            assign_role(config, args.username, args.role)
+            print(f"Rol o‘zgartirildi: {args.username} -> {args.role}.")
+        elif args.command == "kafedra-add":
+            from backend import departments
+            kafedra_id = departments.add(config, args.nomi, args.qisqa_kodi)
+            print(f"Kafedra qo‘shildi: {kafedra_id}.")
+        elif args.command == "kafedra-list":
+            from backend import departments
+            for row in departments.listing(config):
+                print(f"{row['id']}  {row['qisqa_kodi']:8} {row['nomi']}")
+        elif args.command == "kafedra-assign":
+            from backend import departments
+            departments.assign_user(config, args.username, args.qisqa_kodi)
+            print(f"Biriktirildi: {args.username} -> {args.qisqa_kodi}.")
         else:
             password = hidden_password(f"Yangi akkaunt paroli (kamida {MIN_PASSWORD_CHARS} belgi): ")
             if password != hidden_password("Parolni takrorlang: "):

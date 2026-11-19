@@ -18,7 +18,10 @@ export async function proxy(request: NextRequest, path: string) {
     return error("Faqat lokal sahifa orqali foydalaning.", 403);
   }
   // Corpus ingest carries one file, so it needs a file sized budget as well.
-  const limit = path === "/compare" ? MAX_UPLOAD : path === "/corpus/documents" ? MAX_CORPUS_UPLOAD : 8192;
+  // Teacher submissions go through the same CorpusUpload parser as a direct
+  // admin add, so they need the same budget.
+  const limit = path === "/compare" ? MAX_UPLOAD
+    : (path === "/corpus/documents" || path === "/corpus/submissions") ? MAX_CORPUS_UPLOAD : 8192;
   const length = Number(request.headers.get("content-length") ?? "0");
   if (!Number.isFinite(length) || length < 0 || length > limit) return error("So‘rov hajmi chegaradan oshdi.", 413);
   const type = request.headers.get("content-type") ?? "";
@@ -47,6 +50,20 @@ export async function proxy(request: NextRequest, path: string) {
     };
     const url = new URL(path, api);
     if (path === "/reports") url.search = request.nextUrl.search;
+    if (path === "/corpus/documents") {
+      const page = request.nextUrl.searchParams.get("page");
+      const status = request.nextUrl.searchParams.get("status");
+      const reviewStatus = request.nextUrl.searchParams.get("review_status");
+      const parts: string[] = [];
+      if (page && /^[0-9]+$/.test(page)) parts.push(`page=${page}`);
+      if (status && ["active", "withdrawn", "all"].includes(status)) parts.push(`status=${status}`);
+      if (reviewStatus && ["pending", "approved", "rejected"].includes(reviewStatus)) parts.push(`review_status=${reviewStatus}`);
+      if (parts.length) url.search = parts.join("&");
+    }
+    if (path === "/corpus/submissions" && request.method === "GET") {
+      const page = request.nextUrl.searchParams.get("page");
+      if (page && /^[0-9]+$/.test(page)) url.search = `page=${page}`;
+    }
     // The only compare options forwarded; everything else stays server decided.
     if (path === "/compare" && request.nextUrl.searchParams.get("include_corpus") === "true") {
       const normalization = request.nextUrl.searchParams.get("normalization");

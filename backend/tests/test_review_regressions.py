@@ -156,10 +156,10 @@ class PostgresReviewTests(unittest.TestCase):
         password = secrets.token_urlsafe(24)
         def invoke(role):
             supplied = {"argv": ["manage", "create-user", name, "--role", role],
-                        "database": self.admin, "password": password if role == "user" else secrets.token_urlsafe(24)}
+                        "database": self.admin, "password": password if role == "talaba" else secrets.token_urlsafe(24)}
             return subprocess.run([sys.executable, "-c", CLI], cwd=ROOT, input=json.dumps(supplied),
                                   capture_output=True, text=True, encoding="utf-8", timeout=15)
-        first = invoke("user")
+        first = invoke("talaba")
         self.assertEqual(first.returncode, 0)
         self.assertEqual(first.stdout.strip(), "Akkaunt yaratildi.")
         with persistence.database(self.admin) as conn:
