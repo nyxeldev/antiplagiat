@@ -149,6 +149,12 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
              "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
              "AND table_name='users' AND column_name='kafedra_id') AS present"),
         ],
+        "009_kafedra_scoping": [
+            ("corpus_documents_kafedra_id_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='corpus_documents' AND column_name='kafedra_id') AS present"),
+            ("corpus_documents_kafedra_index", "SELECT to_regclass('antiplagiat.corpus_documents_kafedra') IS NOT NULL AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:

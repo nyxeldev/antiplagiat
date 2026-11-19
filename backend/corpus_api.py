@@ -142,15 +142,16 @@ class CorpusUpload:
             self.stream = None
 
 
-def ingest(folder, name, metadata, uploaded_by, review_status="approved"):
+def ingest(folder, name, metadata, uploaded_by, review_status="approved", kafedra_id=None):
     """Parse in the sandboxed worker, then store the extracted text."""
     extracted = run_worker(folder, {"mode": "extract", "items": [{"path": "corpus-upload", "name": name}]})
     document = extracted["documents"][0]
     raw = (folder / "corpus-upload").read_bytes()
-    return corpus.add_document(metadata, document, uploaded_by, raw, review_status=review_status)
+    return corpus.add_document(metadata, document, uploaded_by, raw, review_status=review_status,
+                               kafedra_id=kafedra_id)
 
 
-async def _accept_upload(request, uploaded_by, review_status, status_label):
+async def _accept_upload(request, uploaded_by, review_status, status_label, kafedra_id=None):
     """Shared by the admin/corpus_manager direct-add path and the teacher
     submission path below -- identical streaming, parsing and error
     handling; only who is storing it and what review_status/status label
@@ -176,7 +177,7 @@ async def _accept_upload(request, uploaded_by, review_status, status_label):
                 raise ComparisonError("upload_format", "Yuklash formati buzilgan.", 400) from None
             finally:
                 upload.close()
-            stored = await run_in_threadpool(ingest, folder, upload.name, metadata, uploaded_by, review_status)
+            stored = await run_in_threadpool(ingest, folder, upload.name, metadata, uploaded_by, review_status, kafedra_id)
         return JSONResponse({"status": status_label, **stored}, headers=HEADERS)
     except (ServiceError, ComparisonError) as error:
         if isinstance(error, ServiceError):
@@ -194,7 +195,7 @@ async def _accept_upload(request, uploaded_by, review_status, status_label):
 async def add(request: Request):
     manager = await run_in_threadpool(auth.require_corpus_manager, request)
     await run_in_threadpool(rate_limit.enforce, manager["id"], "corpus")
-    return await _accept_upload(request, manager["id"], "approved", "added")
+    return await _accept_upload(request, manager["id"], "approved", "added", manager.get("kafedra_id"))
 
 
 @router.post("/corpus/submissions")
@@ -205,7 +206,7 @@ async def submit(request: Request):
     """
     teacher = await run_in_threadpool(auth.require_teacher, request)
     await run_in_threadpool(rate_limit.enforce, teacher["id"], "corpus")
-    return await _accept_upload(request, teacher["id"], "pending", "pending")
+    return await _accept_upload(request, teacher["id"], "pending", "pending", teacher.get("kafedra_id"))
 
 
 @router.get("/corpus/submissions")
@@ -222,28 +223,29 @@ def my_submissions(request: Request, page: int = 1):
 def listing(request: Request, page: int = 1, status: str = "active", review_status: str | None = None):
     manager = auth.require_corpus_manager(request)
     rate_limit.enforce(manager["id"], "corpus")
-    return JSONResponse(corpus.list_documents(page, status, review_status=review_status), headers=HEADERS)
+    return JSONResponse(corpus.list_documents(page, status, review_status=review_status,
+                                              **corpus.manager_scope(manager)), headers=HEADERS)
 
 
 @router.get("/corpus/documents/{document_id}")
 def detail(request: Request, document_id: str):
     manager = auth.require_corpus_manager(request)
     rate_limit.enforce(manager["id"], "corpus")
-    return JSONResponse(corpus.get_document(document_id), headers=HEADERS)
+    return JSONResponse(corpus.get_document(document_id, **corpus.manager_scope(manager)), headers=HEADERS)
 
 
 @router.post("/corpus/documents/{document_id}/withdraw")
 def withdraw(request: Request, document_id: str):
     manager = auth.require_corpus_manager(request)
     rate_limit.enforce(manager["id"], "corpus")
-    return JSONResponse(corpus.withdraw(document_id), headers=HEADERS)
+    return JSONResponse(corpus.withdraw(document_id, **corpus.manager_scope(manager)), headers=HEADERS)
 
 
 @router.post("/corpus/documents/{document_id}/approve")
 def approve(request: Request, document_id: str):
     manager = auth.require_corpus_manager(request)
     rate_limit.enforce(manager["id"], "corpus")
-    return JSONResponse(corpus.approve(document_id), headers=HEADERS)
+    return JSONResponse(corpus.approve(document_id, **corpus.manager_scope(manager)), headers=HEADERS)
 
 
 @router.post("/users/{user_id}/corpus-submission-access")
@@ -289,4 +291,4 @@ async def reject(request: Request, document_id: str):
         reason = json.loads(body).get("reason") if body else None
     except (ValueError, AttributeError, UnicodeError):
         reason = None
-    return JSONResponse(corpus.reject(document_id, reason), headers=HEADERS)
+    return JSONResponse(corpus.reject(document_id, reason, **corpus.manager_scope(manager)), headers=HEADERS)

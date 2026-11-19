@@ -86,7 +86,7 @@ def login(username, password, old_token=None):
         raise ServiceError("login_limit", "Kirish urinishlari ko‘p. Keyinroq urinib ko‘ring.", 429)
     try:
         with database() as conn:
-            row = conn.execute("SELECT id,username,password_hash,role,enabled,can_submit_to_corpus"
+            row = conn.execute("SELECT id,username,password_hash,role,enabled,can_submit_to_corpus,kafedra_id"
                                " FROM antiplagiat.users WHERE username=%s", (username,)).fetchone()
         try:
             HASHER.verify(row["password_hash"] if row else DUMMY_HASH, password)
@@ -108,7 +108,8 @@ def login(username, password, old_token=None):
             conn.execute("INSERT INTO antiplagiat.sessions(token_hash,user_id,expires_at) VALUES (%s,%s,now()+%s)",
                          (token_hash(token), row["id"], timedelta(seconds=SESSION_SECONDS)))
         return token, {"id": str(row["id"]), "username": row["username"], "role": row["role"],
-                       "can_submit_to_corpus": row["can_submit_to_corpus"]}
+                       "can_submit_to_corpus": row["can_submit_to_corpus"],
+                       "kafedra_id": str(row["kafedra_id"]) if row["kafedra_id"] else None}
     finally:
         login_gate.release()
 
@@ -119,18 +120,22 @@ def require_user(request):
     if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
         raise ServiceError("unauthenticated", "Avval hisobingizga kiring.", 401)
     with database() as conn:
-        row = conn.execute("SELECT u.id,u.username,u.role,u.can_submit_to_corpus FROM antiplagiat.sessions s"
+        row = conn.execute("SELECT u.id,u.username,u.role,u.can_submit_to_corpus,u.kafedra_id FROM antiplagiat.sessions s"
                            " JOIN antiplagiat.users u ON u.id=s.user_id"
                            " WHERE s.token_hash=%s AND s.expires_at>now() AND u.enabled", (token_hash(token),)).fetchone()
     if not row:
         raise ServiceError("unauthenticated", "Session tugagan. Qayta kiring.", 401)
-    return {**row, "id": str(row["id"])}
+    return {**row, "id": str(row["id"]), "kafedra_id": str(row["kafedra_id"]) if row["kafedra_id"] else None}
 
 
-# roles-phase1 (docs/decisions.md Sect.18): besh rolli model. Kafedra bo'yicha
-# QAMROV bu bosqichda YO'Q -- kafedra_mudiri hamon HAMMA narsani ko'radi,
-# avvalgidek; cheklash 2-fazada. Eski to'rt rolli model (user/reviewer/
-# corpus_manager/admin) migratsiya 008 orqali shu beshtaga aniq ko'chirildi.
+# roles-phase1 (docs/decisions.md Sect.18): besh rolli model. Eski to'rt rolli
+# model (user/reviewer/corpus_manager/admin) migratsiya 008 orqali shu
+# beshtaga aniq ko'chirildi. Kafedra bo'yicha QAMROV (2-faza, docs/decisions.md
+# Sect.19) endi korpus hujjatlari darajasida ishlaydi -- backend/corpus.py'dagi
+# manager_scope(); kafedra_mudiri endi faqat o'z kafedrasi + kafedrasiz
+# ("umumiy") hujjatlarni ko'radi, admin/super_admin hamon hammasini ko'radi.
+# /compare orqali solishtirish (candidates()) bundan MUSTASNO -- u hamon
+# butun korpusni qidiradi, ataylab (qarang Sect.19).
 ROLES = ("talaba", "ustoz", "kafedra_mudiri", "admin", "super_admin")
 
 # kafedra_mudiri eski corpus_manager'ning o'rniga keldi; admin/super_admin

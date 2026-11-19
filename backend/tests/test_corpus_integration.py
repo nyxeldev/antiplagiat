@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from starlette.requests import Request
 
-from backend import corpus, corpus_api, manage, persistence, rate_limit, reports
+from backend import corpus, corpus_api, departments, manage, persistence, rate_limit, reports
 from backend.comparison import api
 from backend.tests.fixtures import docx, multipart, pdf
 from backend.tests.postgres_fixture import isolated_postgres, runtime_environment
@@ -83,11 +83,11 @@ class CorpusFixture:
         # Distinct content per test; the digest uniqueness rule is tested on purpose.
         return f"{text} sinovbelgisi{uuid.uuid4().hex[:10]}"
 
-    def add(self, text, title, raw=None, visibility=None):
+    def add(self, text, title, raw=None, visibility=None, kafedra_id=None):
         metadata = corpus_metadata(title, **({"visibility": visibility} if visibility else {}))
         return corpus.add_document(metadata, extracted(text, title),
                                    self.admin_id, raw if raw is not None else text.encode(),
-                                   review_status="approved")
+                                   review_status="approved", kafedra_id=kafedra_id)
 
 
 class CorpusDatabaseTests(CorpusFixture, unittest.TestCase):
@@ -974,6 +974,166 @@ class CorpusAccessTests(CorpusFixture, unittest.TestCase):
             with self.assertRaises(persistence.ServiceError) as raised:
                 corpus_api.listing(Request(self.scope("GET", "/corpus/documents")))
         self.assertEqual(raised.exception.status, 403)
+
+
+class CorpusKafedraScopingTests(CorpusFixture, unittest.TestCase):
+    """roles-phase1 2-bosqich (docs/decisions.md Sect.19): kafedra_mudiri endi
+    faqat o'z kafedrasi + kafedrasiz ("umumiy") hujjatlarni ko'radi/boshqaradi;
+    admin/super_admin cheklovsiz qoladi; /compare retrieval bundan mustasno.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.kafedra_a = departments.add(self.admin, "Kafedra A " + uuid.uuid4().hex[:8],
+                                         "ka-" + uuid.uuid4().hex[:8])
+        self.kafedra_b = departments.add(self.admin, "Kafedra B " + uuid.uuid4().hex[:8],
+                                         "kb-" + uuid.uuid4().hex[:8])
+
+    def scope(self, method, path, query=b""):
+        return {"type": "http", "method": method, "scheme": "http", "path": path,
+                "query_string": query, "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                "headers": [(b"x-antiplagiat-local", b"1")]}
+
+    def payload(self, response):
+        return json.loads(bytes(response.body))
+
+    def manager_of(self, kafedra_id):
+        return {"id": str(self.manager_id), "role": "kafedra_mudiri",
+               "kafedra_id": str(kafedra_id) if kafedra_id else None}
+
+    def stored_kafedra_id(self, document_id):
+        with persistence.database(self.admin) as conn:
+            row = conn.execute("SELECT kafedra_id FROM antiplagiat.corpus_documents WHERE id=%s",
+                               (document_id,)).fetchone()
+        return str(row["kafedra_id"]) if row["kafedra_id"] else None
+
+    def test_kafedra_mudiri_sees_only_own_kafedra_plus_umumiy_in_listing(self):
+        doc_a = self.add(self.unique(UZ + " A kafedra"), "scope-a-" + uuid.uuid4().hex[:8],
+                         kafedra_id=self.kafedra_a)
+        doc_b = self.add(self.unique(UZ + " B kafedra"), "scope-b-" + uuid.uuid4().hex[:8],
+                         kafedra_id=self.kafedra_b)
+        doc_shared = self.add(self.unique(UZ + " umumiy hujjat"), "scope-shared-" + uuid.uuid4().hex[:8])
+
+        with patch.object(corpus_api.auth, "require_user", return_value=self.manager_of(self.kafedra_a)):
+            ids_a = {item["id"] for item in self.payload(
+                corpus_api.listing(Request(self.scope("GET", "/corpus/documents"))))["items"]}
+        self.assertIn(doc_a["id"], ids_a)
+        self.assertIn(doc_shared["id"], ids_a)
+        self.assertNotIn(doc_b["id"], ids_a)
+
+        with patch.object(corpus_api.auth, "require_user", return_value=self.manager_of(self.kafedra_b)):
+            ids_b = {item["id"] for item in self.payload(
+                corpus_api.listing(Request(self.scope("GET", "/corpus/documents"))))["items"]}
+        self.assertIn(doc_b["id"], ids_b)
+        self.assertIn(doc_shared["id"], ids_b)
+        self.assertNotIn(doc_a["id"], ids_b)
+
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.admin_id), "role": "admin"}):
+            ids_admin = {item["id"] for item in self.payload(
+                corpus_api.listing(Request(self.scope("GET", "/corpus/documents"))))["items"]}
+        self.assertTrue({doc_a["id"], doc_b["id"], doc_shared["id"]} <= ids_admin)
+
+    def test_other_kafedras_document_is_a_404_not_a_403_and_stays_untouched(self):
+        doc_b = self.add(self.unique(UZ + " faqat B kafedrasiga"), "scope-404-" + uuid.uuid4().hex[:8],
+                         kafedra_id=self.kafedra_b)
+        with patch.object(corpus_api.auth, "require_user", return_value=self.manager_of(self.kafedra_a)):
+            with self.assertRaises(corpus.CorpusError) as raised:
+                corpus_api.detail(Request(self.scope("GET", "/corpus/documents")), doc_b["id"])
+            self.assertEqual(raised.exception.status, 404)
+            with self.assertRaises(corpus.CorpusError) as raised:
+                corpus_api.withdraw(Request(self.scope("POST", "/corpus/documents")), doc_b["id"])
+            self.assertEqual(raised.exception.status, 404)
+        # Document untouched by the refused attempt -- its own kafedra's manager still withdraws it.
+        with patch.object(corpus_api.auth, "require_user", return_value=self.manager_of(self.kafedra_b)):
+            removed = corpus_api.withdraw(Request(self.scope("POST", "/corpus/documents")), doc_b["id"])
+        self.assertEqual(self.payload(removed)["status"], "withdrawn")
+
+    def test_umumiy_document_is_visible_and_manageable_by_every_kafedra_mudiri(self):
+        doc_shared = self.add(self.unique(UZ + " hammaga ochiq"), "scope-umumiy-" + uuid.uuid4().hex[:8])
+        with patch.object(corpus_api.auth, "require_user", return_value=self.manager_of(self.kafedra_a)):
+            detail_response = corpus_api.detail(Request(self.scope("GET", "/corpus/documents")), doc_shared["id"])
+        self.assertEqual(detail_response.status_code, 200)
+        with patch.object(corpus_api.auth, "require_user", return_value=self.manager_of(self.kafedra_b)):
+            removed = corpus_api.withdraw(Request(self.scope("POST", "/corpus/documents")), doc_shared["id"])
+        self.assertEqual(self.payload(removed)["status"], "withdrawn")
+
+    def test_kafedra_mudiri_without_an_assigned_kafedra_only_sees_umumiy(self):
+        doc_a = self.add(self.unique(UZ + " tayinlangan"), "scope-noassign-a-" + uuid.uuid4().hex[:8],
+                         kafedra_id=self.kafedra_a)
+        doc_shared = self.add(self.unique(UZ + " tayinlanmaganlarga umumiy"),
+                              "scope-noassign-shared-" + uuid.uuid4().hex[:8])
+        with patch.object(corpus_api.auth, "require_user", return_value=self.manager_of(None)):
+            ids = {item["id"] for item in self.payload(
+                corpus_api.listing(Request(self.scope("GET", "/corpus/documents"))))["items"]}
+        self.assertIn(doc_shared["id"], ids)
+        self.assertNotIn(doc_a["id"], ids)
+
+    def test_direct_upload_freezes_uploaders_kafedra_at_that_moment(self):
+        fields = {"title": "freeze-" + uuid.uuid4().hex[:8], "author_display": "Sinov Muallif",
+                  "doc_type": "bmi", "year": "2024", "language_hint": "uz", "source_note": "sinov",
+                  "permission_basis": "Sinov uchun akademiya ruxsati"}
+        body, kind = multipart([("file", "freeze.txt", self.unique(UZ + " tugma yuklash").encode())] +
+                               [(field, field, value.encode()) for field, value in fields.items()])
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if sent:
+                return {"type": "http.disconnect"}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        scope = {"type": "http", "method": "POST", "scheme": "http", "path": "/corpus/documents",
+                 "query_string": b"", "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                 "headers": [(b"content-type", kind.encode()), (b"content-length", str(len(body)).encode())]}
+        with patch.object(corpus_api.auth, "require_corpus_manager", return_value=self.manager_of(self.kafedra_a)):
+            response = asyncio.run(corpus_api.add(Request(scope, receive)))
+        stored = self.payload(response)
+        self.assertEqual(self.stored_kafedra_id(stored["id"]), str(self.kafedra_a))
+
+    def test_teacher_submission_freezes_kafedra_and_approval_queue_is_scoped(self):
+        newcomer = manage.create_user(self.admin, "kafedra.ustoz." + uuid.uuid4().hex[:8],
+                                      secrets.token_urlsafe(24), role="ustoz")
+        fields = {"title": "sub-freeze-" + uuid.uuid4().hex[:8], "author_display": "Sinov Ustoz",
+                  "doc_type": "bmi", "permission_basis": "Sinov uchun akademiya ruxsati"}
+        body, kind = multipart([("file", "t.txt", self.unique(UZ + " ustoz taklifi").encode())] +
+                               [(field, field, value.encode()) for field, value in fields.items()])
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if sent:
+                return {"type": "http.disconnect"}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        scope = {"type": "http", "method": "POST", "scheme": "http", "path": "/corpus/submissions",
+                 "query_string": b"", "server": ("127.0.0.1", 8000), "client": ("127.0.0.1", 10),
+                 "headers": [(b"content-type", kind.encode()), (b"content-length", str(len(body)).encode())]}
+        with patch.object(corpus_api.auth, "require_user", return_value={
+                "id": str(newcomer), "role": "ustoz", "can_submit_to_corpus": True,
+                "kafedra_id": str(self.kafedra_a)}):
+            response = asyncio.run(corpus_api.submit(Request(scope, receive)))
+        stored = self.payload(response)
+        self.assertEqual(self.stored_kafedra_id(stored["id"]), str(self.kafedra_a))
+
+        with patch.object(corpus_api.auth, "require_user", return_value=self.manager_of(self.kafedra_b)):
+            with self.assertRaises(corpus.CorpusError) as raised:
+                corpus_api.approve(Request(self.scope("POST", "/corpus/documents")), stored["id"])
+            self.assertEqual(raised.exception.status, 404)
+
+        with patch.object(corpus_api.auth, "require_user", return_value=self.manager_of(self.kafedra_a)):
+            approved = corpus_api.approve(Request(self.scope("POST", "/corpus/documents")), stored["id"])
+        self.assertEqual(self.payload(approved)["review_status"], "approved")
+
+    def test_compare_candidate_retrieval_is_unaffected_by_kafedra_scoping(self):
+        from backend.comparison.matching import tokenize
+
+        text = self.unique(UZ + " kafedralar aro qidiruv")
+        stored = self.add(text, "scope-compare-" + uuid.uuid4().hex[:8], kafedra_id=self.kafedra_b)
+        found, _ = corpus.candidates(tokenize(text))
+        self.assertIn(stored["id"], [c["id"] for c in found])
 
 
 class CorpusModerationTests(CorpusFixture, unittest.TestCase):
