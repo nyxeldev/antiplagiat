@@ -70,7 +70,7 @@ class AuthTests(unittest.TestCase):
         conn = MagicMock()
         conn.execute.return_value.fetchone.return_value = {
             "id": uuid.uuid4(), "username": "legacy", "password_hash": auth.password_hash("abcd"),
-            "role": "talaba", "enabled": True, "can_submit_to_corpus": False,
+            "role": "talaba", "enabled": True, "can_submit_to_corpus": False, "kafedra_id": None,
         }
         with patch.object(auth, "database") as db:
             db.return_value.__enter__.return_value = conn

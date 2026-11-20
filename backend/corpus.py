@@ -161,7 +161,7 @@ def metadata_errors(metadata):
 
 def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
                  chunk_tokens=CHUNK_TOKENS, overlap_tokens=CHUNK_OVERLAP_TOKENS, document_id=None,
-                 review_status="approved"):
+                 review_status="approved", kafedra_id=None):
     """Store one already extracted document together with its retrieval chunks.
 
     document_id defaults to a fresh random uuid4, as before. The retrieval
@@ -175,6 +175,13 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
     for the existing admin/corpus_manager upload path (unchanged default) and
     "pending" for a teacher's submission -- a client can never approve its
     own upload by sending a form field.
+
+    kafedra_id (roles-phase1 Sect.19) is likewise never client-supplied: the
+    calling endpoint passes the UPLOADER's own users.kafedra_id at the moment
+    of upload (None if the uploader has none, e.g. admin/super_admin) -- it is
+    "frozen" into the document, not re-derived later if the uploader's own
+    kafedra_id later changes. None means the document is "umumiy" (shared),
+    visible to every kafedra_mudiri regardless of their own kafedra.
     """
     problems = metadata_errors(metadata)
     if problems:
@@ -190,7 +197,7 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
            uploaded_by, str(metadata.get("original_filename", "") or extracted.get("name", "")),
            digest_text(raw_bytes), extracted["text"], NORMALIZATION_VERSION,
            len(extracted["text"]), len(tokens), Jsonb(extracted["segments"]),
-           metadata.get("visibility") or "excerpt", review_status)
+           metadata.get("visibility") or "excerpt", review_status, kafedra_id)
     with database(config) as conn:
         # Handled inside the transaction: database() turns any psycopg.Error into a
         # generic 503, so a duplicate must be classified before it escapes.
@@ -199,8 +206,8 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
                 "INSERT INTO antiplagiat.corpus_documents(id,title,author_display,doc_type,year,"
                 "language_hint,source_note,permission_basis,uploaded_by_user_id,original_filename,"
                 "content_sha256,extracted_text,extraction_policy,char_count,token_count,segments,"
-                "visibility,review_status)"
-                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", row)
+                "visibility,review_status,kafedra_id)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", row)
             conn.cursor().executemany(
                 "INSERT INTO antiplagiat.corpus_chunks(id,corpus_document_id,chunk_index,char_start,"
                 "char_end,token_start,token_end,chunk_text,chunk_text_uz_latin_v3)"
@@ -216,12 +223,30 @@ def add_document(metadata, extracted, uploaded_by, raw_bytes, config=None,
             "char_count": len(extracted["text"]), "review_status": review_status}
 
 
-def list_documents(page=1, status="active", config=None, *, review_status=None, uploaded_by=None):
+def manager_scope(user):
+    """kafedra_mudiri is restricted to its own kafedra plus kafedrasiz
+    ("umumiy", kafedra_id IS NULL) documents; admin/super_admin stay
+    unrestricted, same as before roles-phase1 Sect.19. Splat the result into
+    list_documents()/get_document()/withdraw()/approve()/reject()'s
+    scope_active/scope_kafedra_id keywords.
+    """
+    if user.get("role") == "kafedra_mudiri":
+        return {"scope_active": True, "scope_kafedra_id": user.get("kafedra_id")}
+    return {}
+
+
+def list_documents(page=1, status="active", config=None, *, review_status=None, uploaded_by=None,
+                   scope_active=False, scope_kafedra_id=None):
     """review_status and uploaded_by are additional, optional filters (None =
     unfiltered, backward compatible with every existing positional call).
     The moderation queue passes review_status="pending"; a teacher's own
     submissions view passes uploaded_by=<their id> so they never see another
     teacher's submissions.
+
+    scope_active/scope_kafedra_id (roles-phase1 Sect.19): when scope_active is
+    True, only documents whose kafedra_id matches scope_kafedra_id OR is NULL
+    ("umumiy") are returned -- see manager_scope(). scope_active defaults to
+    False (unfiltered), so every existing caller/test is unaffected.
     """
     # Validated here so a direct call behaves the same as one routed by FastAPI.
     if status not in ("active", "withdrawn", "all"):
@@ -237,21 +262,28 @@ def list_documents(page=1, status="active", config=None, *, review_status=None, 
         rows = conn.execute(
             "SELECT id,title,author_display,doc_type,year,language_hint,source_note,permission_basis,"
             "original_filename,content_sha256,char_count,token_count,status,review_status,"
-            "rejection_reason,uploaded_by_user_id,created_at,withdrawn_at"
+            "rejection_reason,uploaded_by_user_id,kafedra_id,created_at,withdrawn_at"
             " FROM antiplagiat.corpus_documents WHERE (%s='all' OR status=%s)"
             " AND (%s::text IS NULL OR review_status=%s) AND (%s::uuid IS NULL OR uploaded_by_user_id=%s)"
+            " AND (NOT %s OR kafedra_id=%s OR kafedra_id IS NULL)"
             " ORDER BY created_at DESC,id DESC LIMIT %s OFFSET %s",
             (status, status, review_status, review_status, uploaded_by, uploaded_by,
-             PAGE_SIZE + 1, offset)).fetchall()
+             scope_active, scope_kafedra_id, PAGE_SIZE + 1, offset)).fetchall()
     return {"page": page, "has_next": len(rows) > PAGE_SIZE,
             "items": [{**r, "id": str(r["id"]), "uploaded_by_user_id": str(r["uploaded_by_user_id"]),
+                       "kafedra_id": str(r["kafedra_id"]) if r["kafedra_id"] else None,
                        "created_at": r["created_at"].isoformat(),
                        "withdrawn_at": r["withdrawn_at"].isoformat() if r["withdrawn_at"] else None}
                       for r in rows[:PAGE_SIZE]]}
 
 
-def withdraw(document_id, config=None):
-    """Take a document out of retrieval and purge its stored text."""
+def withdraw(document_id, config=None, *, scope_active=False, scope_kafedra_id=None):
+    """Take a document out of retrieval and purge its stored text.
+
+    scope_active/scope_kafedra_id (roles-phase1 Sect.19): see manager_scope().
+    A kafedra_mudiri outside the document's kafedra gets the same 404 as a
+    genuinely missing id -- scoping never reveals that a document exists.
+    """
     try:
         document_id = str(uuid.UUID(str(document_id)))
     except (ValueError, TypeError, AttributeError):
@@ -259,8 +291,9 @@ def withdraw(document_id, config=None):
     with database(config) as conn:
         row = conn.execute(
             "UPDATE antiplagiat.corpus_documents SET status='withdrawn',withdrawn_at=now(),"
-            "updated_at=now(),extracted_text=NULL WHERE id=%s AND status='active' RETURNING id,title",
-            (document_id,)).fetchone()
+            "updated_at=now(),extracted_text=NULL WHERE id=%s AND status='active'"
+            " AND (NOT %s OR kafedra_id=%s OR kafedra_id IS NULL) RETURNING id,title",
+            (document_id, scope_active, scope_kafedra_id)).fetchone()
         if not row:
             raise CorpusError("corpus_not_found", "Korpus hujjati topilmadi yoki allaqachon chiqarilgan.", 404)
         conn.execute("UPDATE antiplagiat.corpus_chunks SET chunk_text='',chunk_text_uz_latin_v3=''"
@@ -268,12 +301,14 @@ def withdraw(document_id, config=None):
     return {"id": str(row["id"]), "title": row["title"], "status": "withdrawn"}
 
 
-def get_document(document_id, config=None):
+def get_document(document_id, config=None, *, scope_active=False, scope_kafedra_id=None):
     """Full record for one document, any status/review_status -- for a
     moderator to actually read before approving or rejecting it, and for a
     teacher to check their own submission. Never exposed to a plain reader:
     gated the same way as the rest of this module's write-side functions,
     by the caller (corpus_api.py's role checks).
+
+    scope_active/scope_kafedra_id (roles-phase1 Sect.19): see manager_scope().
     """
     try:
         document_id = str(uuid.UUID(str(document_id)))
@@ -283,20 +318,27 @@ def get_document(document_id, config=None):
         row = conn.execute(
             "SELECT id,title,author_display,doc_type,year,language_hint,source_note,permission_basis,"
             "visibility,original_filename,content_sha256,extracted_text,char_count,token_count,"
-            "status,review_status,rejection_reason,uploaded_by_user_id,created_at,withdrawn_at"
-            " FROM antiplagiat.corpus_documents WHERE id=%s", (document_id,)).fetchone()
+            "status,review_status,rejection_reason,uploaded_by_user_id,kafedra_id,created_at,withdrawn_at"
+            " FROM antiplagiat.corpus_documents WHERE id=%s"
+            " AND (NOT %s OR kafedra_id=%s OR kafedra_id IS NULL)",
+            (document_id, scope_active, scope_kafedra_id)).fetchone()
     if not row:
         raise CorpusError("corpus_not_found", "Korpus hujjati topilmadi.", 404)
     return {**row, "id": str(row["id"]), "uploaded_by_user_id": str(row["uploaded_by_user_id"]),
+            "kafedra_id": str(row["kafedra_id"]) if row["kafedra_id"] else None,
             "created_at": row["created_at"].isoformat(),
             "withdrawn_at": row["withdrawn_at"].isoformat() if row["withdrawn_at"] else None}
 
 
-def approve(document_id, config=None):
+def approve(document_id, config=None, *, scope_active=False, scope_kafedra_id=None):
     """Admit a teacher's pending submission into retrieval. Does not touch
     status/extracted_text: the document was already fully stored, just
     excluded from candidates() by review_status -- approving only flips
     that one gate.
+
+    scope_active/scope_kafedra_id (roles-phase1 Sect.19): see manager_scope()
+    -- a kafedra_mudiri can only approve its own kafedra's (or kafedrasiz)
+    submissions, the same restriction the moderation queue listing applies.
     """
     try:
         document_id = str(uuid.UUID(str(document_id)))
@@ -305,20 +347,23 @@ def approve(document_id, config=None):
     with database(config) as conn:
         row = conn.execute(
             "UPDATE antiplagiat.corpus_documents SET review_status='approved'"
-            " WHERE id=%s AND status='active' AND review_status='pending' RETURNING id,title",
-            (document_id,)).fetchone()
+            " WHERE id=%s AND status='active' AND review_status='pending'"
+            " AND (NOT %s OR kafedra_id=%s OR kafedra_id IS NULL) RETURNING id,title",
+            (document_id, scope_active, scope_kafedra_id)).fetchone()
     if not row:
         raise CorpusError("corpus_not_found",
                           "Korpus hujjati topilmadi yoki allaqachon ko‘rib chiqilgan.", 404)
     return {"id": str(row["id"]), "title": row["title"], "review_status": "approved"}
 
 
-def reject(document_id, reason, config=None):
+def reject(document_id, reason, config=None, *, scope_active=False, scope_kafedra_id=None):
     """Decline a teacher's pending submission. A reason is mandatory and
     recorded; the text is purged the same way withdraw() purges it (reusing
     its exact mechanics -- status becomes "withdrawn" too, so the migration
     002 CHECK invariant and immutability trigger need no change), so no
     rejected document's text survives anywhere.
+
+    scope_active/scope_kafedra_id (roles-phase1 Sect.19): see manager_scope().
     """
     if not str(reason or "").strip():
         raise CorpusError("corpus_metadata", "Rad etish sababi majburiy.", 400)
@@ -330,8 +375,9 @@ def reject(document_id, reason, config=None):
         row = conn.execute(
             "UPDATE antiplagiat.corpus_documents SET status='withdrawn',withdrawn_at=now(),"
             "updated_at=now(),extracted_text=NULL,review_status='rejected',rejection_reason=%s"
-            " WHERE id=%s AND status='active' AND review_status='pending' RETURNING id,title",
-            (str(reason).strip(), document_id)).fetchone()
+            " WHERE id=%s AND status='active' AND review_status='pending'"
+            " AND (NOT %s OR kafedra_id=%s OR kafedra_id IS NULL) RETURNING id,title",
+            (str(reason).strip(), document_id, scope_active, scope_kafedra_id)).fetchone()
         if not row:
             raise CorpusError("corpus_not_found",
                               "Korpus hujjati topilmadi yoki allaqachon ko‘rib chiqilgan.", 404)

@@ -1,7 +1,8 @@
 """Kafedra (department) CLI operations -- roles-phase1 (docs/decisions.md
-Sect.18). Department-level SCOPING of what a kafedra_mudiri sees is phase 2;
-this module only lets an operator create kafedralar and assign accounts to
-them, via backend.manage's CLI.
+Sect.18). This module only lets an operator create kafedralar and assign
+accounts to them, via backend.manage's CLI. Department-level SCOPING of what
+a kafedra_mudiri sees (corpus documents, not accounts) lives in
+backend/corpus.py's manager_scope() -- docs/decisions.md Sect.19.
 """
 import uuid
 

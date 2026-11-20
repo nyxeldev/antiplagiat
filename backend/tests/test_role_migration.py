@@ -29,8 +29,12 @@ _REAL_MIGRATION_FILES = manage.migration_files
 
 
 def _files_before_008():
+    # "< 008", not "!= 008": any later migration (e.g. 009_kafedra_scoping,
+    # which ALTERs a table referencing 008's own antiplagiat.kafedra table)
+    # must stay excluded here too, or it runs against a pre-008 schema that
+    # doesn't have what it depends on yet.
     return [(version, content) for version, content in _REAL_MIGRATION_FILES(None)
-            if version != "008_role_model_v1"]
+            if version < "008_role_model_v1"]
 
 
 class RoleMigrationMappingTests(unittest.TestCase):
