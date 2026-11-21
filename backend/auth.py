@@ -211,6 +211,55 @@ def set_corpus_submission_access(user_id, enabled, config=None):
            "can_submit_to_corpus": row["can_submit_to_corpus"]}
 
 
+def set_role(user_id, role, config=None):
+    """Admin panel (roles-phase1 3-bosqich, docs/decisions.md Sect.20) role
+    reassignment by id. super_admin is refused here on purpose -- the runtime
+    DB grant alone does not stop it, so this is the one place that does;
+    manage.py assign_role (CLI, privileged DB password) stays the only way.
+    """
+    if role not in ROLES or role == "super_admin":
+        raise ServiceError("validation_error", "Noma'lum yoki ruxsat etilmagan rol.", 400)
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404) from None
+    with database(config) as conn:
+        row = conn.execute("UPDATE antiplagiat.users SET role=%s WHERE id=%s RETURNING id,username,role",
+                           (role, user_id)).fetchone()
+    if not row:
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404)
+    return {"id": str(row["id"]), "username": row["username"], "role": row["role"]}
+
+
+def set_kafedra(user_id, qisqa_kodi, config=None):
+    """Admin panel (roles-phase1 3-bosqich) kafedra assignment by id. An
+    empty/missing qisqa_kodi clears the assignment (kafedra_id=NULL, "umumiy"
+    scope) -- the existing CLI departments.assign_user() has no such path, it
+    only ever assigns to a real kafedra, so this is a separate implementation
+    rather than a shared one. Existence is checked explicitly rather than
+    relying on the FK violation, so a bad code is a clean 404, not a
+    persistence.database()-sanitized 503.
+    """
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404) from None
+    with database(config) as conn:
+        kafedra_id = None
+        if qisqa_kodi:
+            kafedra = conn.execute("SELECT id FROM antiplagiat.kafedra WHERE qisqa_kodi=%s",
+                                   (qisqa_kodi.strip(),)).fetchone()
+            if not kafedra:
+                raise ServiceError("not_found", "Bunday qisqa koddagi kafedra topilmadi.", 404)
+            kafedra_id = kafedra["id"]
+        row = conn.execute("UPDATE antiplagiat.users SET kafedra_id=%s WHERE id=%s RETURNING id,username,kafedra_id",
+                           (kafedra_id, user_id)).fetchone()
+    if not row:
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404)
+    return {"id": str(row["id"]), "username": row["username"],
+           "kafedra_id": str(row["kafedra_id"]) if row["kafedra_id"] else None}
+
+
 def logout(request):
     require_user(request)
     with database() as conn:

@@ -8,7 +8,7 @@ import uuid
 
 from psycopg.errors import UniqueViolation
 
-from backend.persistence import database
+from backend.persistence import ServiceError, database
 
 NAME_MAX = 300
 CODE_MAX = 32
@@ -22,13 +22,18 @@ def add(config, nomi, qisqa_kodi):
         raise ValueError(f"Qisqa kod bo‘sh bo‘lmasligi va {CODE_MAX} belgidan oshmasligi kerak.")
     kafedra_id = uuid.uuid4()
     with database(config) as conn:
+        # Handled inside the transaction, as a ServiceError not a ValueError:
+        # database() turns any psycopg.Error OR ValueError into a generic
+        # 503, so a duplicate must be classified with a type it lets through
+        # before it escapes (see backend/corpus.py's add_document() for the
+        # same idiom).
         try:
             conn.execute("INSERT INTO antiplagiat.kafedra(id,nomi,qisqa_kodi) VALUES (%s,%s,%s)",
                          (kafedra_id, nomi, qisqa_kodi))
         except UniqueViolation as error:
             if (error.diag.schema_name == "antiplagiat" and error.diag.table_name == "kafedra"
                     and error.diag.constraint_name == "kafedra_qisqa_kodi_key"):
-                raise ValueError("Bu qisqa kod allaqachon band.") from None
+                raise ServiceError("kafedra_duplicate", "Bu qisqa kod allaqachon band.", 409) from None
             raise
     return kafedra_id
 

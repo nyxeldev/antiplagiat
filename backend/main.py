@@ -8,6 +8,7 @@ from backend import auth
 from backend.database import database_ready
 from backend.comparison.api import router as comparison_router
 from backend.accounts_api import router as accounts_router
+from backend.admin_api import router as admin_router
 from backend.corpus_api import router as corpus_router
 from backend.persistence import ServiceError, settings
 
@@ -32,6 +33,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.include_router(comparison_router)
 app.include_router(accounts_router)
+app.include_router(admin_router)
 app.include_router(corpus_router)
 
 

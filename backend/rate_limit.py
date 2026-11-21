@@ -14,7 +14,9 @@ WINDOW_SECONDS = 60
 # serialized by comparison/api.py's own single-flight `gate` lock).
 # "corpus": every backend/corpus_api.py endpoint -- lighter operations
 # (listing, submitting, moderating), legitimately polled somewhat more often.
-LIMITS = {"compare": 30, "corpus": 60}
+# "admin": backend/admin_api.py -- privileged, infrequent account/kafedra
+# management, so a tighter budget than "corpus" is fine.
+LIMITS = {"compare": 30, "corpus": 60, "admin": 30}
 MESSAGE = "Juda ko‘p so‘rov yuborildi. Bir necha soniyadan so‘ng qayta urinib ko‘ring."
 
 

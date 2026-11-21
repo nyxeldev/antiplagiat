@@ -245,6 +245,22 @@ Bu xaritalash haqiqiy legacy-shakldagi qatorlar ustida `backend/tests/test_role_
 
 **Testlar:** kafedra A ning hujjati kafedra B rahbariga ko'rinmasligi/boshqarilmasligi, kafedrasiz hujjat ikkalasiga ham ko'rinishi, `admin`ning cheklanmagan qolishi, yuklash vaqtida kafedra muzlatilishi, `/compare` chegarasiz qolishi.
 
+## 20. roles-phase1 — 3-bosqich: admin panel (akkaunt/rol/kafedra boshqaruvi), runtime DB granti ataylab kengaytirildi
+
+**Qaror (2026-11-20):** [§18]/[§19]dagi 5 rolli model va kafedra skeleti to'liq ishlasa ham, `admin` uchun bu ierarxiyani boshqarishning birorta ham veb-UI yo'q edi — yangi akkaunt yaratish, rol tayinlash, kafedraga biriktirish, kafedra yaratish, hammasi faqat `manage.py` CLI orqali, privilegiyali DB parolini qo'lda kiritib bajarilardi. Bu band shu bo'shliqni to'liq yopadi: yangi `backend/admin_api.py` routeri (`GET/POST /admin/users`, `POST /admin/users/{id}/role`, `POST /admin/users/{id}/kafedra`, `GET/POST /admin/kafedra`, hammasi `require_admin`-gated) va unga mos `frontend/app/admin/` sahifasi.
+
+**Ataylab qabul qilingan xavfsizlik murosasi:** runtime DB hisobi (`antiplagiat_app`) ilgari `users`/`kafedra` jadvaliga yozish huquqiga EGA EMAS edi — bu kompromisga uchragan veb-ilova yangi admin akkaunt yarata olmasligi uchun ataylab qilingan himoya chizig'i edi ([§2]). Admin panelni amalga oshirish shu chiziqni ataylab yumshatishni talab qildi: `backend/manage.py`ning `migrate()` ichidagi doimiy GRANT ro'yxatiga to'rt qator qo'shildi — `INSERT`/`UPDATE(role)`/`UPDATE(kafedra_id)` `users`ga, `SELECT, INSERT` `kafedra`ga. Bu **ongli, oldindan foydalanuvchiga taqdim etilgan tanlov** edi (minimal, xavfsizlik chizig'ini saqlaydigan doira vs. to'liq panel) — to'liq panel, runtime huquqini kengaytirib, tanlandi.
+
+**`super_admin` tayinlashni man qilish — DB darajasida EMAS, ilova qatlamida:** yangi `UPDATE(role)` granti o'zi `role='super_admin'` qiymatini yozishni DB darajasida cheklamaydi. Shuning uchun bu cheklov ataylab `backend/auth.py`dagi `set_role()`da (va `admin_api.py`dagi akkaunt yaratish endpointida) qattiq kodlangan: `role == "super_admin"` bo'lsa `ServiceError(400)`. `manage.py assign-role <login> super_admin` (CLI, privilegiyali DB parol bilan) `super_admin` berishning yagona yo'li bo'lib qolaveradi.
+
+**Yangi backend funksiyalar:** `manage.search_users()` (login bo'yicha qidiruv, parol xeshisiz qaytaradi), `auth.set_role()`/`auth.set_kafedra()` (mavjud `set_corpus_submission_access()` bilan bir xil uslubda: UUID tekshiruvi, `UPDATE ... RETURNING`, topilmasa aniq 404). Kafedra biriktirishni bekor qilish (`kafedra_id=NULL`, "umumiy" holatga qaytarish) uchun bo'sh/`None` `qisqa_kodi` qabul qilinadi.
+
+**Ikki yondosh tuzatish shu yo'l-yo'lakay topildi:** (1) `departments.add()`ning takroriy `qisqa_kodi` holati `ValueError` ko'tarardi — `persistence.database()`ning `except (psycopg.Error, ValueError)` qamrovi buni umumiy 503ga aylantirardi; `corpus.py`dagi `CorpusError` naqshiga o'xshab `ServiceError(409)`ga almashtirildi. (2) `manage.migrate()`ga `grants=False` kalit-so'z parametri qo'shildi — `test_role_migration.py`ning ataylab qisman (008dan oldingi) migratsiya chaqiruvi yangi `kafedra` jadvaliga GRANT berishga urinib, u jadval hali yaratilmagan bo'lgani uchun xato berardi.
+
+**Frontend:** yangi `frontend/app/admin/page.tsx` — `corpus/page.tsx` bilan bir xil naqsh (rol tekshiruvi, `EmptyState`, `Dialog`-asosli "qo'shish" oqimi). `AppShell.tsx`da `ADMIN_ROLES = {"admin", "super_admin"}` bo'yicha shartli nav-item (`kafedra_mudiri` ko'rmaydi). Mavjud `POST /users/{id}/corpus-submission-access` endpoint birinchi marta frontenddan chaqirildi — ilgari faqat backendda bor, UI yo'q edi.
+
+**Testlar:** yangi `backend/tests/test_admin_api.py` (11 test, real PostgreSQL ustida, `runtime_environment()` orqali — yangi runtime grantlarning HAQIQATAN ishlashini, shunchaki privilegiyali hisob bilan emasligini isbotlaydi): qidiruv, akkaunt yaratish (+`super_admin` rad etiladi, +takroriy login 409, +zaif parol 400), rol tayinlash (+`super_admin`/noma'lum rol rad etiladi), kafedra biriktirish (o'rnatadi/tozalaydi/noma'lum kod 404), kafedra yaratish/ro'yxatlash (+takroriy kod 409).
+
 ---
 
 *Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`). Operatsion tartiblar (zaxira/tiklash, loglar, production ishga tushirish) uchun [docs/operations.md](operations.md) qarang.*

@@ -7,11 +7,14 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
   const target = `/${path.join("/")}`;
   const allowed = (request.method === "GET" && (target === "/auth/me" || target === "/reports" ||
       target === "/corpus/documents" || target === "/corpus/submissions" ||
+      target === "/admin/users" || target === "/admin/kafedra" ||
       /^\/reports\/[0-9a-f-]{36}$/i.test(target) ||
       /^\/corpus\/documents\/[0-9a-f-]{36}$/i.test(target))) ||
-    (request.method === "POST" && (["/auth/login", "/auth/logout", "/corpus/documents", "/corpus/submissions"].includes(target) ||
+    (request.method === "POST" && (["/auth/login", "/auth/logout", "/corpus/documents", "/corpus/submissions",
+        "/admin/users", "/admin/kafedra"].includes(target) ||
       /^\/corpus\/documents\/[0-9a-f-]{36}\/(withdraw|approve|reject)$/i.test(target) ||
-      /^\/users\/[0-9a-f-]{36}\/corpus-submission-access$/i.test(target))) ||
+      /^\/users\/[0-9a-f-]{36}\/corpus-submission-access$/i.test(target) ||
+      /^\/admin\/users\/[0-9a-f-]{36}\/(role|kafedra)$/i.test(target))) ||
     (request.method === "DELETE" && /^\/reports\/[0-9a-f-]{36}$/i.test(target));
   if (!allowed) return Response.json({ error: { message: "Topilmadi." } }, { status: 404, headers: { "Cache-Control": "no-store" } });
   return proxy(request, target);

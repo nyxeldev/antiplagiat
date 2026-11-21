@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, type ReactNode } from "react";
 import { Pop } from "../motion";
-import { IconDatabase, IconHistory, IconHome, IconLogout, IconMenu, IconUpload, IconUser, IconX } from "../icons";
+import { IconDatabase, IconHistory, IconHome, IconLogout, IconMenu, IconShield, IconUpload, IconUser, IconX } from "../icons";
 import { Alert, IconButton } from "../ui/primitives";
 import styles from "./shell.module.css";
 
@@ -14,13 +14,16 @@ const NAV = [
 ];
 const CORPUS_NAV = { href: "/corpus", label: "Korpus boshqaruvi", icon: <IconDatabase /> };
 const SUBMIT_NAV = { href: "/corpus/submit", label: "Korpusga hujjat taklif qilish", icon: <IconUpload /> };
+const ADMIN_NAV = { href: "/admin", label: "Admin panel", icon: <IconShield /> };
 export const CORPUS_MANAGEMENT_ROLES = new Set(["admin", "super_admin", "kafedra_mudiri"]);
+export const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 
 function titleFor(pathname: string) {
   if (pathname === "/") return "Yangi tekshiruv";
   if (pathname === "/history") return "Tekshiruvlar tarixi";
   if (pathname === "/corpus") return "Korpus boshqaruvi";
   if (pathname === "/corpus/submit") return "Korpusga hujjat taklif qilish";
+  if (pathname === "/admin") return "Admin panel";
   if (pathname.startsWith("/reports/")) return "Solishtirish hisoboti";
   return "Antiplagiat";
 }
@@ -34,7 +37,8 @@ export default function AppShell({ user, onLogout, busy, error, children }: { us
   // otherwise -- corpus/submit/page.tsx enforces the same check again itself,
   // since a hidden nav link is not an access control.
   const items = CORPUS_MANAGEMENT_ROLES.has(user.role) ? [...NAV, CORPUS_NAV]
-    : user.role === "ustoz" && user.can_submit_to_corpus ? [...NAV, SUBMIT_NAV] : NAV;
+    : user.role === "ustoz" && user.can_submit_to_corpus ? [...NAV, SUBMIT_NAV] : [...NAV];
+  if (ADMIN_ROLES.has(user.role)) items.push(ADMIN_NAV);
 
   const nav = (
     <>
