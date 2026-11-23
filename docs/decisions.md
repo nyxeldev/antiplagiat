@@ -261,6 +261,12 @@ Bu xaritalash haqiqiy legacy-shakldagi qatorlar ustida `backend/tests/test_role_
 
 **Testlar:** yangi `backend/tests/test_admin_api.py` (11 test, real PostgreSQL ustida, `runtime_environment()` orqali — yangi runtime grantlarning HAQIQATAN ishlashini, shunchaki privilegiyali hisob bilan emasligini isbotlaydi): qidiruv, akkaunt yaratish (+`super_admin` rad etiladi, +takroriy login 409, +zaif parol 400), rol tayinlash (+`super_admin`/noma'lum rol rad etiladi), kafedra biriktirish (o'rnatadi/tozalaydi/noma'lum kod 404), kafedra yaratish/ro'yxatlash (+takroriy kod 409).
 
+## 21. `MIN_PASSWORD_CHARS` vaqtincha 12 → 8ga tushirildi — [§13] hali bekor qilinmagan, qaytarilishi kerak
+
+**Qaror (2026-11-24, foydalanuvchi so'rovi bilan):** sinov bosqichida barcha akkauntlarga bitta umumiy vaqtinchalik parol qo'yish qulayligi uchun `backend/manage.py`dagi `MIN_PASSWORD_CHARS` **8**ga tushirildi (`frontend/app/admin/page.tsx`dagi mos matn ham yangilandi). Bu [§13]da keltirilgan asosni ("nega 12, nega 8 emas" — bu loyihada murakkablik qoidasi va lug'at tekshiruvi yo'qligi uchun ataylab 12 tanlangan edi) **bekor qilmaydi, faqat vaqtincha yengillashtiradi** — §13ning o'zi o'zgarmadi, chunki sabab hamon to'g'ri.
+
+**Production'ga chiqarishdan OLDIN albatta 12ga qaytarilishi kerak** — bu [§17]dagi ikki shartdan BIRI haqiqiy bo'lganda (real joylashtirish topshirig'i aniqlanganda) tekshiriladigan ro'yxatga qo'shiladi.
+
 ---
 
 *Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`). Operatsion tartiblar (zaxira/tiklash, loglar, production ishga tushirish) uchun [docs/operations.md](operations.md) qarang.*

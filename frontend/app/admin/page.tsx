@@ -209,7 +209,7 @@ function AddAccountDialog({ open, onClose, onAdded }: { open: boolean; onClose: 
         <Input id="admin-new-username" required maxLength={100} value={username} disabled={busy}
           onChange={e => setUsername(e.target.value)} />
       </Field>
-      <Field label="Parol" htmlFor="admin-new-password" hint="Kamida 12 belgi.">
+      <Field label="Parol" htmlFor="admin-new-password" hint="Kamida 8 belgi.">
         <PasswordInput id="admin-new-password" required value={password} disabled={busy}
           onChange={e => setPassword(e.target.value)} />
       </Field>

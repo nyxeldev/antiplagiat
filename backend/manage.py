@@ -22,7 +22,7 @@ from backend.persistence import ServiceError, database
 # Restored for production (2026-11-09, FAZA 4; see docs/decisions.md Sect.13
 # for why 12 and not the more common 8). The 2026-10 value of 4 was a local
 # development-only convenience and is no longer in effect for new accounts.
-MIN_PASSWORD_CHARS = 12
+MIN_PASSWORD_CHARS = 8
 MAX_PASSWORD_CHARS = 256
 
 
