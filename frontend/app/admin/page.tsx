@@ -5,7 +5,7 @@ import { useSessionExpired, useUser } from "../account-shell";
 import { ADMIN_ROLES } from "../shell/AppShell";
 import { IconCheck, IconPlus, IconShield, IconUser, IconX } from "../icons";
 import { Pop, Rise } from "../motion";
-import { Alert, Badge, Button, Card, EmptyState, Field, Input, PasswordInput, Select } from "../ui/primitives";
+import { Alert, Badge, Button, Card, EmptyState, Field, IconButton, Input, PasswordInput, Select } from "../ui/primitives";
 import { Dialog } from "../ui/Dialog";
 import styles from "./admin.module.css";
 import pageStyles from "../page.module.css";
@@ -136,10 +136,11 @@ export default function AdminPanel() {
                   </Select>
                   <span className={styles.actions}>
                     {row.role === "ustoz" && (
-                      <Button variant={row.can_submit_to_corpus ? "secondary" : "primary"} icon={row.can_submit_to_corpus ? <IconX /> : <IconCheck />}
-                        disabled={busy} onClick={() => toggleSubmission(row)}>
-                        {row.can_submit_to_corpus ? "Taklif huquqini olib tashlash" : "Taklif huquqini berish"}
-                      </Button>
+                      <>
+                        <Badge variant={row.can_submit_to_corpus ? "accent" : "neutral"}>{row.can_submit_to_corpus ? "Taklif: bor" : "Taklif: yo‘q"}</Badge>
+                        <IconButton label={row.can_submit_to_corpus ? "Taklif huquqini olib tashlash" : "Taklif huquqini berish"}
+                          icon={row.can_submit_to_corpus ? <IconX /> : <IconCheck />} disabled={busy} onClick={() => toggleSubmission(row)} />
+                      </>
                     )}
                   </span>
                 </div>;

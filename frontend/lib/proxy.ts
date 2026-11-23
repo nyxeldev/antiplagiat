@@ -50,6 +50,10 @@ export async function proxy(request: NextRequest, path: string) {
     };
     const url = new URL(path, api);
     if (path === "/reports") url.search = request.nextUrl.search;
+    if (path === "/admin/users" && request.method === "GET") {
+      const q = request.nextUrl.searchParams.get("q");
+      if (q) url.search = `q=${encodeURIComponent(q.slice(0, 64))}`;
+    }
     if (path === "/corpus/documents") {
       const page = request.nextUrl.searchParams.get("page");
       const status = request.nextUrl.searchParams.get("status");
