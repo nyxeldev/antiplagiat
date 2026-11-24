@@ -21,29 +21,21 @@ type Session = { created_at: string; expires_at: string; is_current: boolean };
 
 export default function ProfilePage() {
   const user = useUser();
-  if (!user) return null;
-  return <Rise>
-    <ProfileCard />
-    <AccountCard />
-    <SessionsCard />
-  </Rise>;
-}
-
-function ProfileCard() {
-  const user = useUser();
   const expired = useSessionExpired();
   const refreshUser = useRefreshUser();
 
+  // --- To'liq ism ---
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   // Re-sync the draft whenever the server value changes under us (e.g. after
   // refreshUser()) -- adjusted during render, not in an effect, so it never
   // causes an extra commit (see https://react.dev/learn/you-might-not-need-an-effect).
-  const [syncedWith, setSyncedWith] = useState(user?.full_name ?? null);
+  const [nameSyncedWith, setNameSyncedWith] = useState(user?.full_name ?? null);
   const [nameBusy, setNameBusy] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameSaved, setNameSaved] = useState(false);
   const nameInFlight = useRef(false);
 
+  // --- Profil rasmi ---
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -51,11 +43,50 @@ function ProfileCard() {
   const [removing, setRemoving] = useState(false);
   const [removeBusy, setRemoveBusy] = useState(false);
   const avatarInFlight = useRef(false);
-
   const avatarUrl = useAvatarUrl(user);
+
+  // --- Login ---
+  const [username, setUsername] = useState(user?.username ?? "");
+  const [usernameSyncedWith, setUsernameSyncedWith] = useState(user?.username ?? "");
+  const [userBusy, setUserBusy] = useState(false);
+  const [userError, setUserError] = useState<string | null>(null);
+  const [userSaved, setUserSaved] = useState(false);
+  const userInFlight = useRef(false);
+
+  // --- Parol ---
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordDone, setPasswordDone] = useState(false);
+  const passwordInFlight = useRef(false);
+
+  // --- Faol sessiyalar ---
+  const [sessionData, setSessionData] = useState<{ items: Session[] } | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionVersion, setSessionVersion] = useState(0);
+  const [revoking, setRevoking] = useState(false);
+  const [revokeBusy, setRevokeBusy] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api("/auth/sessions", { signal: controller.signal })
+      .then(result => { setSessionData(result); setSessionError(null); })
+      .catch(e => {
+        if (controller.signal.aborted) return;
+        if (e instanceof ApiError && e.status === 401) expired();
+        else setSessionError(e instanceof Error ? e.message : "Sessiyalar ro‘yxati olinmadi.");
+      });
+    return () => controller.abort();
+  }, [sessionVersion, expired]);
+
   if (!user) return null;
-  if (user.full_name !== syncedWith) { setSyncedWith(user.full_name ?? null); setFullName(user.full_name ?? ""); }
+  if (user.full_name !== nameSyncedWith) { setNameSyncedWith(user.full_name ?? null); setFullName(user.full_name ?? ""); }
+  if (user.username !== usernameSyncedWith) { setUsernameSyncedWith(user.username); setUsername(user.username); }
   const unchangedName = fullName.trim() === (user.full_name ?? "");
+  const unchangedUsername = username === user.username;
+  const otherSessionCount = sessionData ? sessionData.items.filter(s => !s.is_current).length : 0;
 
   async function submitName(event: FormEvent) {
     event.preventDefault();
@@ -107,7 +138,49 @@ function ProfileCard() {
     } finally { setRemoveBusy(false); }
   }
 
-  return <Card className={styles.section}>
+  async function submitUsername(event: FormEvent) {
+    event.preventDefault();
+    if (userInFlight.current || unchangedUsername) return;
+    userInFlight.current = true; setUserBusy(true); setUserError(null); setUserSaved(false);
+    try {
+      await api("/auth/username", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
+      refreshUser(); setUserSaved(true); setTimeout(() => setUserSaved(false), 3000);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) expired();
+      else setUserError(e instanceof Error ? e.message : "Login o‘zgartirilmadi.");
+    } finally { userInFlight.current = false; setUserBusy(false); }
+  }
+
+  async function submitPassword(event: FormEvent) {
+    event.preventDefault();
+    if (!oldPassword || !newPassword || passwordInFlight.current) return;
+    if (newPassword !== confirmPassword) { setPasswordError("Yangi parollar bir xil emas."); return; }
+    passwordInFlight.current = true; setPasswordBusy(true); setPasswordError(null);
+    try {
+      await api("/auth/change-password", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+      });
+      setPasswordDone(true);
+      setTimeout(expired, 1800);
+    } catch (e) {
+      setPasswordError(e instanceof ApiError && e.status === 401 ? "Joriy parol noto‘g‘ri."
+        : e instanceof Error ? e.message : "Parol o‘zgartirilmadi.");
+    } finally { passwordInFlight.current = false; setPasswordBusy(false); }
+  }
+
+  async function revokeOthers() {
+    setRevokeBusy(true); setSessionError(null);
+    try {
+      await api("/auth/sessions/revoke-others", { method: "POST" });
+      setRevoking(false); setSessionData(null); setSessionVersion(v => v + 1);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) expired();
+      else setSessionError(e instanceof Error ? e.message : "Amal bajarilmadi.");
+    } finally { setRevokeBusy(false); }
+  }
+
+  return <Rise><Card>
     <div className={pageStyles.sectionHeading}><h2>Profil</h2></div>
     <div className={styles.identity}>
       <Avatar size="4.5rem" src={previewUrl ?? avatarUrl} fallback={<IconUser />} />
@@ -151,168 +224,79 @@ function ProfileCard() {
         <Pop show={!!avatarError}>{avatarError && <Alert variant="error">{avatarError}</Alert>}</Pop>
       </div>
     </div>
+
+    <div className={styles.divider}>
+      <div className={styles.twoCol}>
+        <form onSubmit={submitUsername} className={styles.formGrid}>
+          <h3 className={styles.subHeading}>Login</h3>
+          <Field label="Yangi login" htmlFor="profile-username" hint="3-64 kichik lotin harfi, son, _ . -">
+            <Input id="profile-username" required minLength={3} maxLength={64} pattern="[a-z0-9][a-z0-9_.-]{2,63}"
+              value={username} disabled={userBusy} onChange={e => setUsername(e.target.value)} />
+          </Field>
+          <Pop show={!!userError}>{userError && <Alert variant="error">{userError}</Alert>}</Pop>
+          <Pop show={userSaved}>{userSaved && <Alert variant="success">Login o‘zgartirildi.</Alert>}</Pop>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button type="submit" loading={userBusy} disabled={!username.trim() || unchangedUsername}>Saqlash</Button>
+          </div>
+        </form>
+
+        <form onSubmit={submitPassword} className={styles.formGrid}>
+          <h3 className={styles.subHeading}>Parol</h3>
+          {passwordDone ? (
+            <Alert variant="success">Parol o‘zgartirildi. Qayta kirishingiz kerak bo‘ladi…</Alert>
+          ) : (<>
+            <Field label="Joriy parol" htmlFor="profile-old-password">
+              <PasswordInput id="profile-old-password" required autoComplete="current-password" value={oldPassword} disabled={passwordBusy}
+                onChange={e => setOldPassword(e.target.value)} />
+            </Field>
+            <Field label="Yangi parol" htmlFor="profile-new-password" hint="Kamida 8 belgi.">
+              <PasswordInput id="profile-new-password" required autoComplete="new-password" value={newPassword} disabled={passwordBusy}
+                onChange={e => setNewPassword(e.target.value)} />
+            </Field>
+            <Field label="Yangi parolni takrorlang" htmlFor="profile-confirm-password">
+              <PasswordInput id="profile-confirm-password" required autoComplete="new-password" value={confirmPassword} disabled={passwordBusy}
+                onChange={e => setConfirmPassword(e.target.value)} />
+            </Field>
+            <Pop show={!!passwordError}>{passwordError && <Alert variant="error">{passwordError}</Alert>}</Pop>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <Button type="submit" icon={<IconKey />} loading={passwordBusy}
+                disabled={!oldPassword || !newPassword || !confirmPassword}>Parolni o‘zgartirish</Button>
+            </div>
+          </>)}
+        </form>
+      </div>
+    </div>
+
+    <div className={styles.divider}>
+      <div className={styles.subHeadingRow}>
+        <h3>Faol sessiyalar</h3>
+        {!!otherSessionCount && <Button variant="secondary" icon={<IconLogout />} onClick={() => setRevoking(true)}>Boshqa qurilmalardan chiqish</Button>}
+      </div>
+      {sessionError && <Alert variant="error">{sessionError}</Alert>}
+      {!sessionData && !sessionError && <div className={styles.sessionList} role="status" aria-label="Sessiyalar yuklanmoqda">
+        {[0, 1].map(i => <Skeleton key={i} height="3.25rem" style={{ borderRadius: "var(--r-md)" }} />)}
+      </div>}
+      {sessionData && (!sessionData.items.length
+        ? <EmptyState icon={<IconMonitor />} title="Sessiya topilmadi" description="Faol sessiya yo‘q." />
+        : <div className={styles.sessionList}>
+            {sessionData.items.map((session, index) => (
+              <div key={index} className={styles.sessionItem}>
+                <IconMonitor />
+                <div className={styles.sessionMeta}>
+                  <div>{new Date(session.created_at).toLocaleString("uz-UZ")}</div>
+                  <div className={pageStyles.muted}>Tugash: {new Date(session.expires_at).toLocaleString("uz-UZ")}</div>
+                </div>
+                {session.is_current && <Badge variant="accent">Joriy</Badge>}
+              </div>
+            ))}
+          </div>)}
+    </div>
+
     <ConfirmDialog open={removing} onClose={() => setRemoving(false)} onConfirm={removeAvatar}
       title="Rasmni olib tashlash" confirmLabel="Olib tashlash" busy={removeBusy}
       description="Profil rasmi o‘chiriladi." />
-  </Card>;
-}
-
-function AccountCard() {
-  const user = useUser();
-  const expired = useSessionExpired();
-  const refreshUser = useRefreshUser();
-  const [username, setUsername] = useState(user?.username ?? "");
-  const [syncedWith, setSyncedWith] = useState(user?.username ?? "");
-  const [userBusy, setUserBusy] = useState(false);
-  const [userError, setUserError] = useState<string | null>(null);
-  const [userSaved, setUserSaved] = useState(false);
-  const userInFlight = useRef(false);
-
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordBusy, setPasswordBusy] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordDone, setPasswordDone] = useState(false);
-  const passwordInFlight = useRef(false);
-
-  if (!user) return null;
-  if (user.username !== syncedWith) { setSyncedWith(user.username); setUsername(user.username); }
-  const unchangedUsername = username === user.username;
-
-  async function submitUsername(event: FormEvent) {
-    event.preventDefault();
-    if (userInFlight.current || unchangedUsername) return;
-    userInFlight.current = true; setUserBusy(true); setUserError(null); setUserSaved(false);
-    try {
-      await api("/auth/username", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
-      refreshUser(); setUserSaved(true); setTimeout(() => setUserSaved(false), 3000);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) expired();
-      else setUserError(e instanceof Error ? e.message : "Login o‘zgartirilmadi.");
-    } finally { userInFlight.current = false; setUserBusy(false); }
-  }
-
-  async function submitPassword(event: FormEvent) {
-    event.preventDefault();
-    if (!oldPassword || !newPassword || passwordInFlight.current) return;
-    if (newPassword !== confirmPassword) { setPasswordError("Yangi parollar bir xil emas."); return; }
-    passwordInFlight.current = true; setPasswordBusy(true); setPasswordError(null);
-    try {
-      await api("/auth/change-password", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
-      });
-      setPasswordDone(true);
-      setTimeout(expired, 1800);
-    } catch (e) {
-      setPasswordError(e instanceof ApiError && e.status === 401 ? "Joriy parol noto‘g‘ri."
-        : e instanceof Error ? e.message : "Parol o‘zgartirilmadi.");
-    } finally { passwordInFlight.current = false; setPasswordBusy(false); }
-  }
-
-  return <Card className={styles.section}>
-    <div className={pageStyles.sectionHeading}><h2>Hisob</h2></div>
-    <div className={styles.twoCol}>
-      <form onSubmit={submitUsername} className={styles.formGrid}>
-        <h3 className={styles.subHeading}>Login</h3>
-        <Field label="Yangi login" htmlFor="profile-username" hint="3-64 kichik lotin harfi, son, _ . -">
-          <Input id="profile-username" required minLength={3} maxLength={64} pattern="[a-z0-9][a-z0-9_.-]{2,63}"
-            value={username} disabled={userBusy} onChange={e => setUsername(e.target.value)} />
-        </Field>
-        <Pop show={!!userError}>{userError && <Alert variant="error">{userError}</Alert>}</Pop>
-        <Pop show={userSaved}>{userSaved && <Alert variant="success">Login o‘zgartirildi.</Alert>}</Pop>
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <Button type="submit" loading={userBusy} disabled={!username.trim() || unchangedUsername}>Saqlash</Button>
-        </div>
-      </form>
-
-      <form onSubmit={submitPassword} className={styles.formGrid}>
-        <h3 className={styles.subHeading}>Parol</h3>
-        {passwordDone ? (
-          <Alert variant="success">Parol o‘zgartirildi. Qayta kirishingiz kerak bo‘ladi…</Alert>
-        ) : (<>
-          <Field label="Joriy parol" htmlFor="profile-old-password">
-            <PasswordInput id="profile-old-password" required autoComplete="current-password" value={oldPassword} disabled={passwordBusy}
-              onChange={e => setOldPassword(e.target.value)} />
-          </Field>
-          <Field label="Yangi parol" htmlFor="profile-new-password" hint="Kamida 8 belgi.">
-            <PasswordInput id="profile-new-password" required autoComplete="new-password" value={newPassword} disabled={passwordBusy}
-              onChange={e => setNewPassword(e.target.value)} />
-          </Field>
-          <Field label="Yangi parolni takrorlang" htmlFor="profile-confirm-password">
-            <PasswordInput id="profile-confirm-password" required autoComplete="new-password" value={confirmPassword} disabled={passwordBusy}
-              onChange={e => setConfirmPassword(e.target.value)} />
-          </Field>
-          <Pop show={!!passwordError}>{passwordError && <Alert variant="error">{passwordError}</Alert>}</Pop>
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Button type="submit" icon={<IconKey />} loading={passwordBusy}
-              disabled={!oldPassword || !newPassword || !confirmPassword}>Parolni o‘zgartirish</Button>
-          </div>
-        </>)}
-      </form>
-    </div>
-  </Card>;
-}
-
-function SessionsCard() {
-  const expired = useSessionExpired();
-  const [data, setData] = useState<{ items: Session[] } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
-  const [revoking, setRevoking] = useState(false);
-  const [revokeBusy, setRevokeBusy] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    api("/auth/sessions", { signal: controller.signal })
-      .then(result => { setData(result); setError(null); })
-      .catch(e => {
-        if (controller.signal.aborted) return;
-        if (e instanceof ApiError && e.status === 401) expired();
-        else setError(e instanceof Error ? e.message : "Sessiyalar ro‘yxati olinmadi.");
-      });
-    return () => controller.abort();
-  }, [version, expired]);
-
-  async function revokeOthers() {
-    setRevokeBusy(true); setError(null);
-    try {
-      await api("/auth/sessions/revoke-others", { method: "POST" });
-      setRevoking(false); setData(null); setVersion(v => v + 1);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) expired();
-      else setError(e instanceof Error ? e.message : "Amal bajarilmadi.");
-    } finally { setRevokeBusy(false); }
-  }
-
-  const otherCount = data ? data.items.filter(s => !s.is_current).length : 0;
-
-  return <Card className={styles.section}>
-    <div className={pageStyles.sectionHeading}>
-      <h2>Faol sessiyalar</h2>
-      {!!otherCount && <Button variant="secondary" icon={<IconLogout />} onClick={() => setRevoking(true)}>Boshqa qurilmalardan chiqish</Button>}
-    </div>
-    {error && <Alert variant="error">{error}</Alert>}
-    {!data && !error && <div className={styles.sessionList} role="status" aria-label="Sessiyalar yuklanmoqda">
-      {[0, 1].map(i => <Skeleton key={i} height="3.25rem" style={{ borderRadius: "var(--r-md)" }} />)}
-    </div>}
-    {data && (!data.items.length
-      ? <EmptyState icon={<IconMonitor />} title="Sessiya topilmadi" description="Faol sessiya yo‘q." />
-      : <div className={styles.sessionList}>
-          {data.items.map((session, index) => (
-            <div key={index} className={styles.sessionItem}>
-              <IconMonitor />
-              <div className={styles.sessionMeta}>
-                <div>{new Date(session.created_at).toLocaleString("uz-UZ")}</div>
-                <div className={pageStyles.muted}>Tugash: {new Date(session.expires_at).toLocaleString("uz-UZ")}</div>
-              </div>
-              {session.is_current && <Badge variant="accent">Joriy</Badge>}
-            </div>
-          ))}
-        </div>)}
     <ConfirmDialog open={revoking} onClose={() => setRevoking(false)} onConfirm={revokeOthers}
       title="Boshqa qurilmalardan chiqish" confirmLabel="Chiqish" busy={revokeBusy}
       description="Joriy sessiyadan tashqari barcha sessiyalar yakunlanadi." />
-  </Card>;
+  </Card></Rise>;
 }
