@@ -39,6 +39,7 @@ ENDPOINTS = [
     ("POST", "/admin/users", "require_admin"),
     ("POST", "/admin/users/{user_id}/role", "require_admin"),
     ("POST", "/admin/users/{user_id}/kafedra", "require_admin"),
+    ("POST", "/admin/users/{user_id}/enabled", "require_admin"),
     ("GET", "/admin/kafedra", "require_admin"),
     ("POST", "/admin/kafedra", "require_admin"),
 ]

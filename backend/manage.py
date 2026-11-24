@@ -225,6 +225,10 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                     ("users_insert", "GRANT INSERT ON antiplagiat.users TO {}"),
                     ("users_role_access", "GRANT UPDATE(role) ON antiplagiat.users TO {}"),
                     ("users_kafedra_access", "GRANT UPDATE(kafedra_id) ON antiplagiat.users TO {}"),
+                    # roles-phase1 (docs/decisions.md Sect.23): akkaunt o'chirish/
+                    # yoqish -- o'zini o'chirishni man qilish ilova qatlamida
+                    # (auth.set_enabled), bu yerda emas.
+                    ("users_enabled_access", "GRANT UPDATE(enabled) ON antiplagiat.users TO {}"),
                     ("kafedra_access", "GRANT SELECT, INSERT ON antiplagiat.kafedra TO {}"),
                     ("sessions_access", "GRANT SELECT, INSERT, DELETE ON antiplagiat.sessions TO {}"),
                     ("reports_access", "GRANT SELECT, INSERT ON antiplagiat.reports TO {}"),

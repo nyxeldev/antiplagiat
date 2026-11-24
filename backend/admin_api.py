@@ -76,6 +76,14 @@ async def set_kafedra(request: Request, user_id: str):
     return JSONResponse(auth.set_kafedra(user_id, body.get("qisqa_kodi")), headers=HEADERS)
 
 
+@router.post("/admin/users/{user_id}/enabled")
+async def set_enabled(request: Request, user_id: str):
+    admin = await run_in_threadpool(auth.require_admin, request)
+    rate_limit.enforce(admin["id"], "admin")
+    body = await _read_json_body(request)
+    return JSONResponse(auth.set_enabled(user_id, body.get("enabled"), admin["id"]), headers=HEADERS)
+
+
 @router.get("/admin/kafedra")
 def list_kafedra(request: Request):
     admin = auth.require_admin(request)

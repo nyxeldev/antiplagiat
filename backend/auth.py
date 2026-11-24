@@ -260,6 +260,33 @@ def set_kafedra(user_id, qisqa_kodi, config=None):
            "kafedra_id": str(row["kafedra_id"]) if row["kafedra_id"] else None}
 
 
+def set_enabled(user_id, enabled, actor_id, config=None):
+    """Admin panel (roles-phase1 Sect.23) account enable/disable -- previously
+    the `users.enabled` column existed and was already enforced at login
+    (login()) and session validation (validate_session(), both WHERE u.enabled)
+    but nothing anywhere could ever set it to false; this is that missing
+    write path. Disabling takes effect immediately on the next request from
+    that account (no separate session purge needed -- validate_session()
+    already re-checks u.enabled every time).
+
+    Self-disable is refused: an admin locking out their own only working
+    account, with no one else around to re-enable it, is a foot-gun this
+    function closes rather than one the UI merely discourages.
+    """
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404) from None
+    if not enabled and user_id == str(actor_id):
+        raise ServiceError("validation_error", "O‘z akkauntingizni o‘chira olmaysiz.", 400)
+    with database(config) as conn:
+        row = conn.execute("UPDATE antiplagiat.users SET enabled=%s WHERE id=%s RETURNING id,username,enabled",
+                           (bool(enabled), user_id)).fetchone()
+    if not row:
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404)
+    return {"id": str(row["id"]), "username": row["username"], "enabled": row["enabled"]}
+
+
 def logout(request):
     require_user(request)
     with database() as conn:

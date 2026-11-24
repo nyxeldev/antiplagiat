@@ -84,6 +84,10 @@ class AdminApiTests(unittest.TestCase):
         return asyncio.run(admin_api.set_kafedra(
             self.post(f"/admin/users/{user_id}/kafedra", {"qisqa_kodi": qisqa_kodi}), user_id))
 
+    def set_enabled(self, user_id, enabled):
+        return asyncio.run(admin_api.set_enabled(
+            self.post(f"/admin/users/{user_id}/enabled", {"enabled": enabled}), user_id))
+
     def create_kafedra(self, nomi, qisqa_kodi):
         return asyncio.run(admin_api.create_kafedra(self.post("/admin/kafedra", {
             "nomi": nomi, "qisqa_kodi": qisqa_kodi})))
@@ -134,6 +138,35 @@ class AdminApiTests(unittest.TestCase):
         created = self.payload(self.create_account(self.unique("promote"), secrets.token_urlsafe(24), "talaba"))
         updated = self.payload(self.set_role(created["id"], "ustoz"))
         self.assertEqual(updated["role"], "ustoz")
+
+    def test_disabling_an_account_blocks_its_next_login(self):
+        username, password = self.unique("disable-target"), secrets.token_urlsafe(24)
+        created = self.payload(self.create_account(username, password, "talaba"))
+        auth.login(username, password)  # proves the account works before disabling it
+        disabled = self.payload(self.set_enabled(created["id"], False))
+        self.assertFalse(disabled["enabled"])
+        with self.assertRaises(ServiceError) as raised:
+            auth.login(username, password)
+        self.assertEqual(raised.exception.status, 401)
+
+    def test_re_enabling_restores_login(self):
+        username, password = self.unique("re-enable-target"), secrets.token_urlsafe(24)
+        created = self.payload(self.create_account(username, password, "talaba"))
+        self.set_enabled(created["id"], False)
+        enabled = self.payload(self.set_enabled(created["id"], True))
+        self.assertTrue(enabled["enabled"])
+        token, _ = auth.login(username, password)
+        self.assertTrue(token)
+
+    def test_admin_cannot_disable_their_own_account(self):
+        with self.assertRaises(ServiceError) as raised:
+            self.set_enabled(CLUSTER["admin_id"], False)
+        self.assertEqual(raised.exception.status, 400)
+
+    def test_set_enabled_rejects_unknown_user(self):
+        with self.assertRaises(ServiceError) as raised:
+            self.set_enabled(uuid.uuid4(), False)
+        self.assertEqual(raised.exception.status, 404)
 
     # --- kafedra ---
 

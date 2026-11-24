@@ -279,6 +279,20 @@ Bu xaritalash haqiqiy legacy-shakldagi qatorlar ustida `backend/tests/test_role_
 
 **Testlar:** `backend/tests/test_corpus_integration.py`ga uchta yangi test (`cancel_as()` yordamchisi bilan) — o'ziniki+kutilayotgan holatda muvaffaqiyatli bekor qilinishi, boshqa ustozning hujjatini bekor qilishga urinish 404, allaqachon tasdiqlangan/rad etilgan o'z hujjatini bekor qilishga urinish 404. `test_role_permissions.py`ning `ENDPOINTS` ro'yxatiga yangi qator qo'shildi (`require_teacher`). To'liq to'plam (251 test) o'tadi.
 
+## 23. roles-phase1 — rol qulayliklari, 2-band: admin/super_admin akkauntni o'chirish (`enabled=false`) imkoniyatiga ega bo'ldi
+
+**Qaror (2026-11-25, "birinma ketin" navbatidagi ikkinchi band):** `users.enabled` ustuni va uni login/sessiya tekshiruvida o'qish ([§2]) loyihaning eng boshidan buyon bor edi, lekin uni `false`ga o'rnatishning birorta yo'li — na CLI, na API — mavjud emas edi. Yangi `POST /admin/users/{id}/enabled` (`require_admin`-gated, `backend/auth.py`dagi yangi `set_enabled()`) shu bo'shliqni yopadi.
+
+**O'z-o'zini o'chirishni man qilish — ataylab, ilova qatlamida:** `set_enabled()` chaqiruvchining o'z `id`siga `enabled=false` yozishga urinishini `ServiceError(400)` bilan rad etadi. Sabab: yagona ishlab turgan admin akkaunti o'zini tasodifan o'chirib qo'ysa, uni qayta yoqadigan boshqa hech kim qolmaydi (faqat privilegiyali DB parol bilan CLI orqali to'g'irlash mumkin bo'lib qoladi) — bu [§20]dagi `super_admin`ni man qilish bilan bir xil "foot-gun'ni UI emas, funksiyaning o'zi yopadi" naqshi.
+
+**Darhol kuchga kiradi, alohida sessiya tozalash shart emas:** `auth.validate_session()` har bir so'rovda `WHERE ... AND u.enabled`ni allaqachon tekshiradi ([§2]) — shuning uchun o'chirilgan akkauntning joriy sessiyasi keyingi so'rovdayoq rad etiladi, `sessions` jadvalidan alohida o'chirish shart emas.
+
+**Runtime DB granti yana kengaytirildi:** [§20]dagi naqshga mos — `manage.py migrate()`ga `GRANT UPDATE(enabled) ON antiplagiat.users` qo'shildi (`users_enabled_access` qadami).
+
+**Frontend:** `frontend/app/admin/page.tsx`dagi har bir qatorga "Faol"/"O'chirilgan" belgisi + yoqish/o'chirish ikonka-tugmasi qo'shildi (joriy tizimga kirgan o'zining qatorida tugma `disabled`, sabab ko'rsatuvchi label bilan). Eski "O'chirilgan" matn-yorlig'i (username ostida) olib tashlandi — yangi badge ustuni uni almashtiradi.
+
+**Testlar:** `backend/tests/test_admin_api.py`ga to'rtta yangi test — o'chirish keyingi loginni bloklashi, qayta yoqish loginni tiklashi, o'z-o'zini o'chirishni rad etish, noma'lum foydalanuvchi 404. `test_role_permissions.py`ga yangi qator. To'liq to'plam 255 testga o'sdi, barchasi o'tadi. Brauzerda haqiqiy dev bazada tasdiqlandi: `admin2` o'chirilgach parol to'g'ri bo'lsa ham "Login yoki parol noto'g'ri" qaytardi, qayta yoqilgach yana ishladi; `admin1` (joriy admin) o'z qatorida o'chirish tugmasi disabled ekani DOMda tekshirildi; mobil kenglikda (375px) ham qator stack bo'lib to'g'ri ko'rindi.
+
 ---
 
 *Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`). Operatsion tartiblar (zaxira/tiklash, loglar, production ishga tushirish) uchun [docs/operations.md](operations.md) qarang.*

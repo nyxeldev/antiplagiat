@@ -89,6 +89,12 @@ export default function AdminPanel() {
     }).then(() => undefined));
   }
 
+  function toggleEnabled(target: AdminUser) {
+    withBusy(target.id, () => api(`/admin/users/${target.id}/enabled`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: !target.enabled }),
+    }).then(() => undefined));
+  }
+
   if (!user) return null;
   if (!allowed) {
     return <Rise><Card>
@@ -114,14 +120,12 @@ export default function AdminPanel() {
         !users.length
           ? <EmptyState icon={<IconUser />} title="Topilmadi" description="Qidiruvga mos foydalanuvchi yo‘q." />
           : <div className={styles.table}>
-              <div className={styles.headerRow}><span>Login</span><span>Rol</span><span>Kafedra</span><span /></div>
+              <div className={styles.headerRow}><span>Login</span><span>Rol</span><span>Kafedra</span><span /><span /></div>
               {users.map(row => {
                 const busy = busyIds.has(row.id);
+                const isSelf = row.id === user.id;
                 return <div key={row.id} className={styles.row}>
-                  <div>
-                    <div className={styles.username}>{row.username}</div>
-                    {!row.enabled && <div className={styles.meta}>O‘chirilgan</div>}
-                  </div>
+                  <div className={styles.username}>{row.username}</div>
                   {row.role === "super_admin" ? <Badge variant="accent">{ROLE_LABEL.super_admin}</Badge> : (
                     <Select className={styles.select} aria-label={`${row.username} roli`} value={row.role} disabled={busy}
                       onChange={e => changeRole(row, e.target.value)}>
@@ -134,6 +138,12 @@ export default function AdminPanel() {
                     <option value={UNASSIGNED}>— biriktirilmagan —</option>
                     {kafedraList?.map(k => <option key={k.id} value={k.qisqa_kodi}>{k.nomi}</option>)}
                   </Select>
+                  <span className={styles.actions}>
+                    <Badge variant={row.enabled ? "accent" : "neutral"}>{row.enabled ? "Faol" : "O‘chirilgan"}</Badge>
+                    <IconButton label={isSelf ? "O‘z akkauntingizni o‘chira olmaysiz"
+                        : row.enabled ? "Akkauntni o‘chirish" : "Akkauntni qayta faollashtirish"}
+                      icon={row.enabled ? <IconX /> : <IconCheck />} disabled={busy || isSelf} onClick={() => toggleEnabled(row)} />
+                  </span>
                   <span className={styles.actions}>
                     {row.role === "ustoz" && (
                       <>
