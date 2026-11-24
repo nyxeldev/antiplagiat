@@ -293,6 +293,22 @@ Bu xaritalash haqiqiy legacy-shakldagi qatorlar ustida `backend/tests/test_role_
 
 **Testlar:** `backend/tests/test_admin_api.py`ga to'rtta yangi test — o'chirish keyingi loginni bloklashi, qayta yoqish loginni tiklashi, o'z-o'zini o'chirishni rad etish, noma'lum foydalanuvchi 404. `test_role_permissions.py`ga yangi qator. To'liq to'plam 255 testga o'sdi, barchasi o'tadi. Brauzerda haqiqiy dev bazada tasdiqlandi: `admin2` o'chirilgach parol to'g'ri bo'lsa ham "Login yoki parol noto'g'ri" qaytardi, qayta yoqilgach yana ishladi; `admin1` (joriy admin) o'z qatorida o'chirish tugmasi disabled ekani DOMda tekshirildi; mobil kenglikda (375px) ham qator stack bo'lib to'g'ri ko'rindi.
 
+## 24. roles-phase1 — rol qulayliklari, 3-band: har bir rol o'z-o'zidan parolini o'zgartira oladi
+
+**Qaror (2026-11-25, "birinma ketin" navbatidagi uchinchi band — bu safar kesishuvchi, bironta rolga xos emas):** [§13]da qayd etilganidek, o'z-o'zidan parol o'zgartirish API endpointi loyihaning boshidan buyon yo'q edi — parolni faqat admin `manage.py`/admin panel orqali (butunlay yangi parol belgilab) o'zgartira olardi, foydalanuvchining o'zi esa umuman yo'q edi. Yangi `POST /auth/change-password` (`require_user`-gated — har qanday rol, chunki bu har kimning o'z akkaunti) va `backend/auth.py`dagi yangi `change_password()` shu bo'shliqni yopadi.
+
+**Joriy parol majburiy:** oddiy parol-o'zgartirish oqimidagi standart mantiq — ekrani qulflanmagan yoki o'g'irlangan sessiya token orqali kirgan kimsa joriy parolni so'ramasdan uni almashtira olmasligi kerak, aks holda haqiqiy egasini butunlay qulflab qo'yishi mumkin edi.
+
+**Muvaffaqiyatli o'zgarishdan keyin BARCHA sessiya o'chiriladi — hozirgi so'rovnikini ham qo'shib:** bu [§23]dagi `set_enabled()` bilan bir xil "darhol kuchga kirsin" tamoyili, lekin bu yerda qo'shimcha qadam kerak — chaqiruvchining o'zining joriy cookie'si ham endi o'lik, shuning uchun `accounts_api.py`dagi endpoint `logout()`nikiga o'xshab javobda cookie'ni ham tozalaydi (aks holda brauzer keyingi so'rovgacha o'lik cookie'ni ushlab turardi). Frontend buni oddiy sessiya tugashi sifatida ko'radi (`useSessionExpired()`), qayta kirish ekraniga qaytaradi.
+
+**Yangi `rate_limit.py` scope — `"account"` (10/daqiqa):** admin panelning `"admin"` scope'idan ataylab alohida — bu har qanday rol chaqiradigan o'z-o'ziga xizmat ko'rsatish amali, admin-huquqli amal emas. Tor limit ikkinchi maqsadga ham xizmat qiladi: joriy parolni taxmin qilishga urinishni sekinlashtiradi.
+
+**Runtime DB granti yana kengaytirildi:** `GRANT UPDATE(password_hash) ON antiplagiat.users` (`users_password_access` qadami, [§20]dagi naqshga mos).
+
+**Frontend:** yangi `/profile` sahifasi (`frontend/app/profile/`), barcha rol uchun yon panelda "Profil" bandi ko'rinadi (login/rol ko'rsatuvchi karta + joriy/yangi/yangi-tasdiq uchta maydonli forma). Muvaffaqiyatli o'zgarishdan so'ng muvaffaqiyat xabari ~1.8s ko'rsatiladi, so'ng avtomatik `useSessionExpired()` chaqirilib login ekraniga qaytaradi.
+
+**Testlar:** yangi `backend/tests/test_accounts_api.py` (real PostgreSQL ustida, haqiqiy login+sessiya+cookie bilan, require_user mock qilinmagan) — noto'g'ri joriy parol 401, zaif/qisqa yangi parol 400, muvaffaqiyatli o'zgarishdan keyin faqat yangi parol bilan kirish mumkinligi, va eski HAMDA boshqa parallel sessiya ikkalasi ham o'chirilgani. `test_role_permissions.py`ga yangi qator (`require_user`). To'liq to'plam 260 testga o'sdi, barchasi o'tadi.
+
 ---
 
 *Eslatma: ushbu fayl faqat mahsulot/arxitektura qarorlarini qayd etadi. Agent ish uslubi, kodlash konventsiyalari va lokal muhit ko'rsatmalari repo tarkibiga kirmaydi (`.gitignore`). Operatsion tartiblar (zaxira/tiklash, loglar, production ishga tushirish) uchun [docs/operations.md](operations.md) qarang.*

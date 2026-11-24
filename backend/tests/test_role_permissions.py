@@ -20,6 +20,7 @@ ROLES = ("talaba", "ustoz", "kafedra_mudiri", "admin", "super_admin")
 # (method, path, guard attribute name on backend.auth)
 ENDPOINTS = [
     ("GET", "/auth/me", "require_user"),
+    ("POST", "/auth/change-password", "require_user"),
     ("POST", "/auth/logout", "require_user"),
     ("GET", "/reports", "require_user"),
     ("GET", "/reports/{report_id}", "require_user"),

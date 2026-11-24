@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, type ReactNode } from "react";
 import { Pop } from "../motion";
-import { IconDatabase, IconHistory, IconHome, IconLogout, IconMenu, IconShield, IconUpload, IconUser, IconX } from "../icons";
+import { IconDatabase, IconHistory, IconHome, IconKey, IconLogout, IconMenu, IconShield, IconUpload, IconUser, IconX } from "../icons";
 import { Alert, IconButton } from "../ui/primitives";
 import styles from "./shell.module.css";
 
@@ -15,6 +15,7 @@ const NAV = [
 const CORPUS_NAV = { href: "/corpus", label: "Korpus boshqaruvi", icon: <IconDatabase /> };
 const SUBMIT_NAV = { href: "/corpus/submit", label: "Korpusga hujjat taklif qilish", icon: <IconUpload /> };
 const ADMIN_NAV = { href: "/admin", label: "Admin panel", icon: <IconShield /> };
+const PROFILE_NAV = { href: "/profile", label: "Profil", icon: <IconKey /> };
 export const CORPUS_MANAGEMENT_ROLES = new Set(["admin", "super_admin", "kafedra_mudiri"]);
 export const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 
@@ -24,6 +25,7 @@ function titleFor(pathname: string) {
   if (pathname === "/corpus") return "Korpus boshqaruvi";
   if (pathname === "/corpus/submit") return "Korpusga hujjat taklif qilish";
   if (pathname === "/admin") return "Admin panel";
+  if (pathname === "/profile") return "Profil";
   if (pathname.startsWith("/reports/")) return "Solishtirish hisoboti";
   return "Antiplagiat";
 }
@@ -39,6 +41,7 @@ export default function AppShell({ user, onLogout, busy, error, children }: { us
   const items = CORPUS_MANAGEMENT_ROLES.has(user.role) ? [...NAV, CORPUS_NAV]
     : user.role === "ustoz" && user.can_submit_to_corpus ? [...NAV, SUBMIT_NAV] : [...NAV];
   if (ADMIN_ROLES.has(user.role)) items.push(ADMIN_NAV);
+  items.push(PROFILE_NAV);
 
   const nav = (
     <>

@@ -10,7 +10,7 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
       target === "/admin/users" || target === "/admin/kafedra" ||
       /^\/reports\/[0-9a-f-]{36}$/i.test(target) ||
       /^\/corpus\/documents\/[0-9a-f-]{36}$/i.test(target))) ||
-    (request.method === "POST" && (["/auth/login", "/auth/logout", "/corpus/documents", "/corpus/submissions",
+    (request.method === "POST" && (["/auth/login", "/auth/logout", "/auth/change-password", "/corpus/documents", "/corpus/submissions",
         "/admin/users", "/admin/kafedra"].includes(target) ||
       /^\/corpus\/documents\/[0-9a-f-]{36}\/(withdraw|approve|reject)$/i.test(target) ||
       /^\/corpus\/submissions\/[0-9a-f-]{36}\/cancel$/i.test(target) ||

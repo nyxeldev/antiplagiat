@@ -229,6 +229,11 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                     # yoqish -- o'zini o'chirishni man qilish ilova qatlamida
                     # (auth.set_enabled), bu yerda emas.
                     ("users_enabled_access", "GRANT UPDATE(enabled) ON antiplagiat.users TO {}"),
+                    # roles-phase1 (docs/decisions.md Sect.24): o'z-o'zidan
+                    # parol o'zgartirish -- har bir rol faqat O'Z akkauntini
+                    # (auth.change_password) yangilaydi, bu grant o'zi buni
+                    # cheklamaydi, lekin ilova qatlami cheklaydi.
+                    ("users_password_access", "GRANT UPDATE(password_hash) ON antiplagiat.users TO {}"),
                     ("kafedra_access", "GRANT SELECT, INSERT ON antiplagiat.kafedra TO {}"),
                     ("sessions_access", "GRANT SELECT, INSERT, DELETE ON antiplagiat.sessions TO {}"),
                     ("reports_access", "GRANT SELECT, INSERT ON antiplagiat.reports TO {}"),

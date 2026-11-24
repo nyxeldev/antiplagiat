@@ -5,11 +5,28 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from backend import auth, reports
+from backend import auth, rate_limit, reports
 from backend.persistence import ServiceError
 
 router = APIRouter()
 HEADERS = {"Cache-Control": "no-store"}
+MAX_BODY_BYTES = 4096
+
+
+async def _read_json_body(request):
+    body = bytearray()
+    try:
+        async with asyncio.timeout(10):
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > MAX_BODY_BYTES:
+                    raise ServiceError("validation_error", "So‘rov tanasi juda uzun.", 400)
+                body.extend(chunk)
+    except TimeoutError:
+        raise ServiceError("upload_interrupted", "So‘rov vaqti tugadi.", 408) from None
+    try:
+        return json.loads(body)
+    except (ValueError, AttributeError, UnicodeError):
+        raise ServiceError("validation_error", "So‘rov tanasi noto‘g‘ri JSON.", 400) from None
 
 
 @router.post("/auth/login")
@@ -42,6 +59,23 @@ async def login(request: Request):
 @router.get("/auth/me")
 def me(request: Request):
     return JSONResponse({"user": auth.require_user(request)}, headers=HEADERS)
+
+
+@router.post("/auth/change-password")
+async def change_password(request: Request):
+    user = await run_in_threadpool(auth.require_user, request)
+    rate_limit.enforce(user["id"], "account")
+    body = await _read_json_body(request)
+    old_password, new_password = body.get("old_password"), body.get("new_password")
+    if not isinstance(old_password, str) or not isinstance(new_password, str):
+        raise ServiceError("validation_error", "old_password/new_password majburiy.", 400)
+    payload = await run_in_threadpool(auth.change_password, user["id"], old_password, new_password)
+    # change_password() already deleted every session for this account server-side
+    # (including the one behind this very request) -- drop the now-dead cookie here
+    # too, instead of leaving the browser to find out only on its next 401.
+    result = JSONResponse(payload, headers=HEADERS)
+    result.delete_cookie(auth.COOKIE, httponly=True, secure=auth.public_origin().startswith("https://"), samesite="strict", path="/")
+    return result
 
 
 @router.post("/auth/logout")

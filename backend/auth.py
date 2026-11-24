@@ -287,6 +287,49 @@ def set_enabled(user_id, enabled, actor_id, config=None):
     return {"id": str(row["id"]), "username": row["username"], "enabled": row["enabled"]}
 
 
+def change_password(user_id, old_password, new_password, config=None):
+    """Self-service password change -- roles-phase1 Sect.24. Every role calls
+    this on their OWN account only (user_id always comes from require_user(),
+    never a path/body parameter -- see accounts_api.py); there is no "change
+    someone else's password" path here, that stays manage.py create-user's
+    sibling CLI command plus a brand-new account, out of scope for this.
+
+    The current password is required, same reasoning as any ordinary
+    change-password flow: a hijacked-but-still-logged-in session should not
+    be able to silently lock the real owner out by swapping the password
+    unchallenged.
+
+    Every session for this account (including the one making this very
+    request) is deleted once the password changes -- a stale session token
+    captured earlier must not keep working after the owner believes they have
+    rotated it away. The frontend is expected to treat the 401 on its next
+    request the same as any other expired session (see useSessionExpired()).
+    """
+    from backend.manage import MAX_PASSWORD_CHARS, MIN_PASSWORD_CHARS, weak_password_reason
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404) from None
+    with database(config) as conn:
+        row = conn.execute("SELECT username,password_hash FROM antiplagiat.users WHERE id=%s", (user_id,)).fetchone()
+    if not row:
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404)
+    try:
+        HASHER.verify(row["password_hash"], old_password)
+    except (VerificationError, InvalidHashError):
+        raise ServiceError("credentials", "Joriy parol noto‘g‘ri.", 401) from None
+    if not isinstance(new_password, str) or not MIN_PASSWORD_CHARS <= len(new_password) <= MAX_PASSWORD_CHARS:
+        raise ServiceError("validation_error", f"Yangi parol {MIN_PASSWORD_CHARS}-{MAX_PASSWORD_CHARS} belgi bo‘lishi kerak.", 400)
+    weak = weak_password_reason(new_password, row["username"])
+    if weak:
+        raise ServiceError("validation_error", f"Juda sodda parol: {weak}.", 400)
+    hashed = password_hash(new_password)
+    with database(config) as conn:
+        conn.execute("UPDATE antiplagiat.users SET password_hash=%s WHERE id=%s", (hashed, user_id))
+        conn.execute("DELETE FROM antiplagiat.sessions WHERE user_id=%s", (user_id,))
+    return {"status": "changed"}
+
+
 def logout(request):
     require_user(request)
     with database() as conn:
