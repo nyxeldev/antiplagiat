@@ -23,126 +23,115 @@ export default function ProfilePage() {
   const user = useUser();
   if (!user) return null;
   return <Rise>
-    <IdentityCard />
-    <AvatarCard />
-    <UsernameCard />
-    <PasswordCard />
+    <ProfileCard />
+    <AccountCard />
     <SessionsCard />
   </Rise>;
 }
 
-function IdentityCard() {
+function ProfileCard() {
   const user = useUser();
   const expired = useSessionExpired();
   const refreshUser = useRefreshUser();
+
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   // Re-sync the draft whenever the server value changes under us (e.g. after
   // refreshUser()) -- adjusted during render, not in an effect, so it never
   // causes an extra commit (see https://react.dev/learn/you-might-not-need-an-effect).
   const [syncedWith, setSyncedWith] = useState(user?.full_name ?? null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-  const inFlight = useRef(false);
+  const [nameBusy, setNameBusy] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [nameSaved, setNameSaved] = useState(false);
+  const nameInFlight = useRef(false);
+
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const avatarInFlight = useRef(false);
 
   const avatarUrl = useAvatarUrl(user);
   if (!user) return null;
   if (user.full_name !== syncedWith) { setSyncedWith(user.full_name ?? null); setFullName(user.full_name ?? ""); }
-  const unchanged = fullName.trim() === (user.full_name ?? "");
+  const unchangedName = fullName.trim() === (user.full_name ?? "");
 
-  async function submit(event: FormEvent) {
+  async function submitName(event: FormEvent) {
     event.preventDefault();
-    if (inFlight.current || unchanged) return;
-    inFlight.current = true; setBusy(true); setError(null); setSaved(false);
+    if (nameInFlight.current || unchangedName) return;
+    nameInFlight.current = true; setNameBusy(true); setNameError(null); setNameSaved(false);
     try {
       await api("/auth/full-name", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ full_name: fullName }) });
-      refreshUser(); setSaved(true); setTimeout(() => setSaved(false), 3000);
+      refreshUser(); setNameSaved(true); setTimeout(() => setNameSaved(false), 3000);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) expired();
-      else setError(e instanceof Error ? e.message : "To‘liq ism saqlanmadi.");
-    } finally { inFlight.current = false; setBusy(false); }
+      else setNameError(e instanceof Error ? e.message : "To‘liq ism saqlanmadi.");
+    } finally { nameInFlight.current = false; setNameBusy(false); }
   }
-
-  return <Card className={styles.section}>
-    <div className={pageStyles.sectionHeading}><h2>Profil</h2></div>
-    <div className={styles.identity}>
-      <Avatar size="4rem" src={avatarUrl} fallback={<IconUser />} />
-      <div>
-        <p className={pageStyles.muted}>Login: <strong>{user.username}</strong> · Rol: <strong>{ROLE_LABEL[user.role] ?? user.role}</strong></p>
-        {user.kafedra_nomi && <p className={pageStyles.muted}>Kafedra: <strong>{user.kafedra_nomi}</strong></p>}
-        {user.created_at && <p className={pageStyles.muted}>Ro‘yxatdan o‘tgan: {new Date(user.created_at).toLocaleDateString("uz-UZ")}</p>}
-      </div>
-    </div>
-    <form onSubmit={submit} className={styles.inlineForm}>
-      <Field label="To‘liq ism" htmlFor="profile-full-name" hint="Bo‘sh qoldirilsa, login ko‘rsatiladi.">
-        <Input id="profile-full-name" maxLength={120} value={fullName} disabled={busy}
-          placeholder={user.username} onChange={e => setFullName(e.target.value)} />
-      </Field>
-      <Pop show={!!error}>{error && <Alert variant="error">{error}</Alert>}</Pop>
-      <Pop show={saved}>{saved && <Alert variant="success">Saqlandi.</Alert>}</Pop>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <Button type="submit" loading={busy} disabled={unchanged}>Saqlash</Button>
-      </div>
-    </form>
-  </Card>;
-}
-
-function AvatarCard() {
-  const user = useUser();
-  const expired = useSessionExpired();
-  const refreshUser = useRefreshUser();
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [removing, setRemoving] = useState(false);
-  const [removeBusy, setRemoveBusy] = useState(false);
-  const inFlight = useRef(false);
-  const avatarUrl = useAvatarUrl(user);
-
-  if (!user) return null;
 
   function pick(files: File[]) {
     const picked = files[0]; if (!picked) return;
-    if (!AVATAR_TYPES.test(picked.type)) { setError("Faqat PNG, JPEG yoki WEBP rasm tanlang."); return; }
-    if (picked.size > MAX_AVATAR_BYTES) { setError("Rasm 1 MiB dan oshmasligi kerak."); return; }
+    if (!AVATAR_TYPES.test(picked.type)) { setAvatarError("Faqat PNG, JPEG yoki WEBP rasm tanlang."); return; }
+    if (picked.size > MAX_AVATAR_BYTES) { setAvatarError("Rasm 1 MiB dan oshmasligi kerak."); return; }
     if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setError(null); setFile(picked); setPreviewUrl(URL.createObjectURL(picked));
+    setAvatarError(null); setFile(picked); setPreviewUrl(URL.createObjectURL(picked));
   }
 
   function cancelPick() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setFile(null); setPreviewUrl(null); setError(null);
+    setFile(null); setPreviewUrl(null); setAvatarError(null);
   }
 
   async function upload() {
-    if (!file || inFlight.current) return;
-    inFlight.current = true; setBusy(true); setError(null);
+    if (!file || avatarInFlight.current) return;
+    avatarInFlight.current = true; setAvatarBusy(true); setAvatarError(null);
     const body = new FormData(); body.append("file", file);
     try {
       await api("/auth/avatar", { method: "POST", body });
       cancelPick(); refreshUser();
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) expired();
-      else setError(e instanceof Error ? e.message : "Rasm yuklanmadi.");
-    } finally { inFlight.current = false; setBusy(false); }
+      else setAvatarError(e instanceof Error ? e.message : "Rasm yuklanmadi.");
+    } finally { avatarInFlight.current = false; setAvatarBusy(false); }
   }
 
   async function removeAvatar() {
-    setRemoveBusy(true); setError(null);
+    setRemoveBusy(true); setAvatarError(null);
     try {
       await api("/auth/avatar", { method: "DELETE" });
       setRemoving(false); refreshUser();
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) expired();
-      else setError(e instanceof Error ? e.message : "Rasm o‘chirilmadi.");
+      else setAvatarError(e instanceof Error ? e.message : "Rasm o‘chirilmadi.");
     } finally { setRemoveBusy(false); }
   }
 
   return <Card className={styles.section}>
-    <div className={pageStyles.sectionHeading}><h2>Profil rasmi</h2></div>
-    <div className={styles.avatarRow}>
-      <Avatar size="5rem" src={previewUrl ?? avatarUrl} fallback={<IconUser />} />
+    <div className={pageStyles.sectionHeading}><h2>Profil</h2></div>
+    <div className={styles.identity}>
+      <Avatar size="4.5rem" src={previewUrl ?? avatarUrl} fallback={<IconUser />} />
+      <div>
+        <p className={pageStyles.muted}>Login: <strong>{user.username}</strong> · Rol: <strong>{ROLE_LABEL[user.role] ?? user.role}</strong></p>
+        {user.kafedra_nomi && <p className={pageStyles.muted}>Kafedra: <strong>{user.kafedra_nomi}</strong></p>}
+        {user.created_at && <p className={pageStyles.muted}>Ro‘yxatdan o‘tgan: {new Date(user.created_at).toLocaleDateString("uz-UZ")}</p>}
+      </div>
+    </div>
+
+    <form onSubmit={submitName} className={styles.inlineForm}>
+      <Field label="To‘liq ism" htmlFor="profile-full-name" hint="Bo‘sh qoldirilsa, login ko‘rsatiladi.">
+        <Input id="profile-full-name" maxLength={120} value={fullName} disabled={nameBusy}
+          placeholder={user.username} onChange={e => setFullName(e.target.value)} />
+      </Field>
+      <Pop show={!!nameError}>{nameError && <Alert variant="error">{nameError}</Alert>}</Pop>
+      <Pop show={nameSaved}>{nameSaved && <Alert variant="success">Saqlandi.</Alert>}</Pop>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <Button type="submit" loading={nameBusy} disabled={unchangedName}>Saqlash</Button>
+      </div>
+    </form>
+
+    <div className={styles.divider}>
+      <h3 className={styles.subHeading}>Profil rasmi</h3>
       <div className={styles.avatarActions}>
         {!file ? (
           <>
@@ -154,119 +143,115 @@ function AvatarCard() {
           <>
             <p className={pageStyles.muted}>{file.name}</p>
             <div style={{ display: "flex", gap: "var(--sp-3)" }}>
-              <Button variant="secondary" onClick={cancelPick} disabled={busy}>Bekor qilish</Button>
-              <Button icon={<IconUpload />} loading={busy} onClick={upload}>Yuklash</Button>
+              <Button variant="secondary" onClick={cancelPick} disabled={avatarBusy}>Bekor qilish</Button>
+              <Button icon={<IconUpload />} loading={avatarBusy} onClick={upload}>Yuklash</Button>
             </div>
           </>
         )}
+        <Pop show={!!avatarError}>{avatarError && <Alert variant="error">{avatarError}</Alert>}</Pop>
       </div>
     </div>
-    <Pop show={!!error}>{error && <Alert variant="error">{error}</Alert>}</Pop>
     <ConfirmDialog open={removing} onClose={() => setRemoving(false)} onConfirm={removeAvatar}
       title="Rasmni olib tashlash" confirmLabel="Olib tashlash" busy={removeBusy}
       description="Profil rasmi o‘chiriladi." />
   </Card>;
 }
 
-function UsernameCard() {
+function AccountCard() {
   const user = useUser();
   const expired = useSessionExpired();
   const refreshUser = useRefreshUser();
   const [username, setUsername] = useState(user?.username ?? "");
   const [syncedWith, setSyncedWith] = useState(user?.username ?? "");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-  const inFlight = useRef(false);
+  const [userBusy, setUserBusy] = useState(false);
+  const [userError, setUserError] = useState<string | null>(null);
+  const [userSaved, setUserSaved] = useState(false);
+  const userInFlight = useRef(false);
 
-  if (!user) return null;
-  if (user.username !== syncedWith) { setSyncedWith(user.username); setUsername(user.username); }
-  const unchanged = username === user.username;
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (inFlight.current || unchanged) return;
-    inFlight.current = true; setBusy(true); setError(null); setSaved(false);
-    try {
-      await api("/auth/username", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
-      refreshUser(); setSaved(true); setTimeout(() => setSaved(false), 3000);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 401) expired();
-      else setError(e instanceof Error ? e.message : "Login o‘zgartirilmadi.");
-    } finally { inFlight.current = false; setBusy(false); }
-  }
-
-  return <Card className={styles.section}>
-    <div className={pageStyles.sectionHeading}><h2>Login</h2></div>
-    <form onSubmit={submit} className={styles.formGrid}>
-      <Field label="Login" htmlFor="profile-username" hint="3-64 kichik lotin harfi, son, _ . -">
-        <Input id="profile-username" required minLength={3} maxLength={64} pattern="[a-z0-9][a-z0-9_.-]{2,63}"
-          value={username} disabled={busy} onChange={e => setUsername(e.target.value)} />
-      </Field>
-      <Pop show={!!error}>{error && <Alert variant="error">{error}</Alert>}</Pop>
-      <Pop show={saved}>{saved && <Alert variant="success">Login o‘zgartirildi.</Alert>}</Pop>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <Button type="submit" loading={busy} disabled={!username.trim() || unchanged}>Saqlash</Button>
-      </div>
-    </form>
-  </Card>;
-}
-
-function PasswordCard() {
-  const expired = useSessionExpired();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-  const inFlight = useRef(false);
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordDone, setPasswordDone] = useState(false);
+  const passwordInFlight = useRef(false);
 
-  async function submit(event: FormEvent) {
+  if (!user) return null;
+  if (user.username !== syncedWith) { setSyncedWith(user.username); setUsername(user.username); }
+  const unchangedUsername = username === user.username;
+
+  async function submitUsername(event: FormEvent) {
     event.preventDefault();
-    if (!oldPassword || !newPassword || inFlight.current) return;
-    if (newPassword !== confirmPassword) { setError("Yangi parollar bir xil emas."); return; }
-    inFlight.current = true; setBusy(true); setError(null);
+    if (userInFlight.current || unchangedUsername) return;
+    userInFlight.current = true; setUserBusy(true); setUserError(null); setUserSaved(false);
+    try {
+      await api("/auth/username", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
+      refreshUser(); setUserSaved(true); setTimeout(() => setUserSaved(false), 3000);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) expired();
+      else setUserError(e instanceof Error ? e.message : "Login o‘zgartirilmadi.");
+    } finally { userInFlight.current = false; setUserBusy(false); }
+  }
+
+  async function submitPassword(event: FormEvent) {
+    event.preventDefault();
+    if (!oldPassword || !newPassword || passwordInFlight.current) return;
+    if (newPassword !== confirmPassword) { setPasswordError("Yangi parollar bir xil emas."); return; }
+    passwordInFlight.current = true; setPasswordBusy(true); setPasswordError(null);
     try {
       await api("/auth/change-password", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
       });
-      setDone(true);
+      setPasswordDone(true);
       setTimeout(expired, 1800);
     } catch (e) {
-      setError(e instanceof ApiError && e.status === 401 ? "Joriy parol noto‘g‘ri."
+      setPasswordError(e instanceof ApiError && e.status === 401 ? "Joriy parol noto‘g‘ri."
         : e instanceof Error ? e.message : "Parol o‘zgartirilmadi.");
-    } finally { inFlight.current = false; setBusy(false); }
+    } finally { passwordInFlight.current = false; setPasswordBusy(false); }
   }
 
   return <Card className={styles.section}>
-    <div className={pageStyles.sectionHeading}><h2>Parolni o‘zgartirish</h2></div>
-    {done ? (
-      <Alert variant="success">Parol o‘zgartirildi. Qayta kirishingiz kerak bo‘ladi…</Alert>
-    ) : (
-      <form onSubmit={submit} className={styles.formGrid}>
-        <Field label="Joriy parol" htmlFor="profile-old-password">
-          <PasswordInput id="profile-old-password" required autoComplete="current-password" value={oldPassword} disabled={busy}
-            onChange={e => setOldPassword(e.target.value)} />
+    <div className={pageStyles.sectionHeading}><h2>Hisob</h2></div>
+    <div className={styles.twoCol}>
+      <form onSubmit={submitUsername} className={styles.formGrid}>
+        <h3 className={styles.subHeading}>Login</h3>
+        <Field label="Yangi login" htmlFor="profile-username" hint="3-64 kichik lotin harfi, son, _ . -">
+          <Input id="profile-username" required minLength={3} maxLength={64} pattern="[a-z0-9][a-z0-9_.-]{2,63}"
+            value={username} disabled={userBusy} onChange={e => setUsername(e.target.value)} />
         </Field>
-        <Field label="Yangi parol" htmlFor="profile-new-password" hint="Kamida 8 belgi.">
-          <PasswordInput id="profile-new-password" required autoComplete="new-password" value={newPassword} disabled={busy}
-            onChange={e => setNewPassword(e.target.value)} />
-        </Field>
-        <Field label="Yangi parolni takrorlang" htmlFor="profile-confirm-password">
-          <PasswordInput id="profile-confirm-password" required autoComplete="new-password" value={confirmPassword} disabled={busy}
-            onChange={e => setConfirmPassword(e.target.value)} />
-        </Field>
-
-        <Pop show={!!error}>{error && <Alert variant="error">{error}</Alert>}</Pop>
-
+        <Pop show={!!userError}>{userError && <Alert variant="error">{userError}</Alert>}</Pop>
+        <Pop show={userSaved}>{userSaved && <Alert variant="success">Login o‘zgartirildi.</Alert>}</Pop>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <Button type="submit" icon={<IconKey />} loading={busy}
-            disabled={!oldPassword || !newPassword || !confirmPassword}>Parolni o‘zgartirish</Button>
+          <Button type="submit" loading={userBusy} disabled={!username.trim() || unchangedUsername}>Saqlash</Button>
         </div>
       </form>
-    )}
+
+      <form onSubmit={submitPassword} className={styles.formGrid}>
+        <h3 className={styles.subHeading}>Parol</h3>
+        {passwordDone ? (
+          <Alert variant="success">Parol o‘zgartirildi. Qayta kirishingiz kerak bo‘ladi…</Alert>
+        ) : (<>
+          <Field label="Joriy parol" htmlFor="profile-old-password">
+            <PasswordInput id="profile-old-password" required autoComplete="current-password" value={oldPassword} disabled={passwordBusy}
+              onChange={e => setOldPassword(e.target.value)} />
+          </Field>
+          <Field label="Yangi parol" htmlFor="profile-new-password" hint="Kamida 8 belgi.">
+            <PasswordInput id="profile-new-password" required autoComplete="new-password" value={newPassword} disabled={passwordBusy}
+              onChange={e => setNewPassword(e.target.value)} />
+          </Field>
+          <Field label="Yangi parolni takrorlang" htmlFor="profile-confirm-password">
+            <PasswordInput id="profile-confirm-password" required autoComplete="new-password" value={confirmPassword} disabled={passwordBusy}
+              onChange={e => setConfirmPassword(e.target.value)} />
+          </Field>
+          <Pop show={!!passwordError}>{passwordError && <Alert variant="error">{passwordError}</Alert>}</Pop>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <Button type="submit" icon={<IconKey />} loading={passwordBusy}
+              disabled={!oldPassword || !newPassword || !confirmPassword}>Parolni o‘zgartirish</Button>
+          </div>
+        </>)}
+      </form>
+    </div>
   </Card>;
 }
 
