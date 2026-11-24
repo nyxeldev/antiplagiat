@@ -1374,6 +1374,42 @@ class CorpusModerationTests(CorpusFixture, unittest.TestCase):
                 corpus_api.detail(Request(self.scope("GET", f"/corpus/documents/{stored['id']}")), stored["id"])
         self.assertEqual(raised.exception.status, 403)
 
+    def cancel_as(self, role, user_id, document_id):
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(user_id), "role": role, "can_submit_to_corpus": True}):
+            return corpus_api.cancel_submission(
+                Request(self.scope("POST", f"/corpus/submissions/{document_id}/cancel")), document_id)
+
+    def test_teacher_can_cancel_own_pending_submission(self):
+        stored = self.payload(self.submit_as("ustoz", self.user_id,
+            self.unique("Bekor qilinadigan taklifning matni namunasi")))
+        cancelled = self.payload(self.cancel_as("ustoz", self.user_id, stored["id"]))
+        self.assertEqual(cancelled["status"], "withdrawn")
+        with persistence.database(self.admin) as conn:
+            row = conn.execute("SELECT status,extracted_text FROM antiplagiat.corpus_documents WHERE id=%s",
+                               (stored["id"],)).fetchone()
+        self.assertEqual(row["status"], "withdrawn")
+        self.assertIsNone(row["extracted_text"])
+
+    def test_teacher_cannot_cancel_another_teachers_pending_submission(self):
+        other_id = manage.create_user(self.admin, "corpus.cancel.other." + uuid.uuid4().hex[:8],
+                                      secrets.token_urlsafe(24))
+        stored = self.payload(self.submit_as("ustoz", self.user_id,
+            self.unique("Boshqa ustozga tegishli taklif matni namunasi")))
+        with self.assertRaises(corpus.CorpusError) as raised:
+            self.cancel_as("ustoz", other_id, stored["id"])
+        self.assertEqual(raised.exception.status, 404)
+
+    def test_teacher_cannot_cancel_an_already_reviewed_submission(self):
+        stored = self.payload(self.submit_as("ustoz", self.user_id,
+            self.unique("Allaqachon korib chiqilgan taklif matni namunasi")))
+        with patch.object(corpus_api.auth, "require_user",
+                          return_value={"id": str(self.admin_id), "role": "admin"}):
+            corpus_api.approve(Request(self.scope("POST", "/corpus/documents")), stored["id"])
+        with self.assertRaises(corpus.CorpusError) as raised:
+            self.cancel_as("ustoz", self.user_id, stored["id"])
+        self.assertEqual(raised.exception.status, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

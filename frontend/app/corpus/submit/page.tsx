@@ -2,9 +2,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../../lib/client-api";
 import { useSessionExpired, useUser } from "../../account-shell";
-import { IconUpload } from "../../icons";
+import { IconTrash, IconUpload } from "../../icons";
 import { Pop, Rise } from "../../motion";
-import { Alert, Badge, Button, Card, EmptyState, Field, Input, Pagination, Select, Skeleton } from "../../ui/primitives";
+import { Alert, Badge, Button, Card, EmptyState, Field, IconButton, Input, Pagination, Select, Skeleton } from "../../ui/primitives";
+import { ConfirmDialog } from "../../ui/Dialog";
 import { Dropzone } from "../../ui/Dropzone";
 import { FileItem } from "../../ui/FileItem";
 import corpusStyles from "../corpus.module.css";
@@ -51,6 +52,8 @@ export default function SubmitCorpusDocument() {
   const [version, setVersion] = useState(0);
   const [data, setData] = useState<{ items: Submission[]; has_next: boolean } | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<Submission | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
 
   useEffect(() => {
     if (!allowed) return;
@@ -87,6 +90,16 @@ export default function SubmitCorpusDocument() {
       if (e instanceof ApiError && e.status === 401) expired();
       else setFormError(e instanceof Error && e.name !== "TimeoutError" ? e.message : "Vaqt tugadi. Qayta urinib ko‘ring.");
     } finally { inFlight.current = false; setBusy(false); }
+  }
+
+  async function cancel(item: Submission) {
+    setCancelBusy(true); setListError(null);
+    try {
+      await api(`/corpus/submissions/${item.id}/cancel`, { method: "POST" });
+      setCancelling(null); setData(null); setVersion(v => v + 1);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) expired(); else setListError(e instanceof Error ? e.message : "Bekor qilib bo‘lmadi.");
+    } finally { setCancelBusy(false); }
   }
 
   if (!user) return null;
@@ -153,13 +166,25 @@ export default function SubmitCorpusDocument() {
                     <Alert variant="warning" compact>{item.rejection_reason}</Alert>
                   )}
                 </div>
-                <Badge variant={item.review_status === "rejected" ? "danger" : item.review_status === "pending" ? "cyan" : "accent"}>
-                  {REVIEW_STATUS_LABEL[item.review_status] ?? item.review_status}
-                </Badge>
+                <div className={styles.itemActions}>
+                  {item.status === "withdrawn" && item.review_status === "pending"
+                    ? <Badge variant="neutral">Bekor qilingan</Badge>
+                    : <Badge variant={item.review_status === "rejected" ? "danger" : item.review_status === "pending" ? "cyan" : "accent"}>
+                        {REVIEW_STATUS_LABEL[item.review_status] ?? item.review_status}
+                      </Badge>}
+                  {item.status === "active" && item.review_status === "pending" && (
+                    <IconButton label={`“${item.title}” taklifini bekor qilish`} icon={<IconTrash />}
+                      onClick={() => setCancelling(item)} />
+                  )}
+                </div>
               </div>
             ))}
           </div>)}
       {data && data.items.length > 0 && <Pagination page={page} hasNext={data.has_next} onChange={next => { setData(null); setPage(next); }} />}
     </Card>
+
+    <ConfirmDialog open={!!cancelling} onClose={() => setCancelling(null)} onConfirm={() => cancelling && cancel(cancelling)}
+      title="Taklifni bekor qilish" confirmLabel="Bekor qilish" busy={cancelBusy}
+      description={cancelling && <>“{cancelling.title}” taklifi bekor qilinadi va uning matni butunlay o‘chiriladi. Bu amalni qaytarib bo‘lmaydi.</>} />
   </Rise>;
 }

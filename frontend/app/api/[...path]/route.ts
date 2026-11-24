@@ -13,6 +13,7 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
     (request.method === "POST" && (["/auth/login", "/auth/logout", "/corpus/documents", "/corpus/submissions",
         "/admin/users", "/admin/kafedra"].includes(target) ||
       /^\/corpus\/documents\/[0-9a-f-]{36}\/(withdraw|approve|reject)$/i.test(target) ||
+      /^\/corpus\/submissions\/[0-9a-f-]{36}\/cancel$/i.test(target) ||
       /^\/users\/[0-9a-f-]{36}\/corpus-submission-access$/i.test(target) ||
       /^\/admin\/users\/[0-9a-f-]{36}\/(role|kafedra)$/i.test(target))) ||
     (request.method === "DELETE" && /^\/reports\/[0-9a-f-]{36}$/i.test(target));

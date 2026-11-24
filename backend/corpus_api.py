@@ -219,6 +219,18 @@ def my_submissions(request: Request, page: int = 1):
     return JSONResponse(corpus.list_documents(page, "all", uploaded_by=teacher["id"]), headers=HEADERS)
 
 
+@router.post("/corpus/submissions/{document_id}/cancel")
+def cancel_submission(request: Request, document_id: str):
+    """A teacher cancelling their own still-pending submission -- roles-phase1
+    Sect.22. Once a manager has approved/rejected it, this 404s the same as a
+    missing id (use withdraw()/reject() through the moderation queue instead).
+    """
+    teacher = auth.require_teacher(request)
+    rate_limit.enforce(teacher["id"], "corpus")
+    return JSONResponse(corpus.withdraw(document_id, scope_owner=teacher["id"], scope_pending_only=True),
+                        headers=HEADERS)
+
+
 @router.get("/corpus/documents")
 def listing(request: Request, page: int = 1, status: str = "active", review_status: str | None = None):
     manager = auth.require_corpus_manager(request)

@@ -4,6 +4,7 @@
   padding: var(--sp-4); border-radius: var(--r-md); border: 1px solid var(--line-dark);
 }
 .itemMain { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.itemActions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
 .itemTitle { font-weight: 650; overflow-wrap: anywhere; }
 .itemMeta { color: var(--ink-on-dark-faint); font-size: var(--fs-sm); }
 

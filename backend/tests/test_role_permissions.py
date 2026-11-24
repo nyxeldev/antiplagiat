@@ -33,6 +33,7 @@ ENDPOINTS = [
     ("POST", "/corpus/documents/{document_id}/reject", "require_corpus_manager"),
     ("POST", "/corpus/submissions", "require_teacher"),
     ("GET", "/corpus/submissions", "require_teacher"),
+    ("POST", "/corpus/submissions/{document_id}/cancel", "require_teacher"),
     ("POST", "/users/{user_id}/corpus-submission-access", "require_admin"),
     ("GET", "/admin/users", "require_admin"),
     ("POST", "/admin/users", "require_admin"),
