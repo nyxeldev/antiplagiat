@@ -22,7 +22,7 @@ from backend.persistence import ServiceError, database
 # Restored for production (2026-11-09, FAZA 4; see docs/decisions.md Sect.13
 # for why 12 and not the more common 8). The 2026-10 value of 4 was a local
 # development-only convenience and is no longer in effect for new accounts.
-MIN_PASSWORD_CHARS = 12
+MIN_PASSWORD_CHARS = 8
 MAX_PASSWORD_CHARS = 256
 
 
@@ -155,6 +155,14 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
              "AND table_name='corpus_documents' AND column_name='kafedra_id') AS present"),
             ("corpus_documents_kafedra_index", "SELECT to_regclass('antiplagiat.corpus_documents_kafedra') IS NOT NULL AS present"),
         ],
+        "010_profile_self_service": [
+            ("users_full_name_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='users' AND column_name='full_name') AS present"),
+            ("users_avatar_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='users' AND column_name='avatar') AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:
@@ -188,7 +196,12 @@ def prompt_database():
     return config
 
 
-def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=None):
+def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=None, grants=True):
+    """grants=False skips the fixed runtime-privilege GRANT list below (only
+    ever used by backend/tests/test_role_migration.py's deliberately-partial
+    first migrate() call, which seeds pre-008-shaped legacy data and must not
+    try to grant on a table -- antiplagiat.kafedra -- that migration 008
+    itself hasn't created yet in that call)."""
     with database(config, diagnostic=diagnostic) as conn:
         files = migration_files(diagnostic)
         if check:
@@ -205,32 +218,58 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                 migration_step(conn, diagnostic, "migration", version, content)
                 migration_step(conn, diagnostic, "migration", "record_version", "INSERT INTO antiplagiat.schema_migrations(version, checksum) VALUES (%s,%s)",
                                (version, hashlib.sha256(content.encode()).hexdigest()))
-            ident = sql.Identifier(runtime_role)
-            for step, statement in [
-                ("schema_revoke", "REVOKE ALL ON SCHEMA antiplagiat FROM PUBLIC, {}"),
-                ("tables_revoke", "REVOKE ALL ON ALL TABLES IN SCHEMA antiplagiat FROM PUBLIC, {}"),
-                ("schema_usage", "GRANT USAGE ON SCHEMA antiplagiat TO {}"),
-                ("users_select", "GRANT SELECT ON antiplagiat.users TO {}"),
-                ("users_submission_access", "GRANT UPDATE(can_submit_to_corpus) ON antiplagiat.users TO {}"),
-                ("sessions_access", "GRANT SELECT, INSERT, DELETE ON antiplagiat.sessions TO {}"),
-                ("reports_access", "GRANT SELECT, INSERT ON antiplagiat.reports TO {}"),
-                ("reports_purge", "GRANT UPDATE(snapshot, deleted_at) ON antiplagiat.reports TO {}"),
-                ("corpus_documents_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_documents TO {}"),
-                ("corpus_documents_withdraw", "GRANT UPDATE(status, withdrawn_at, updated_at, extracted_text) ON antiplagiat.corpus_documents TO {}"),
-                ("corpus_documents_moderate", "GRANT UPDATE(review_status, rejection_reason) ON antiplagiat.corpus_documents TO {}"),
-                ("corpus_chunks_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_chunks TO {}"),
-                ("corpus_chunks_purge", "GRANT UPDATE(chunk_text, chunk_text_uz_latin_v3) ON antiplagiat.corpus_chunks TO {}"),
-                # Append-only: the running application reads its own cumulative
-                # spend and adds a new row per disclosure, never edits or deletes one.
-                ("corpus_excerpt_audit_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_excerpt_audit TO {}"),
-                ("rate_limit_counters_access", "GRANT SELECT, INSERT, UPDATE(count) ON antiplagiat.rate_limit_counters TO {}"),
-            ]:
-                migration_step(conn, diagnostic, "migration", step, sql.SQL(statement).format(ident))
-            for step, statement in [
-                ("function_revoke", "REVOKE ALL ON FUNCTION antiplagiat.guard_report() FROM PUBLIC"),
-                ("corpus_function_revoke", "REVOKE ALL ON FUNCTION antiplagiat.guard_corpus_document() FROM PUBLIC"),
-            ]:
-                migration_step(conn, diagnostic, "migration", step, statement)
+            if grants:
+                ident = sql.Identifier(runtime_role)
+                for step, statement in [
+                    ("schema_revoke", "REVOKE ALL ON SCHEMA antiplagiat FROM PUBLIC, {}"),
+                    ("tables_revoke", "REVOKE ALL ON ALL TABLES IN SCHEMA antiplagiat FROM PUBLIC, {}"),
+                    ("schema_usage", "GRANT USAGE ON SCHEMA antiplagiat TO {}"),
+                    ("users_select", "GRANT SELECT ON antiplagiat.users TO {}"),
+                    ("users_submission_access", "GRANT UPDATE(can_submit_to_corpus) ON antiplagiat.users TO {}"),
+                    # roles-phase1 3-bosqich (docs/decisions.md Sect.20): admin panel
+                    # orqali akkaunt yaratish/rol/kafedra biriktirish uchun ataylab
+                    # kengaytirilgan -- super_admin'ni man qilish DB granti emas,
+                    # ilova qatlami (auth.set_role) zimmasida.
+                    ("users_insert", "GRANT INSERT ON antiplagiat.users TO {}"),
+                    ("users_role_access", "GRANT UPDATE(role) ON antiplagiat.users TO {}"),
+                    ("users_kafedra_access", "GRANT UPDATE(kafedra_id) ON antiplagiat.users TO {}"),
+                    # roles-phase1 (docs/decisions.md Sect.23): akkaunt o'chirish/
+                    # yoqish -- o'zini o'chirishni man qilish ilova qatlamida
+                    # (auth.set_enabled), bu yerda emas.
+                    ("users_enabled_access", "GRANT UPDATE(enabled) ON antiplagiat.users TO {}"),
+                    # roles-phase1 (docs/decisions.md Sect.24): o'z-o'zidan
+                    # parol o'zgartirish -- har bir rol faqat O'Z akkauntini
+                    # (auth.change_password) yangilaydi, bu grant o'zi buni
+                    # cheklamaydi, lekin ilova qatlami cheklaydi.
+                    ("users_password_access", "GRANT UPDATE(password_hash) ON antiplagiat.users TO {}"),
+                    # roles-phase1 (docs/decisions.md Sect.25): profilni
+                    # kengaytirish -- to'liq ism, rasm va login o'zgartirish
+                    # har bir rolning o'z-o'zidan (auth.set_full_name/
+                    # set_avatar/set_username) amali, shu uch grant ularga
+                    # mos keladi.
+                    ("users_full_name_access", "GRANT UPDATE(full_name) ON antiplagiat.users TO {}"),
+                    ("users_avatar_access", "GRANT UPDATE(avatar, avatar_mime) ON antiplagiat.users TO {}"),
+                    ("users_username_access", "GRANT UPDATE(username) ON antiplagiat.users TO {}"),
+                    ("kafedra_access", "GRANT SELECT, INSERT ON antiplagiat.kafedra TO {}"),
+                    ("sessions_access", "GRANT SELECT, INSERT, DELETE ON antiplagiat.sessions TO {}"),
+                    ("reports_access", "GRANT SELECT, INSERT ON antiplagiat.reports TO {}"),
+                    ("reports_purge", "GRANT UPDATE(snapshot, deleted_at) ON antiplagiat.reports TO {}"),
+                    ("corpus_documents_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_documents TO {}"),
+                    ("corpus_documents_withdraw", "GRANT UPDATE(status, withdrawn_at, updated_at, extracted_text) ON antiplagiat.corpus_documents TO {}"),
+                    ("corpus_documents_moderate", "GRANT UPDATE(review_status, rejection_reason) ON antiplagiat.corpus_documents TO {}"),
+                    ("corpus_chunks_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_chunks TO {}"),
+                    ("corpus_chunks_purge", "GRANT UPDATE(chunk_text, chunk_text_uz_latin_v3) ON antiplagiat.corpus_chunks TO {}"),
+                    # Append-only: the running application reads its own cumulative
+                    # spend and adds a new row per disclosure, never edits or deletes one.
+                    ("corpus_excerpt_audit_access", "GRANT SELECT, INSERT ON antiplagiat.corpus_excerpt_audit TO {}"),
+                    ("rate_limit_counters_access", "GRANT SELECT, INSERT, UPDATE(count) ON antiplagiat.rate_limit_counters TO {}"),
+                ]:
+                    migration_step(conn, diagnostic, "migration", step, sql.SQL(statement).format(ident))
+                for step, statement in [
+                    ("function_revoke", "REVOKE ALL ON FUNCTION antiplagiat.guard_report() FROM PUBLIC"),
+                    ("corpus_function_revoke", "REVOKE ALL ON FUNCTION antiplagiat.guard_corpus_document() FROM PUBLIC"),
+                ]:
+                    migration_step(conn, diagnostic, "migration", step, statement)
     if check and diagnostic:
         diagnostic.mark("preflight", "check_complete")
     return len(files)
@@ -268,6 +307,23 @@ def create_user(config, username, password, role="talaba"):
                 raise UsernameTakenError("Bu login allaqachon band.") from None
             raise
     return user_id
+
+
+def search_users(config, query, limit=20):
+    """Admin panel (roles-phase1 3-bosqich, docs/decisions.md Sect.20) uchun
+    login bo'yicha qidiruv -- parol xeshi hech qachon qaytarilmaydi.
+    """
+    with database(config) as conn:
+        rows = conn.execute(
+            "SELECT u.id, u.username, u.full_name, u.role, u.can_submit_to_corpus, u.enabled,"
+            " u.kafedra_id, k.nomi AS kafedra_nomi"
+            " FROM antiplagiat.users u LEFT JOIN antiplagiat.kafedra k ON k.id = u.kafedra_id"
+            " WHERE u.username ILIKE %s ORDER BY u.username LIMIT %s",
+            (f"%{query}%", limit)).fetchall()
+    return [{"id": str(row["id"]), "username": row["username"], "full_name": row["full_name"], "role": row["role"],
+            "can_submit_to_corpus": row["can_submit_to_corpus"], "enabled": row["enabled"],
+            "kafedra_id": str(row["kafedra_id"]) if row["kafedra_id"] else None,
+            "kafedra_nomi": row["kafedra_nomi"]} for row in rows]
 
 
 def corpus_manager_user_id(config, username):

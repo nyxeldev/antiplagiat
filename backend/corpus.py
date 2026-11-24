@@ -277,12 +277,21 @@ def list_documents(page=1, status="active", config=None, *, review_status=None, 
                       for r in rows[:PAGE_SIZE]]}
 
 
-def withdraw(document_id, config=None, *, scope_active=False, scope_kafedra_id=None):
+def withdraw(document_id, config=None, *, scope_active=False, scope_kafedra_id=None,
+             scope_owner=None, scope_pending_only=False):
     """Take a document out of retrieval and purge its stored text.
 
     scope_active/scope_kafedra_id (roles-phase1 Sect.19): see manager_scope().
     A kafedra_mudiri outside the document's kafedra gets the same 404 as a
     genuinely missing id -- scoping never reveals that a document exists.
+
+    scope_owner/scope_pending_only (roles-phase1 Sect.22): a teacher
+    cancelling their OWN still-pending submission (corpus_api.py's
+    /corpus/submissions/{id}/cancel) passes scope_owner=<their id> and
+    scope_pending_only=True -- restricts this call to rows they themselves
+    uploaded AND that no manager has reviewed yet, so it can never be used
+    to pull down someone else's document or one already admitted into the
+    shared corpus.
     """
     try:
         document_id = str(uuid.UUID(str(document_id)))
@@ -292,8 +301,11 @@ def withdraw(document_id, config=None, *, scope_active=False, scope_kafedra_id=N
         row = conn.execute(
             "UPDATE antiplagiat.corpus_documents SET status='withdrawn',withdrawn_at=now(),"
             "updated_at=now(),extracted_text=NULL WHERE id=%s AND status='active'"
-            " AND (NOT %s OR kafedra_id=%s OR kafedra_id IS NULL) RETURNING id,title",
-            (document_id, scope_active, scope_kafedra_id)).fetchone()
+            " AND (NOT %s OR kafedra_id=%s OR kafedra_id IS NULL)"
+            " AND (%s::uuid IS NULL OR uploaded_by_user_id=%s)"
+            " AND (NOT %s OR review_status='pending') RETURNING id,title",
+            (document_id, scope_active, scope_kafedra_id, scope_owner, scope_owner,
+             scope_pending_only)).fetchone()
         if not row:
             raise CorpusError("corpus_not_found", "Korpus hujjati topilmadi yoki allaqachon chiqarilgan.", 404)
         conn.execute("UPDATE antiplagiat.corpus_chunks SET chunk_text='',chunk_text_uz_latin_v3=''"

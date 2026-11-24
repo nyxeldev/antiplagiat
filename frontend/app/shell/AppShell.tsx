@@ -4,8 +4,9 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, type ReactNode } from "react";
 import { Pop } from "../motion";
-import { IconDatabase, IconHistory, IconHome, IconLogout, IconMenu, IconUpload, IconUser, IconX } from "../icons";
-import { Alert, IconButton } from "../ui/primitives";
+import { useAvatarUrl } from "../use-avatar-url";
+import { IconDatabase, IconHistory, IconHome, IconKey, IconLogout, IconMenu, IconShield, IconUpload, IconUser, IconX } from "../icons";
+import { Alert, Avatar, IconButton } from "../ui/primitives";
 import styles from "./shell.module.css";
 
 const NAV = [
@@ -14,19 +15,25 @@ const NAV = [
 ];
 const CORPUS_NAV = { href: "/corpus", label: "Korpus boshqaruvi", icon: <IconDatabase /> };
 const SUBMIT_NAV = { href: "/corpus/submit", label: "Korpusga hujjat taklif qilish", icon: <IconUpload /> };
+const ADMIN_NAV = { href: "/admin", label: "Admin panel", icon: <IconShield /> };
+const PROFILE_NAV = { href: "/profile", label: "Profil", icon: <IconKey /> };
 export const CORPUS_MANAGEMENT_ROLES = new Set(["admin", "super_admin", "kafedra_mudiri"]);
+export const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 
 function titleFor(pathname: string) {
   if (pathname === "/") return "Yangi tekshiruv";
   if (pathname === "/history") return "Tekshiruvlar tarixi";
   if (pathname === "/corpus") return "Korpus boshqaruvi";
   if (pathname === "/corpus/submit") return "Korpusga hujjat taklif qilish";
+  if (pathname === "/admin") return "Admin panel";
+  if (pathname === "/profile") return "Profil";
   if (pathname.startsWith("/reports/")) return "Solishtirish hisoboti";
   return "Antiplagiat";
 }
 
-export default function AppShell({ user, onLogout, busy, error, children }: { user: { username: string; role: string; can_submit_to_corpus?: boolean }; onLogout: () => void; busy: boolean; error?: string | null; children: ReactNode }) {
+export default function AppShell({ user, onLogout, busy, error, children }: { user: { id: string; username: string; role: string; can_submit_to_corpus?: boolean; full_name?: string | null; has_avatar?: boolean; avatar_version?: number }; onLogout: () => void; busy: boolean; error?: string | null; children: ReactNode }) {
   const pathname = usePathname();
+  const avatarUrl = useAvatarUrl(user);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerPathname, setDrawerPathname] = useState(pathname);
   if (pathname !== drawerPathname) { setDrawerPathname(pathname); setDrawerOpen(false); }
@@ -34,7 +41,9 @@ export default function AppShell({ user, onLogout, busy, error, children }: { us
   // otherwise -- corpus/submit/page.tsx enforces the same check again itself,
   // since a hidden nav link is not an access control.
   const items = CORPUS_MANAGEMENT_ROLES.has(user.role) ? [...NAV, CORPUS_NAV]
-    : user.role === "ustoz" && user.can_submit_to_corpus ? [...NAV, SUBMIT_NAV] : NAV;
+    : user.role === "ustoz" && user.can_submit_to_corpus ? [...NAV, SUBMIT_NAV] : [...NAV];
+  if (ADMIN_ROLES.has(user.role)) items.push(ADMIN_NAV);
+  items.push(PROFILE_NAV);
 
   const nav = (
     <>
@@ -51,8 +60,8 @@ export default function AppShell({ user, onLogout, busy, error, children }: { us
       </nav>
       <div className={styles.spacer} />
       <div className={styles.userCard}>
-        <span className={styles.userAvatar} aria-hidden="true"><IconUser /></span>
-        <span className={styles.userName}>{user.username}</span>
+        <Avatar className={styles.userAvatar} size="2.25rem" src={avatarUrl} fallback={<IconUser />} />
+        <span className={styles.userName}>{user.full_name || user.username}</span>
         <IconButton label="Chiqish" icon={<IconLogout />} onClick={onLogout} disabled={busy} />
       </div>
     </>

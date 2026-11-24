@@ -20,6 +20,14 @@ ROLES = ("talaba", "ustoz", "kafedra_mudiri", "admin", "super_admin")
 # (method, path, guard attribute name on backend.auth)
 ENDPOINTS = [
     ("GET", "/auth/me", "require_user"),
+    ("POST", "/auth/change-password", "require_user"),
+    ("POST", "/auth/full-name", "require_user"),
+    ("POST", "/auth/username", "require_user"),
+    ("POST", "/auth/avatar", "require_user"),
+    ("DELETE", "/auth/avatar", "require_user"),
+    ("GET", "/auth/avatar/{user_id}", "require_user"),
+    ("GET", "/auth/sessions", "require_user"),
+    ("POST", "/auth/sessions/revoke-others", "require_user"),
     ("POST", "/auth/logout", "require_user"),
     ("GET", "/reports", "require_user"),
     ("GET", "/reports/{report_id}", "require_user"),
@@ -33,7 +41,15 @@ ENDPOINTS = [
     ("POST", "/corpus/documents/{document_id}/reject", "require_corpus_manager"),
     ("POST", "/corpus/submissions", "require_teacher"),
     ("GET", "/corpus/submissions", "require_teacher"),
+    ("POST", "/corpus/submissions/{document_id}/cancel", "require_teacher"),
     ("POST", "/users/{user_id}/corpus-submission-access", "require_admin"),
+    ("GET", "/admin/users", "require_admin"),
+    ("POST", "/admin/users", "require_admin"),
+    ("POST", "/admin/users/{user_id}/role", "require_admin"),
+    ("POST", "/admin/users/{user_id}/kafedra", "require_admin"),
+    ("POST", "/admin/users/{user_id}/enabled", "require_admin"),
+    ("GET", "/admin/kafedra", "require_admin"),
+    ("POST", "/admin/kafedra", "require_admin"),
 ]
 
 

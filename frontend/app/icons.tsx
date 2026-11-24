@@ -34,3 +34,6 @@ export const IconLoader = (p: IconProps) => <svg {...base} {...p}><path d="M12 3
 export const IconSparkle = (p: IconProps) => <svg {...base} {...p}><path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z" /></svg>;
 export const IconPlus = (p: IconProps) => <svg {...base} {...p}><path d="M12 5v14M5 12h14" /></svg>;
 export const IconCloud = (p: IconProps) => <svg {...base} {...p}><path d="M7 18h11a4 4 0 0 0 .5-7.97A6 6 0 0 0 7.1 11.1 4.5 4.5 0 0 0 7 18Z" /></svg>;
+export const IconShield = (p: IconProps) => <svg {...base} {...p}><path d="M12 3l8 3v6c0 5-3.5 7.8-8 9-4.5-1.2-8-4-8-9V6l8-3Z" /><path d="M9 12l2 2 4-4.5" /></svg>;
+export const IconKey = (p: IconProps) => <svg {...base} {...p}><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M16 5l3 3M14 7l2.5 2.5" /></svg>;
+export const IconMonitor = (p: IconProps) => <svg {...base} {...p}><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>;

@@ -50,7 +50,10 @@ class RoleMigrationMappingTests(unittest.TestCase):
         cls.admin, cls.runtime = cls.cluster.__enter__()
         cls.addClassCleanup(cls.cluster.__exit__, None, None, None)
         with patch.object(manage, "migration_files", side_effect=lambda diagnostic=None: _files_before_008()):
-            manage.migrate(cls.admin)
+            # grants=False: the fixed runtime-grant list assumes the FULL
+            # current schema (it now grants on antiplagiat.kafedra, which
+            # only migration 008 -- deliberately excluded here -- creates).
+            manage.migrate(cls.admin, grants=False)
         cls.ids = {}
         with persistence.database(cls.admin) as conn:
             for username, (role, flag) in LEGACY_ACCOUNTS.items():

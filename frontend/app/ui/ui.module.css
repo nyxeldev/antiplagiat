@@ -124,6 +124,15 @@
 .onLight .skeleton::after { background: linear-gradient(90deg, transparent, rgba(16,24,39,0.06), transparent); }
 @keyframes shimmer { 100% { transform: translateX(100%); } }
 
+/* ---------- Avatar -------------------------------------------------------------- */
+.avatar {
+  display: grid; place-items: center; border-radius: 999px; background: var(--bg-3); color: var(--ink-on-dark-muted);
+  flex: none; overflow: hidden;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar svg { width: 55%; height: 55%; }
+.onLight .avatar { background: var(--paper-2); color: var(--ink-on-light-muted); }
+
 /* ---------- Pagination -------------------------------------------------------- */
 .pagination { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); margin-top: var(--sp-6); }
 .pagination span { font-size: var(--fs-sm); color: var(--ink-on-dark-muted); font-variant-numeric: tabular-nums; }

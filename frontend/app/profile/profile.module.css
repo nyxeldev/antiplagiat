@@ -1,0 +1,22 @@
+.formGrid { display: flex; flex-direction: column; gap: var(--sp-4); }
+.inlineForm { display: flex; flex-direction: column; gap: var(--sp-4); max-width: 24rem; margin-top: var(--sp-5); }
+
+.identity { display: flex; align-items: center; gap: var(--sp-4); }
+.identity p { margin: 0.1rem 0; }
+
+.divider { margin-top: var(--sp-6); padding-top: var(--sp-6); border-top: 1px solid var(--line-dark); }
+.subHeading { margin: 0 0 var(--sp-3); font-size: var(--fs-md); font-weight: 650; color: var(--ink-on-dark); }
+.subHeadingRow { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-4); flex-wrap: wrap; margin: 0 0 var(--sp-3); }
+.subHeadingRow h3 { margin: 0; font-size: var(--fs-md); font-weight: 650; color: var(--ink-on-dark); }
+
+.avatarActions { display: flex; flex-direction: column; gap: var(--sp-3); max-width: 24rem; }
+
+.twoCol { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--sp-6); }
+
+.sessionList { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-4); }
+.sessionItem {
+  display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md); border: 1px solid var(--line-dark-strong);
+}
+.sessionItem svg { width: 1.3rem; height: 1.3rem; color: var(--ink-on-dark-faint); flex: none; }
+.sessionMeta { flex: 1; min-width: 0; font-size: var(--fs-sm); }
