@@ -4,8 +4,9 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, type ReactNode } from "react";
 import { Pop } from "../motion";
+import { useAvatarUrl } from "../use-avatar-url";
 import { IconDatabase, IconHistory, IconHome, IconKey, IconLogout, IconMenu, IconShield, IconUpload, IconUser, IconX } from "../icons";
-import { Alert, IconButton } from "../ui/primitives";
+import { Alert, Avatar, IconButton } from "../ui/primitives";
 import styles from "./shell.module.css";
 
 const NAV = [
@@ -30,8 +31,9 @@ function titleFor(pathname: string) {
   return "Antiplagiat";
 }
 
-export default function AppShell({ user, onLogout, busy, error, children }: { user: { username: string; role: string; can_submit_to_corpus?: boolean }; onLogout: () => void; busy: boolean; error?: string | null; children: ReactNode }) {
+export default function AppShell({ user, onLogout, busy, error, children }: { user: { id: string; username: string; role: string; can_submit_to_corpus?: boolean; full_name?: string | null; has_avatar?: boolean; avatar_version?: number }; onLogout: () => void; busy: boolean; error?: string | null; children: ReactNode }) {
   const pathname = usePathname();
+  const avatarUrl = useAvatarUrl(user);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerPathname, setDrawerPathname] = useState(pathname);
   if (pathname !== drawerPathname) { setDrawerPathname(pathname); setDrawerOpen(false); }
@@ -58,8 +60,8 @@ export default function AppShell({ user, onLogout, busy, error, children }: { us
       </nav>
       <div className={styles.spacer} />
       <div className={styles.userCard}>
-        <span className={styles.userAvatar} aria-hidden="true"><IconUser /></span>
-        <span className={styles.userName}>{user.username}</span>
+        <Avatar className={styles.userAvatar} size="2.25rem" src={avatarUrl} fallback={<IconUser />} />
+        <span className={styles.userName}>{user.full_name || user.username}</span>
         <IconButton label="Chiqish" icon={<IconLogout />} onClick={onLogout} disabled={busy} />
       </div>
     </>

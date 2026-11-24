@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 
 const MAX_UPLOAD = 30 * 1024 * 1024 + 64 * 1024;
 const MAX_CORPUS_UPLOAD = 10 * 1024 * 1024 + 64 * 1024;
+const MAX_AVATAR_UPLOAD = 1024 * 1024 + 64 * 1024;
+const AVATAR_GET_PATTERN = /^\/auth\/avatar\/[0-9a-f-]{36}$/i;
 function error(message: string, status: number) {
   return Response.json({ error: { message } }, { status, headers: { "Cache-Control": "no-store" } });
 }
@@ -21,7 +23,8 @@ export async function proxy(request: NextRequest, path: string) {
   // Teacher submissions go through the same CorpusUpload parser as a direct
   // admin add, so they need the same budget.
   const limit = path === "/compare" ? MAX_UPLOAD
-    : (path === "/corpus/documents" || path === "/corpus/submissions") ? MAX_CORPUS_UPLOAD : 8192;
+    : (path === "/corpus/documents" || path === "/corpus/submissions") ? MAX_CORPUS_UPLOAD
+    : path === "/auth/avatar" ? MAX_AVATAR_UPLOAD : 8192;
   const length = Number(request.headers.get("content-length") ?? "0");
   if (!Number.isFinite(length) || length < 0 || length > limit) return error("So‘rov hajmi chegaradan oshdi.", 413);
   const type = request.headers.get("content-type") ?? "";
@@ -75,7 +78,15 @@ export async function proxy(request: NextRequest, path: string) {
       url.search = `include_corpus=true${allowed ? `&normalization=${allowed}` : ""}`;
     }
     const response = await fetch(url, options);
-    const outgoing = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    // GET /auth/avatar/{id} is the one route that answers with raw image
+    // bytes, not JSON -- forward the backend's own Content-Type for it (only
+    // on success; a 404 there is still the usual JSON error body).
+    const passthroughImage = request.method === "GET" && response.ok && AVATAR_GET_PATTERN.test(path);
+    const outgoing = new Headers({
+      "Content-Type": passthroughImage ? (response.headers.get("content-type") ?? "application/octet-stream")
+        : "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
     for (const value of response.headers.getSetCookie()) outgoing.append("Set-Cookie", value);
     return new Response(response.body, { status: response.status, headers: outgoing });
   } catch {

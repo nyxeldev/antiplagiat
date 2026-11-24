@@ -155,6 +155,14 @@ def migration_preflight(conn, runtime_role, files, diagnostic):
              "AND table_name='corpus_documents' AND column_name='kafedra_id') AS present"),
             ("corpus_documents_kafedra_index", "SELECT to_regclass('antiplagiat.corpus_documents_kafedra') IS NOT NULL AS present"),
         ],
+        "010_profile_self_service": [
+            ("users_full_name_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='users' AND column_name='full_name') AS present"),
+            ("users_avatar_column",
+             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='antiplagiat' "
+             "AND table_name='users' AND column_name='avatar') AS present"),
+        ],
     }
     for version, probes in pending_objects.items():
         if version not in known or version in applied:
@@ -234,6 +242,14 @@ def migrate(config, runtime_role="antiplagiat_app", *, check=False, diagnostic=N
                     # (auth.change_password) yangilaydi, bu grant o'zi buni
                     # cheklamaydi, lekin ilova qatlami cheklaydi.
                     ("users_password_access", "GRANT UPDATE(password_hash) ON antiplagiat.users TO {}"),
+                    # roles-phase1 (docs/decisions.md Sect.25): profilni
+                    # kengaytirish -- to'liq ism, rasm va login o'zgartirish
+                    # har bir rolning o'z-o'zidan (auth.set_full_name/
+                    # set_avatar/set_username) amali, shu uch grant ularga
+                    # mos keladi.
+                    ("users_full_name_access", "GRANT UPDATE(full_name) ON antiplagiat.users TO {}"),
+                    ("users_avatar_access", "GRANT UPDATE(avatar, avatar_mime) ON antiplagiat.users TO {}"),
+                    ("users_username_access", "GRANT UPDATE(username) ON antiplagiat.users TO {}"),
                     ("kafedra_access", "GRANT SELECT, INSERT ON antiplagiat.kafedra TO {}"),
                     ("sessions_access", "GRANT SELECT, INSERT, DELETE ON antiplagiat.sessions TO {}"),
                     ("reports_access", "GRANT SELECT, INSERT ON antiplagiat.reports TO {}"),
@@ -299,12 +315,12 @@ def search_users(config, query, limit=20):
     """
     with database(config) as conn:
         rows = conn.execute(
-            "SELECT u.id, u.username, u.role, u.can_submit_to_corpus, u.enabled,"
+            "SELECT u.id, u.username, u.full_name, u.role, u.can_submit_to_corpus, u.enabled,"
             " u.kafedra_id, k.nomi AS kafedra_nomi"
             " FROM antiplagiat.users u LEFT JOIN antiplagiat.kafedra k ON k.id = u.kafedra_id"
             " WHERE u.username ILIKE %s ORDER BY u.username LIMIT %s",
             (f"%{query}%", limit)).fetchall()
-    return [{"id": str(row["id"]), "username": row["username"], "role": row["role"],
+    return [{"id": str(row["id"]), "username": row["username"], "full_name": row["full_name"], "role": row["role"],
             "can_submit_to_corpus": row["can_submit_to_corpus"], "enabled": row["enabled"],
             "kafedra_id": str(row["kafedra_id"]) if row["kafedra_id"] else None,
             "kafedra_nomi": row["kafedra_nomi"]} for row in rows]

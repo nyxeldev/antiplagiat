@@ -17,7 +17,7 @@ const ASSIGNABLE_ROLES = ["talaba", "ustoz", "kafedra_mudiri", "admin"];
 const UNASSIGNED = "";
 
 type AdminUser = {
-  id: string; username: string; role: string; can_submit_to_corpus: boolean; enabled: boolean;
+  id: string; username: string; full_name: string | null; role: string; can_submit_to_corpus: boolean; enabled: boolean;
   kafedra_id: string | null; kafedra_nomi: string | null;
 };
 type Kafedra = { id: string; nomi: string; qisqa_kodi: string; created_at: string };
@@ -125,7 +125,10 @@ export default function AdminPanel() {
                 const busy = busyIds.has(row.id);
                 const isSelf = row.id === user.id;
                 return <div key={row.id} className={styles.row}>
-                  <div className={styles.username}>{row.username}</div>
+                  <div className={styles.username}>
+                    {row.username}
+                    {row.full_name && <div className={styles.meta}>{row.full_name}</div>}
+                  </div>
                   {row.role === "super_admin" ? <Badge variant="accent">{ROLE_LABEL.super_admin}</Badge> : (
                     <Select className={styles.select} aria-label={`${row.username} roli`} value={row.role} disabled={busy}
                       onChange={e => changeRole(row, e.target.value)}>

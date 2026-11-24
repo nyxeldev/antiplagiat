@@ -4,6 +4,7 @@ import re
 import secrets
 import threading
 import time
+import unicodedata
 import uuid
 from collections import deque
 from datetime import timedelta
@@ -11,11 +12,16 @@ from urllib.parse import urlsplit
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
+from psycopg.errors import UniqueViolation
 
 from backend.persistence import ServiceError, database
 
 COOKIE = "antiplagiat_session"
 SESSION_SECONDS = 8 * 60 * 60
+# roles-phase1 (docs/decisions.md Sect.25): profil rasmi. Qayta kodlash/resize
+# yo'q (Pillow ataylab qo'shilmagan) -- shu sababli qattiq, kichik hajm
+# chegarasi birinchi himoya qatlami.
+MAX_AVATAR_BYTES = 1024 * 1024
 HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
 DUMMY_HASH = HASHER.hash(secrets.token_urlsafe(32))
 LOGIN_LIMIT = 10
@@ -334,3 +340,168 @@ def logout(request):
     require_user(request)
     with database() as conn:
         conn.execute("DELETE FROM antiplagiat.sessions WHERE token_hash=%s", (token_hash(request.cookies[COOKIE]),))
+
+
+def get_profile(user_id, config=None):
+    """Full self-profile for GET /auth/me (roles-phase1 Sect.25) -- heavier
+    than require_user()'s per-request check (one extra kafedra join), so it
+    is deliberately NOT used for require_user's own hot-path query, only for
+    the one-off "who am I, in full" read the profile page needs.
+    """
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404) from None
+    with database(config) as conn:
+        row = conn.execute(
+            "SELECT u.id, u.username, u.role, u.can_submit_to_corpus, u.kafedra_id, u.full_name,"
+            " u.created_at, (u.avatar IS NOT NULL) AS has_avatar, k.nomi AS kafedra_nomi"
+            " FROM antiplagiat.users u LEFT JOIN antiplagiat.kafedra k ON k.id = u.kafedra_id"
+            " WHERE u.id=%s", (user_id,)).fetchone()
+    if not row:
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404)
+    return {"id": str(row["id"]), "username": row["username"], "role": row["role"],
+           "can_submit_to_corpus": row["can_submit_to_corpus"],
+           "kafedra_id": str(row["kafedra_id"]) if row["kafedra_id"] else None,
+           "kafedra_nomi": row["kafedra_nomi"], "full_name": row["full_name"],
+           "created_at": row["created_at"].isoformat(), "has_avatar": row["has_avatar"]}
+
+
+def set_full_name(user_id, full_name, config=None):
+    """Self-service full-name edit (roles-phase1 Sect.25). An empty/blank
+    value CLEARS the name (full_name=NULL) rather than being refused -- a
+    user who set a name and changed their mind should be able to go back to
+    plain username display without typing a placeholder.
+    """
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404) from None
+    if not isinstance(full_name, str):
+        raise ServiceError("validation_error", "full_name satr bo‘lishi kerak.", 400)
+    cleaned = full_name.strip()
+    if cleaned and any(unicodedata.category(c).startswith("C") for c in cleaned):
+        raise ServiceError("validation_error", "To‘liq ism boshqaruv belgilarini o‘z ichiga ololmaydi.", 400)
+    if cleaned and not 1 <= len(cleaned) <= 120:
+        raise ServiceError("validation_error", "To‘liq ism 1-120 belgi bo‘lishi kerak.", 400)
+    with database(config) as conn:
+        row = conn.execute("UPDATE antiplagiat.users SET full_name=%s WHERE id=%s RETURNING id,full_name",
+                           (cleaned or None, user_id)).fetchone()
+    if not row:
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404)
+    return {"id": str(row["id"]), "full_name": row["full_name"]}
+
+
+def set_username(user_id, new_username, config=None):
+    """Self-service login (username) change (roles-phase1 Sect.25). Same
+    valid_username() shape as account creation and the DB CHECK constraint.
+    A taken login is a clean 409, caught inside the transaction exactly like
+    manage.py's create_user() catches the same UniqueViolation -- it must be
+    turned into a non-psycopg.Error here, or persistence.database() would
+    otherwise flatten it into an opaque "database unavailable" 503.
+    """
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404) from None
+    if not valid_username(new_username):
+        raise ServiceError("validation_error", "Login: 3-64 kichik lotin harfi/son/_.- bo‘lishi kerak.", 400)
+    with database(config) as conn:
+        try:
+            row = conn.execute("UPDATE antiplagiat.users SET username=%s WHERE id=%s RETURNING id,username",
+                               (new_username, user_id)).fetchone()
+        except UniqueViolation:
+            raise ServiceError("validation_error", "Bu login allaqachon band.", 409) from None
+    if not row:
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404)
+    return {"id": str(row["id"]), "username": row["username"]}
+
+
+def _sniff_image_mime(raw):
+    """No Pillow (docs/decisions.md Sect.25): a cheap magic-byte check rather
+    than a real decode. This only rejects obviously-wrong content; it is not
+    a substitute for the browser-side X-Content-Type-Options: nosniff header
+    that get_avatar's caller sets when serving the bytes back.
+    """
+    if raw[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if raw[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def set_avatar(user_id, raw, config=None):
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404) from None
+    if not raw or len(raw) > MAX_AVATAR_BYTES:
+        raise ServiceError("file_limit", "Rasm 1 MiB dan oshmasligi kerak.", 413)
+    mime = _sniff_image_mime(bytes(raw))
+    if not mime:
+        raise ServiceError("unsupported", "Faqat PNG, JPEG yoki WEBP rasm qabul qilinadi.", 415)
+    with database(config) as conn:
+        row = conn.execute("UPDATE antiplagiat.users SET avatar=%s, avatar_mime=%s WHERE id=%s RETURNING id",
+                           (raw, mime, user_id)).fetchone()
+    if not row:
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404)
+    return {"status": "updated", "has_avatar": True}
+
+
+def clear_avatar(user_id, config=None):
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404) from None
+    with database(config) as conn:
+        row = conn.execute("UPDATE antiplagiat.users SET avatar=NULL, avatar_mime=NULL WHERE id=%s RETURNING id",
+                           (user_id,)).fetchone()
+    if not row:
+        raise ServiceError("not_found", "Foydalanuvchi topilmadi.", 404)
+    return {"status": "cleared", "has_avatar": False}
+
+
+def get_avatar(user_id, config=None):
+    """Returns (raw_bytes, mime). Deliberately the SAME 404 whether the
+    account does not exist or simply has no avatar set -- the existing
+    no-existence-leak pattern (see set_kafedra's docstring) applied here so a
+    random uuid cannot be used to probe which accounts exist.
+    """
+    try:
+        user_id = str(uuid.UUID(str(user_id)))
+    except (ValueError, TypeError, AttributeError):
+        raise ServiceError("not_found", "Rasm topilmadi.", 404) from None
+    with database(config) as conn:
+        row = conn.execute("SELECT avatar, avatar_mime FROM antiplagiat.users WHERE id=%s", (user_id,)).fetchone()
+    if not row or row["avatar"] is None:
+        raise ServiceError("not_found", "Rasm topilmadi.", 404)
+    return bytes(row["avatar"]), row["avatar_mime"]
+
+
+def list_sessions(user_id, current_token, config=None):
+    """Self-service "where am I logged in" (roles-phase1 Sect.25). token_hash
+    is never returned to the client -- only a per-row is_current flag,
+    computed by comparing hashes server-side the same way logout() finds its
+    own session.
+    """
+    current_hash = token_hash(current_token) if current_token else None
+    with database(config) as conn:
+        rows = conn.execute(
+            "SELECT token_hash, created_at, expires_at FROM antiplagiat.sessions"
+            " WHERE user_id=%s AND expires_at>now() ORDER BY created_at DESC", (user_id,)).fetchall()
+    return {"items": [{"created_at": row["created_at"].isoformat(), "expires_at": row["expires_at"].isoformat(),
+                       "is_current": row["token_hash"] == current_hash} for row in rows]}
+
+
+def revoke_other_sessions(user_id, current_token, config=None):
+    """Sign out of every OTHER session (roles-phase1 Sect.25) -- the current
+    one (the request making this very call) is deliberately kept alive,
+    unlike change_password()'s full purge, since nothing about the account's
+    credentials changed here.
+    """
+    with database(config) as conn:
+        conn.execute("DELETE FROM antiplagiat.sessions WHERE user_id=%s AND token_hash<>%s",
+                     (user_id, token_hash(current_token)))
+    return {"status": "revoked"}

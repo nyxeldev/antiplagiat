@@ -1,2 +1,17 @@
 .section + .section { margin-top: var(--sp-6); }
 .formGrid { display: flex; flex-direction: column; gap: var(--sp-4); margin-top: var(--sp-4); max-width: 24rem; }
+.inlineForm { display: flex; flex-direction: column; gap: var(--sp-4); margin-top: var(--sp-5); max-width: 24rem; }
+
+.identity { display: flex; align-items: center; gap: var(--sp-4); }
+.identity p { margin: 0.1rem 0; }
+
+.avatarRow { display: flex; align-items: flex-start; gap: var(--sp-5); flex-wrap: wrap; }
+.avatarActions { display: flex; flex-direction: column; gap: var(--sp-3); flex: 1; min-width: 16rem; }
+
+.sessionList { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-4); }
+.sessionItem {
+  display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md); border: 1px solid var(--line-dark-strong);
+}
+.sessionItem svg { width: 1.3rem; height: 1.3rem; color: var(--ink-on-dark-faint); flex: none; }
+.sessionMeta { flex: 1; min-width: 0; font-size: var(--fs-sm); }

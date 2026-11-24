@@ -5,18 +5,20 @@ export const runtime = "nodejs";
 async function handle(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
   const target = `/${path.join("/")}`;
-  const allowed = (request.method === "GET" && (target === "/auth/me" || target === "/reports" ||
+  const allowed = (request.method === "GET" && (target === "/auth/me" || target === "/auth/sessions" || target === "/reports" ||
       target === "/corpus/documents" || target === "/corpus/submissions" ||
       target === "/admin/users" || target === "/admin/kafedra" ||
       /^\/reports\/[0-9a-f-]{36}$/i.test(target) ||
-      /^\/corpus\/documents\/[0-9a-f-]{36}$/i.test(target))) ||
-    (request.method === "POST" && (["/auth/login", "/auth/logout", "/auth/change-password", "/corpus/documents", "/corpus/submissions",
+      /^\/corpus\/documents\/[0-9a-f-]{36}$/i.test(target) ||
+      /^\/auth\/avatar\/[0-9a-f-]{36}$/i.test(target))) ||
+    (request.method === "POST" && (["/auth/login", "/auth/logout", "/auth/change-password", "/auth/full-name",
+        "/auth/username", "/auth/avatar", "/auth/sessions/revoke-others", "/corpus/documents", "/corpus/submissions",
         "/admin/users", "/admin/kafedra"].includes(target) ||
       /^\/corpus\/documents\/[0-9a-f-]{36}\/(withdraw|approve|reject)$/i.test(target) ||
       /^\/corpus\/submissions\/[0-9a-f-]{36}\/cancel$/i.test(target) ||
       /^\/users\/[0-9a-f-]{36}\/corpus-submission-access$/i.test(target) ||
       /^\/admin\/users\/[0-9a-f-]{36}\/(role|kafedra|enabled)$/i.test(target))) ||
-    (request.method === "DELETE" && /^\/reports\/[0-9a-f-]{36}$/i.test(target));
+    (request.method === "DELETE" && (target === "/auth/avatar" || /^\/reports\/[0-9a-f-]{36}$/i.test(target)));
   if (!allowed) return Response.json({ error: { message: "Topilmadi." } }, { status: 404, headers: { "Cache-Control": "no-store" } });
   return proxy(request, target);
 }

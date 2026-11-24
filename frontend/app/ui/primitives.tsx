@@ -134,6 +134,24 @@ export function Skeleton({ width, height = "1rem", onLight, style }: { width?: s
   return <div className={cx(styles.skeleton, onLight && styles.onLight)} style={{ width, height, ...style }} aria-hidden="true" />;
 }
 
+/* ---------------------------- Avatar --------------------------------- */
+export function Avatar({ src, alt = "", size = "2.25rem", fallback, onLight, className }: {
+  src?: string | null; alt?: string; size?: string; fallback: ReactNode; onLight?: boolean; className?: string;
+}) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <span className={cx(styles.avatar, onLight && styles.onLight, className)} style={{ width: size, height: size }}>
+      {src && !broken ? (
+        // next/image needs a static loader/dimensions config; this is a
+        // small, dynamic, session-cookie-gated bitmap behind our own API
+        // proxy, not a next/image-optimizable asset.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={alt} onError={() => setBroken(true)} />
+      ) : fallback}
+    </span>
+  );
+}
+
 /* ---------------------------- Pagination --------------------------------- */
 export function Pagination({ page, hasNext, onChange, disabled, onLight }: { page: number; hasNext: boolean; onChange: (page: number) => void; disabled?: boolean; onLight?: boolean }) {
   return (

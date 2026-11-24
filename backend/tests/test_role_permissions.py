@@ -21,6 +21,13 @@ ROLES = ("talaba", "ustoz", "kafedra_mudiri", "admin", "super_admin")
 ENDPOINTS = [
     ("GET", "/auth/me", "require_user"),
     ("POST", "/auth/change-password", "require_user"),
+    ("POST", "/auth/full-name", "require_user"),
+    ("POST", "/auth/username", "require_user"),
+    ("POST", "/auth/avatar", "require_user"),
+    ("DELETE", "/auth/avatar", "require_user"),
+    ("GET", "/auth/avatar/{user_id}", "require_user"),
+    ("GET", "/auth/sessions", "require_user"),
+    ("POST", "/auth/sessions/revoke-others", "require_user"),
     ("POST", "/auth/logout", "require_user"),
     ("GET", "/reports", "require_user"),
     ("GET", "/reports/{report_id}", "require_user"),
