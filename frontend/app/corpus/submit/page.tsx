@@ -31,6 +31,20 @@ function fileError(file: File) {
   return null;
 }
 
+/* status (active/withdrawn) va review_status (pending/approved/rejected) ikki
+ * mustaqil ustun -- faqat review_status'ga qarasa, "tasdiqlangan" bo'lib
+ * korpusga qo'shilgan hujjatni keyinroq boshqaruvchi chiqarib tashlagan
+ * holatda ham "Tasdiqlangan" deb ko'rsatib yuborardi. */
+function StatusBadge({ item }: { item: Submission }) {
+  if (item.status === "withdrawn" && item.review_status === "pending")
+    return <Badge variant="neutral">Bekor qilingan</Badge>;
+  if (item.status === "withdrawn" && item.review_status === "approved")
+    return <Badge variant="neutral">Korpusdan chiqarilgan</Badge>;
+  return <Badge variant={item.review_status === "rejected" ? "danger" : item.review_status === "pending" ? "cyan" : "accent"}>
+    {REVIEW_STATUS_LABEL[item.review_status] ?? item.review_status}
+  </Badge>;
+}
+
 export default function SubmitCorpusDocument() {
   const user = useUser();
   const expired = useSessionExpired();
@@ -46,6 +60,7 @@ export default function SubmitCorpusDocument() {
   const [visibility, setVisibility] = useState("excerpt");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const inFlight = useRef(false);
 
   const [page, setPage] = useState(1);
@@ -71,14 +86,14 @@ export default function SubmitCorpusDocument() {
   function pick(files: File[]) {
     const picked = files[0]; if (!picked) return;
     const problem = fileError(picked); if (problem) { setFormError(problem); return; }
-    setFormError(null); setFile(picked);
+    setFormError(null); setSubmitted(false); setFile(picked);
     if (!title) setTitle(picked.name.replace(/\.(txt|docx|pdf)$/i, ""));
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!file || !title.trim() || !permissionBasis.trim() || inFlight.current) return;
-    inFlight.current = true; setBusy(true); setFormError(null);
+    inFlight.current = true; setBusy(true); setFormError(null); setSubmitted(false);
     const body = new FormData();
     body.append("file", file); body.append("title", title); body.append("doc_type", docType);
     body.append("permission_basis", permissionBasis); body.append("visibility", visibility);
@@ -86,6 +101,7 @@ export default function SubmitCorpusDocument() {
       await api("/corpus/submissions", { method: "POST", body, signal: AbortSignal.timeout(60_000) });
       setFile(null); setTitle(""); setDocType("bmi"); setPermissionBasis(""); setVisibility("excerpt");
       setData(null); setVersion(v => v + 1);
+      setSubmitted(true); setTimeout(() => setSubmitted(false), 5000);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) expired();
       else setFormError(e instanceof Error && e.name !== "TimeoutError" ? e.message : "Vaqt tugadi. Qayta urinib ko‘ring.");
@@ -140,6 +156,7 @@ export default function SubmitCorpusDocument() {
           </Select>
         </Field>
         <Pop show={!!formError}>{formError && <Alert variant="error">{formError}</Alert>}</Pop>
+        <Pop show={submitted}>{submitted && <Alert variant="success">Taklif yuborildi. Administrator yoki korpus boshqaruvchisi ko‘rib chiqadi.</Alert>}</Pop>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <Button type="submit" loading={busy} disabled={!file || !title.trim() || !permissionBasis.trim()}>Taklif qilish</Button>
         </div>
@@ -167,11 +184,7 @@ export default function SubmitCorpusDocument() {
                   )}
                 </div>
                 <div className={styles.itemActions}>
-                  {item.status === "withdrawn" && item.review_status === "pending"
-                    ? <Badge variant="neutral">Bekor qilingan</Badge>
-                    : <Badge variant={item.review_status === "rejected" ? "danger" : item.review_status === "pending" ? "cyan" : "accent"}>
-                        {REVIEW_STATUS_LABEL[item.review_status] ?? item.review_status}
-                      </Badge>}
+                  <StatusBadge item={item} />
                   {item.status === "active" && item.review_status === "pending" && (
                     <IconButton label={`“${item.title}” taklifini bekor qilish`} icon={<IconTrash />}
                       onClick={() => setCancelling(item)} />
